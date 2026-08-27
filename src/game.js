@@ -2,15 +2,17 @@
 // world data, the dialogue runner and the state reducer.
 
 import { Input } from './core/input.js';
-import { Camera } from './core/camera.js';
 import { Sound } from './core/audio.js';
 import { startLoop } from './core/loop.js';
-import { drawMap, drawTint, Weather } from './render/tiles.js';
-import { drawActor, drawProp } from './render/sprites.js';
+import { Weather } from './render/weather.js';
+import { Renderer3D } from './render3d/renderer3d.js';
+import { drawActor3D, drawProp3D } from './render3d/models3d.js';
 import * as HUD from './render/hud.js';
 import { Player, Npc } from './entities/actors.js';
 import { getArea } from './world/index.js';
 import { TILE_SIZE } from './world/tiles.js';
+import { tileAt } from './world/mapbuilder.js';
+import { groundAt } from './render3d/materials3d.js';
 import { Dialogue } from './systems/dialogue.js';
 import { SCRIPTS } from './data/script.js';
 import {
@@ -24,13 +26,18 @@ const H = 540;
 const INTERACT_RANGE = 30;
 
 export class Game {
-  constructor(canvas) {
+  constructor(canvas, hudCanvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.hudCanvas = hudCanvas;
+    this.ctx = hudCanvas.getContext('2d');
     this.ctx.textBaseline = 'alphabetic';
     this.input = new Input(window);
     this.sound = new Sound();
-    this.camera = new Camera(W, H);
+    this.renderer = new Renderer3D(canvas);
+    this.hudW = W;
+    this.hudH = H;
+    this.hudScale = 1;
+    this.shake = 0;
     this.weather = new Weather(W, H);
     this.state = createState();
     this.player = new Player(this.state.player.x, this.state.player.y);
@@ -102,7 +109,7 @@ export class Game {
     this.state.player = { area: id, x, y, dir: this.player.dir };
     this.state.visited[id] = (this.state.visited[id] ?? 0) + 1;
     this.refreshEntities();
-    if (snap) this.camera.snapTo(this.player, this.area);
+    this.renderer.loadArea(this.area);
     this.weather.set(this.area.weather);
     this.sound.play(this.area.music);
     this.portalLock = true;
@@ -153,6 +160,9 @@ export class Game {
       default: break;
     }
 
+    if (this.input.pressed('BracketLeft')) this.renderer.zoom = Math.max(0.6, this.renderer.zoom - 0.15);
+    if (this.input.pressed('BracketRight')) this.renderer.zoom = Math.min(1.8, this.renderer.zoom + 0.15);
+
     if (this.input.pressed('KeyM')) {
       const muted = this.sound.toggleMute();
       this.toast(muted ? 'Sound off' : 'Sound on');
@@ -179,7 +189,7 @@ export class Game {
     this.state.player = { area: this.area.id, x: this.player.x, y: this.player.y, dir: this.player.dir };
 
     for (const npc of this.npcs) npc.update(dt, this.area, blockers);
-    this.camera.follow(this.player, this.area, dt);
+    this.shake = Math.max(0, this.shake - dt * 9);
 
     const outcome = tickFade(this.state, dt, this.area.spirit);
     if (outcome === 'thin') {
@@ -260,7 +270,7 @@ export class Game {
       return;
     }
     HUD.font(this.ctx, 16);
-    const lines = HUD.wrap(this.ctx, this.dialogue.text(), W - 110);
+    const lines = HUD.wrap(this.ctx, this.dialogue.text(), this.hudW - 110);
     this.pages = [];
     for (let i = 0; i < lines.length; i += 4) this.pages.push(lines.slice(i, i + 4));
     if (!this.pages.length) this.pages = [['']];
@@ -334,7 +344,7 @@ export class Game {
         case 'toast': this.toast(ev.text); break;
         case 'sfx': this.sound.sfx(ev.id); break;
         case 'music': this.sound.play(ev.id); break;
-        case 'shake': this.camera.kick(ev.power ?? 6); break;
+        case 'shake': this.shake = Math.max(this.shake, (ev.power ?? 6) * 0.05); break;
         case 'chapter': this.refreshEntities(); break;
         case 'rename': this.toast(`They call you ${ev.name} now.`); break;
         case 'teleport': this.pendingTeleport = ev.to; break;
@@ -532,79 +542,123 @@ export class Game {
 
   /* -------------------------------------------------------------- draw -- */
 
+  /** Match both canvases to the window; the HUD keeps a 540-unit design height. */
+  resize(width, height, dpr) {
+    this.renderer.resize(Math.round(width * dpr), Math.round(height * dpr));
+    this.hudCanvas.width = Math.round(width * dpr);
+    this.hudCanvas.height = Math.round(height * dpr);
+    this.hudScale = (height * dpr) / H;
+    this.hudH = H;
+    this.hudW = Math.round((width * dpr) / this.hudScale);
+    this.weather.w = this.hudW;
+    this.weather.h = this.hudH;
+    this.ctx.textBaseline = 'alphabetic';
+  }
+
   draw() {
     const ctx = this.ctx;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+    const W2 = this.hudW;
+    const H2 = this.hudH;
+
+    if (this.mode !== 'title' && this.mode !== 'ending') this.drawWorld();
+    else this.renderer.clearTo([0.04, 0.03, 0.07]);
+
+    ctx.setTransform(this.hudScale, 0, 0, this.hudScale, 0, 0);
+    ctx.clearRect(0, 0, W2, H2);
 
     if (this.mode === 'title') {
-      HUD.drawTitle(ctx, W, H, this.time, this.titleOptions, this.menuIndex);
+      HUD.drawTitle(ctx, W2, H2, this.time, this.titleOptions, this.menuIndex);
       return;
     }
     if (this.mode === 'ending') {
-      HUD.drawEnding(ctx, W, H, this.state, this.time, this.endingLines,
+      HUD.drawEnding(ctx, W2, H2, this.state, this.time, this.endingLines,
         this.endingPage >= this.endingPages.length - 1);
       return;
     }
 
-    drawMap(ctx, this.area, this.camera, this.time);
-
-    // Everything in the world is y-sorted so Aiko can pass behind things.
-    const drawables = [
-      ...this.props.map((p) => ({ y: p.y, kind: 'prop', ref: p })),
-      ...this.npcs.map((n) => ({ y: n.y, kind: 'npc', ref: n })),
-      { y: this.player.y, kind: 'player', ref: this.player }
-    ].sort((a, b) => a.y - b.y);
-
-    ctx.save();
-    ctx.translate(-this.camera.left, -this.camera.top);
-    for (const d of drawables) {
-      if (d.kind === 'prop') {
-        drawProp(ctx, d.ref, this.time);
-      } else if (d.kind === 'npc') {
-        drawActor(ctx, {
-          x: d.ref.x, y: d.ref.y, dir: d.ref.dir, walk: d.ref.walk,
-          kind: d.ref.kind, palette: d.ref.palette,
-          float: d.ref.kind === 'shade' || d.ref.kind === 'hollow'
-        }, this.time);
-      } else {
-        drawActor(ctx, {
-          x: this.player.x, y: this.player.y, dir: this.player.dir,
-          walk: this.player.walk, kind: 'human',
-          palette: { skin: '#e9bd95', hair: '#241c18', cloth: '#c84a5e', trim: '#f2e8d6' },
-          alpha: 1 - this.state.fade * 0.45
-        }, this.time);
-      }
-    }
-    ctx.restore();
-
-    drawTint(ctx, this.area, this.camera, this.player);
     this.weather.draw(ctx);
-
-    HUD.drawStatus(ctx, W, this.state, this.area, this.fps);
-    HUD.drawMinimap(ctx, W, this.area, this.player);
-    HUD.drawToasts(ctx, W, this.toasts);
+    HUD.drawStatus(ctx, W2, this.state, this.area, this.fps);
+    HUD.drawMinimap(ctx, W2, this.area, this.player);
+    HUD.drawToasts(ctx, W2, this.toasts);
 
     if (this.mode === 'play' && this.target) {
-      HUD.drawPrompt(ctx, W, H, `${this.target.label}   [Space]`);
+      HUD.drawPrompt(ctx, W2, H2, `${this.target.label}   [Space]`);
     }
     if (this.mode === 'dialogue' && this.dialogue) {
       const page = this.pages[this.pageIndex] ?? [''];
-      HUD.drawDialogue(ctx, W, H, {
+      const shown = page.join('').length;
+      HUD.drawDialogue(ctx, W2, H2, {
         speaker: this.dialogue.speaker(),
         text: page.join('\n'),
         revealed: this.revealed,
-        complete: this.revealed >= page.join('').length,
+        complete: this.revealed >= shown,
         more: this.pageIndex < this.pages.length - 1,
-        choices: this.revealed >= page.join('').length && this.pageIndex === this.pages.length - 1
+        choices: this.revealed >= shown && this.pageIndex === this.pages.length - 1
           ? this.dialogue.choices()
           : null,
         choiceIndex: this.choiceIndex
       });
     }
-    if (this.mode === 'journal') HUD.drawJournal(ctx, W, H, this.state);
-    if (this.mode === 'inventory') HUD.drawInventory(ctx, W, H, this.state, this.invIndex);
-    if (this.mode === 'menu') HUD.drawMenu(ctx, W, H, this.menuOptions(), this.menuIndex);
+    if (this.mode === 'journal') HUD.drawJournal(ctx, W2, H2, this.state);
+    if (this.mode === 'inventory') HUD.drawInventory(ctx, W2, H2, this.state, this.invIndex);
+    if (this.mode === 'menu') HUD.drawMenu(ctx, W2, H2, this.menuOptions(), this.menuIndex);
+  }
+
+  /** Hand the world to the 3D renderer. Game coordinates are pixels; 32 to the tile. */
+  /** Height of the ground under a pixel position, so nothing floats or sinks. */
+  groundUnder(px, py) {
+    return groundAt(tileAt(this.area, Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE)));
+  }
+
+  drawWorld() {
+    const r = this.renderer;
+    r.begin();
+
+    for (const prop of this.props) {
+      drawProp3D(r, {
+        type: prop.type,
+        x: prop.x / TILE_SIZE,
+        z: prop.y / TILE_SIZE,
+        y3d: this.groundUnder(prop.x, prop.y),
+        yaw: prop.yaw ?? 0
+      }, this.time);
+    }
+
+    for (const npc of this.npcs) {
+      drawActor3D(r, {
+        x: npc.x / TILE_SIZE,
+        z: npc.y / TILE_SIZE,
+        y: this.groundUnder(npc.x, npc.y),
+        dir: npc.dir,
+        walk: npc.walk,
+        kind: npc.kind,
+        palette: npc.palette,
+        scale: npc.kind ? 1 : 1.14          // adults stand taller than Aiko
+      }, this.time);
+    }
+
+    drawActor3D(r, {
+      x: this.player.x / TILE_SIZE,
+      z: this.player.y / TILE_SIZE,
+      y: this.groundUnder(this.player.x, this.player.y),
+      dir: this.player.dir,
+      walk: this.player.walk,
+      kind: 'human',
+      palette: { skin: '#e9bd95', hair: '#241c18', cloth: '#c84a5e', trim: '#f2e8d6' },
+      alpha: 1 - this.state.fade * 0.5
+    }, this.time);
+
+    const jitter = this.shake;
+    const focus = {
+      x: this.player.x / TILE_SIZE + (Math.random() - 0.5) * jitter,
+      y: 0,
+      z: this.player.y / TILE_SIZE + (Math.random() - 0.5) * jitter
+    };
+    r.render(this.area, focus, this.time, {
+      // Indoors the near wall has to get out of the way; outdoors it rarely matters.
+      cutaway: true,
+      lampBoost: this.state.fade > 0.5 ? 1.3 : 1
+    });
   }
 }
 

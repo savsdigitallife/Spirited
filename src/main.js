@@ -1,14 +1,22 @@
 import { Game } from './game.js';
 
 const canvas = document.getElementById('screen');
-const game = new Game(canvas);
+const hud = document.getElementById('hud');
 
-// Keep the pixel grid crisp: scale by whole pixels where we can.
+let game;
+try {
+  game = new Game(canvas, hud);
+} catch (err) {
+  document.body.innerHTML =
+    `<p style="padding:2rem;font:16px ui-monospace,monospace;color:#e8e2d4">` +
+    `Spirited needs WebGL2, which this browser did not provide.<br><br>${err.message}</p>`;
+  throw err;
+}
+
 function fit() {
-  const scale = Math.min(window.innerWidth / canvas.width, window.innerHeight / canvas.height);
-  const chosen = scale >= 1 ? Math.max(1, Math.floor(scale * 20) / 20) : scale;
-  canvas.style.width = `${canvas.width * chosen}px`;
-  canvas.style.height = `${canvas.height * chosen}px`;
+  // Cap the pixel ratio: a 4K display does not need 4K shadows to look right.
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  game.resize(window.innerWidth, window.innerHeight, dpr);
 }
 
 window.addEventListener('resize', fit);

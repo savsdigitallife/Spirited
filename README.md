@@ -6,8 +6,9 @@ flat above the Sakuragaoka crossing, follows her north to a rice valley called
 Kaminohara, and — once her father walks into a tunnel he should have left alone —
 into somewhere older than maps, where she has to work for her name back.
 
-Runs in any modern browser. No engine, no build step, no assets: every tile,
-character and note of music is generated at runtime from code.
+Runs in any modern browser. No engine, no build step, no asset files: the world
+is real 3D — extruded geometry, a sun that casts shadows, textures painted at
+load time and a procedural score — all generated at runtime from code.
 
 ## Play it
 
@@ -28,10 +29,12 @@ Any static server works (`python3 -m http.server`, `npx http-server`, …). Open
 | J or Tab | Journal — current chapter, side threads, what happened |
 | I | Satchel — inventory; Enter eats what can be eaten |
 | M | Mute |
+| [ and ] | Pull the camera in / push it out |
 | Esc | Pause menu (save, load, quit to title) |
 
 The game autosaves to `localStorage` every time you go through a door. On phones and
-tablets an on-screen pad appears.
+tablets an on-screen pad appears. It needs **WebGL2** — every browser released
+since 2021 has it.
 
 ## What's in it
 
@@ -56,20 +59,30 @@ for someone who has forgotten what river he is. Each one adds a paragraph to the
 epilogue.
 
 **Systems**: a name you can lose and get back, a fade meter that thins you out in the
-spirit world if you never eat, a journal, an inventory, day-tinted lighting per area,
-weather, procedural pentatonic music that re-tunes per location, and a soft-fail
-collapse instead of a death screen.
+spirit world if you never eat, a journal, an inventory, weather, procedural
+pentatonic music that re-tunes per location, and a soft-fail collapse instead of a
+death screen.
+
+**Rendered in 3D**: the tile grid is extruded into solid geometry — buildings six
+storeys tall, rice standing in flooded paddies, awnings on posts, a cliff around the
+whole valley. A directional sun casts real shadows through a 2048px shadow map;
+ambient occlusion is baked into the mesh; water has waves, specular and fresnel;
+lanterns carry glow shells and Aiko carries her own light into dark places. Each
+area has its own sun angle, sky gradient and fog, so morning in Tokyo and dusk past
+the tunnel are lit by different suns. Anything that comes between the camera and
+Aiko dissolves through a dither cone, so a wall never hides her.
 
 ## How it's built
 
 ```
-index.html            canvas + touch controls
+index.html            WebGL canvas + HUD canvas + touch controls
 server.js             zero-dependency static server
 src/
-  main.js             entry point, canvas scaling
+  main.js             entry point, canvas sizing
   game.js             modes, the loop, the glue
-  core/               input, camera, frame loop, audio, RNG
-  render/             tile painting, procedural sprites, HUD
+  core/               input, frame loop, audio, RNG
+  render3d/           the renderer: shaders, materials, mesh building, models
+  render/             HUD and weather, drawn on the 2D overlay
   entities/actors.js  player and NPC movement, collision
   systems/            state (the whole save), dialogue runner, save slots
   world/              tiles, map builder, and the areas themselves
@@ -77,12 +90,14 @@ src/
 tests/                node:test suites, no browser needed
 ```
 
-Two rules keep the thing testable: **maps are drawn in code** (a `Draft` grid plus
-stamp operations, seeded so a re-entered area looks the way you left it), and
-**nothing mutates game state except the reducer in `src/systems/state.js`**.
-Dialogue and props describe what should happen as plain effect objects —
-`{ type: 'give', id: 'foxCoin' }` — which is why a whole playthrough can be run
-headlessly.
+Three rules keep the thing testable. **Maps are drawn in code** (a `Draft` grid plus
+stamp operations, seeded so a re-entered area looks the way you left it).
+**Nothing mutates game state except the reducer in `src/systems/state.js`** —
+dialogue and props describe what should happen as plain effect objects,
+`{ type: 'give', id: 'foxCoin' }`, which is why a whole playthrough can be run
+headlessly. And **the 3D layer is a pure function of the tile grid**: gameplay is
+still 2D collision on a 32px grid, and `render3d/areamesh.js` turns that same grid
+into vertices without touching WebGL, so the geometry has its own tests too.
 
 ## Tests
 
@@ -90,7 +105,7 @@ headlessly.
 npm test
 ```
 
-Nineteen tests, no browser required. The two that matter most:
+Twenty-six tests, no browser required. The three that matter most:
 
 - `tests/world.test.js` validates every map — no NPC standing inside a wall, no
   portal landing in solid rock, no unreachable area, no dialogue script referenced
@@ -99,6 +114,9 @@ Nineteen tests, no browser required. The two that matter most:
   the real dialogue graphs and the real reducer, asserting each chapter, each locked
   door and each item along the way. If a story beat ever becomes unreachable, this
   goes red.
+- `tests/render3d.test.js` builds the geometry for every area and checks it is
+  finite, non-empty, correctly indexed, inside the map, and deterministic — the
+  things that would otherwise show up as a hole in the world.
 
 ## On the inspiration
 

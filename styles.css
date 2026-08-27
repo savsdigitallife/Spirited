@@ -20,19 +20,19 @@ html, body {
 #frame {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
 }
 
-#screen {
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  background: #000;
-  max-width: 100vw;
-  max-height: 100vh;
-  box-shadow: 0 0 0 1px #3a3358, 0 24px 80px rgba(0, 0, 0, .7);
-  cursor: default;
+/* The world renders into #screen; #hud is the 2D overlay stacked on it. */
+#screen, #hud {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
+
+#screen { background: #05060a; }
+#hud { pointer-events: none; }
 
 /* Touch controls: only shown on coarse pointers. */
 #touch { display: none; }

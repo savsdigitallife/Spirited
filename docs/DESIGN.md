@@ -53,6 +53,37 @@ want choices. Branch on state with the imported predicates (`hasItem`, `flag`,
 `src/systems/state.js`. If it changes the save, handle it there; if it's only sound
 and light, return an event and handle it in `Game.handleEvents`.
 
+## The renderer
+
+Gameplay is 2D and always has been: collision, interaction and portals all work on
+the 32-pixel tile grid in `src/world`. The 3D layer reads that grid and nothing
+else, which is why the story tests never had to change when it went in.
+
+`render3d/materials3d.js` is the whole translation table — what each tile is made
+of, how tall it stands, and what grows on it. `areamesh.js` walks the grid once and
+emits: floor quads with corner AO, extruded blocks with their buried faces culled,
+sunken water with a bed under it, banks wherever ground meets water, trees, fences,
+rail, market awnings, plants, and a cliff (outdoors) or plaster shell (indoors)
+around the edge so the horizon is never a hole. One mesh per area, uploaded once and
+cached; six areas stay resident.
+
+Decisions worth knowing about:
+
+- **Plants are geometry, not billboards.** Alpha-tested crossed quads were tried
+  first and looked like charcoal confetti: coarse mip levels average the
+  transparent background into the silhouette, and alpha testing turns the result
+  into stipple. Small solid boxes cost more triangles and solve all of it.
+- **The south wall is never built indoors.** The camera always stands south of
+  Aiko, so that wall would only ever be in the way.
+- **The cutaway is a cone, not a cylinder** — narrow at the lens, wide at Aiko — so
+  the dissolved region stays roughly the same size on screen wherever she stands.
+- **Shadow bias is normal-offset**, applied in the vertex shader; front faces are
+  culled during the shadow pass. Both are there to kill acne on large flat floors.
+- **Everything is one shader.** The world mesh takes its texture layer per vertex;
+  boxes and spheres override it with a uniform, or skip texturing and take a flat
+  tint. A glow shell is the same shader with emissive above 2, which short-circuits
+  lighting and fog entirely.
+
 ## Things deliberately left simple
 
 - **No combat.** Everything is talk, carry, notice.
@@ -64,6 +95,11 @@ and light, return an event and handle it in `Game.handleEvents`.
 ## Known rough edges
 
 - The minimap is a rectangle of dots; it doesn't show doors you haven't found.
+- The camera yaw is fixed. Rotating it would mean rotating the input axes with it,
+  and the tile grid stops reading clearly the moment it isn't axis-aligned.
+- Rooms were laid out for a 30x17-tile top-down view and the 3D camera shows about
+  half that, so the larger interiors (the boiler floor, the bathhouse) feel emptier
+  than they did. They want more furniture, not a different camera.
 - NPC wandering is a random walk inside a radius, so shopkeepers occasionally drift
   behind their own counters.
 - The procedural score is a phrase generator, not a composition. It suits the
