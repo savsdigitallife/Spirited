@@ -1,9 +1,19 @@
-// Act III. Everything past the tunnel. Older rules, same weather.
+// The village, through the hill from her farm: a market street, a bridge,
+// a bathhouse that everyone ends up in, and the lake beyond.
 
 import { makeArea, tp } from '../mapbuilder.js';
 import { T } from '../tiles.js';
 
 const PAL = {
+  kanae:  { skin: '#e2b48c', hair: '#3b2a22', cloth: '#7a6a3f', trim: '#e8e0cc' },
+  fish:   { skin: '#c99a6e', hair: '#4a3a30', cloth: '#3f5f8a', trim: '#dfe4ea' },
+  tofu:   { skin: '#e6c0a0', hair: '#2c2420', cloth: '#c8bda0', trim: '#8a7550' },
+  gran2:  { skin: '#d9b294', hair: '#b8b2a6', cloth: '#6a5a72', trim: '#e2d8c6' },
+  kid:    { skin: '#e6bb92', hair: '#2e2620', cloth: '#4f8a7a', trim: '#e8e0cc' },
+  kid2:   { skin: '#d8ab84', hair: '#3a2a20', cloth: '#c2564a', trim: '#f0e6d2' },
+  farmerB:{ skin: '#c99a6e', hair: '#6a5f52', cloth: '#4a5c46', trim: '#b0a68e' },
+  postman:{ skin: '#e0b48c', hair: '#241c18', cloth: '#c8452e', trim: '#f0e6d2' },
+  teen:   { skin: '#e6bb92', hair: '#1e1a17', cloth: '#5a5a7a', trim: '#e8e0cc' },
   mom:   { skin: '#e7bb95', hair: '#3b2a22', cloth: '#6f80a6', trim: '#dcd3c2' },
   dad:   { skin: '#dfb188', hair: '#2b2320', cloth: '#4d5c4e', trim: '#c9c2b0' },
   ren:   { skin: '#d8e2e6', hair: '#2f4a56', cloth: '#3f6f74', trim: '#cfe4e6' },
@@ -21,15 +31,16 @@ const PAL = {
 /* ------------------------------------------------------- hollow market -- */
 
 export const market = makeArea('market', {
-  wind: 'spirit',
-  name: 'The Hollow Market',
+  apron: 'moss',
+  skyline: 'hills',
+  wind: 'breeze',
+  name: 'Kaminohara Village Market',
   region: 'spirit',
   w: 60, h: 46,
   fill: T.grass,
-  spirit: true,
-  music: 'market',
-  tint: 'spiritdusk',
-  weather: 'embers',
+  music: 'village',
+  tint: 'afternoon',
+  weather: 'leaves',
   build(d, rng) {
     // The clock house you come out of. Its clock has no hands.
     d.fill(22, 1, 16, 7, T.wall);
@@ -56,26 +67,27 @@ export const market = makeArea('market', {
     return d;
   },
   npcs: [
-    { id: 'feastmom', name: 'Mom', ...tp(23, 21), dir: 'up', palette: PAL.mom, script: 'feastMom', hideIf: { atLeast: 'forbiddenFeast' } },
-    { id: 'feastdad', name: 'Dad', ...tp(27, 21), dir: 'up', palette: PAL.dad, script: 'feastDad', hideIf: { atLeast: 'forbiddenFeast' } },
-    { id: 'hogmom', name: 'A Clay Hog', ...tp(23, 21), dir: 'down', palette: { skin: '#b4644f', hair: '#8f4a3a', cloth: '#b4644f', trim: '#e0a08a' }, kind: 'hog', script: 'clayHog', showIf: [{ atLeast: 'forbiddenFeast' }, { before: 'homeward' }] },
-    { id: 'hogdad', name: 'A Clay Hog', ...tp(27, 21), dir: 'down', palette: { skin: '#a85c48', hair: '#8f4a3a', cloth: '#a85c48', trim: '#e0a08a' }, kind: 'hog', script: 'clayHog', showIf: [{ atLeast: 'forbiddenFeast' }, { before: 'homeward' }] },
-    { id: 'marketren', name: 'Ren', ...tp(30, 37), dir: 'up', palette: PAL.ren, script: 'marketRen', showIf: [{ chapter: 'forbiddenFeast' }] },
-    { id: 'stallghost', name: 'The Cook', ...tp(31, 20), dir: 'down', palette: PAL.shade, kind: 'shade', script: 'stallCook', showIf: { atLeast: 'findWork' } },
-    { id: 'shade1', name: 'A Passing Shade', ...tp(20, 27), dir: 'down', palette: PAL.shade, kind: 'shade', script: 'shade', wander: 3, showIf: { atLeast: 'forbiddenFeast' } },
-    { id: 'shade2', name: 'A Passing Shade', ...tp(36, 28), dir: 'left', palette: PAL.shade, kind: 'shade', script: 'shade', wander: 3, showIf: { atLeast: 'forbiddenFeast' } },
-    // The final test: a pen of identical hogs, and a lie to see through.
-    { id: 'penA', name: 'Hog', ...tp(23, 28), dir: 'down', palette: { skin: '#b4644f', hair: '#8f4a3a', cloth: '#b4644f', trim: '#e0a08a' }, kind: 'hog', script: 'penHog', showIf: { chapter: 'homeward' } },
-    { id: 'penB', name: 'Hog', ...tp(27, 28), dir: 'down', palette: { skin: '#a85c48', hair: '#8f4a3a', cloth: '#a85c48', trim: '#e0a08a' }, kind: 'hog', script: 'penHog', showIf: { chapter: 'homeward' } },
-    { id: 'penC', name: 'Hog', ...tp(31, 28), dir: 'down', palette: { skin: '#bb6b54', hair: '#8f4a3a', cloth: '#bb6b54', trim: '#e0a08a' }, kind: 'hog', script: 'penHog', showIf: { chapter: 'homeward' } },
-    { id: 'penD', name: 'Hog', ...tp(35, 28), dir: 'down', palette: { skin: '#a0553f', hair: '#8f4a3a', cloth: '#a0553f', trim: '#e0a08a' }, kind: 'hog', script: 'penHog', showIf: { chapter: 'homeward' } },
-    { id: 'penYuzuki', name: 'Lady Yuzuki', ...tp(29, 25), dir: 'down', palette: PAL.yuzuki, script: 'finalTest', showIf: { chapter: 'homeward' } }
+    { id: 'kanae', name: 'Kanae', ...tp(26, 20), dir: 'down', palette: PAL.kanae, script: 'kanae', life: 'work' },
+    { id: 'fishmonger', name: 'Toku the Fishmonger', ...tp(37, 13), dir: 'down', palette: PAL.fish, script: 'fishmonger', life: 'work' },
+    { id: 'tofumaker', name: 'The Tofu Maker', ...tp(22, 29), dir: 'down', palette: PAL.tofu, script: 'tofuMaker', life: 'work' },
+    { id: 'granmarket', name: 'Grandmother Shio', ...tp(31, 24), dir: 'left', palette: PAL.gran2, script: 'granShio', life: 'idle' },
+    { id: 'kidmarket', name: 'A Boy with a Kite', ...tp(26, 30), dir: 'up', palette: PAL.kid, script: 'kiteBoy', life: 'patrol',
+      route: [[26, 30], [34, 34], [24, 36], [22, 27]] },
+    { id: 'kidmarket2', name: 'A Girl on a Bicycle', ...tp(33, 16), dir: 'down', palette: PAL.kid2, script: 'bikeGirl', life: 'commute',
+      route: [[33, 12], [33, 38], [24, 38], [24, 12]] },
+    { id: 'shopper1', name: 'A Neighbour', ...tp(24, 22), dir: 'down', palette: PAL.farmerB, script: 'neighbour', life: 'patrol',
+      route: [[24, 14], [36, 22], [30, 34], [22, 24]] },
+    { id: 'shopper2', name: 'A Neighbour', ...tp(35, 27), dir: 'left', palette: PAL.osen, script: 'neighbour', life: 'patrol',
+      route: [[36, 34], [22, 30], [24, 16], [37, 20]] },
+    { id: 'postman', name: 'The Postman', ...tp(29, 12), dir: 'down', palette: PAL.postman, script: 'postman', life: 'commute',
+      route: [[29, 10], [29, 40], [17, 34], [29, 12]] },
+    { id: 'marketren', name: 'Ren', ...tp(30, 37), dir: 'up', palette: PAL.ren, script: 'marketRen', showIf: [{ chapter: 'theKeys' }], life: 'idle' }
   ],
   props: [
-    { id: 'feast', type: 'feast', ...tp(26, 19), solid: true, script: 'feastTable' },
-    { id: 'clock', type: 'clock', ...tp(30, 9), script: 'handlessClock' },
+    { id: 'produce', type: 'produce', ...tp(26, 19), solid: true, script: 'produceStall' },
+    { id: 'clock', type: 'clock', ...tp(30, 9), script: 'villageClock' },
     { id: 'marketsign', type: 'sign', ...tp(31, 39), script: 'marketSign' },
-    { id: 'emptypot', type: 'pot', ...tp(34, 22), solid: true, script: 'emptyPot' },
+    { id: 'noticeboard', type: 'board', ...tp(34, 22), solid: true, script: 'noticeBoardVillage' },
     { id: 'stallsign1', type: 'sign', ...tp(22, 13) },
     { id: 'stallsign2', type: 'sign', ...tp(37, 13) },
     { id: 'stallsign3', type: 'sign', ...tp(22, 31) },
@@ -86,50 +98,38 @@ export const market = makeArea('market', {
     { id: 'lamp6', type: 'lantern', ...tp(36, 35) },
     { id: 'lamp7', type: 'lantern', ...tp(29, 16) },
     { id: 'lamp8', type: 'lantern', ...tp(29, 33) },
-    { id: 'pot1', type: 'pot', ...tp(19, 16), solid: true },
-    { id: 'pot2', type: 'pot', ...tp(41, 22), solid: true },
-    { id: 'feast2', type: 'feast', ...tp(19, 22), solid: true, script: 'feastTable' },
-    { id: 'feast3', type: 'feast', ...tp(40, 28), solid: true, script: 'feastTable' }
+    { id: 'crate1', type: 'crate', ...tp(19, 16), solid: true, script: 'crates' },
+    { id: 'crate2', type: 'crate', ...tp(41, 22), solid: true, script: 'crates' },
+    { id: 'fishstall', type: 'produce', ...tp(40, 15), solid: true, script: 'fishStall' },
+    { id: 'tofustall', type: 'produce', ...tp(19, 29), solid: true, script: 'tofuStall' }
   ],
   portals: [
     {
       tx: 29, ty: 1, tw: 3, th: 1,
       to: { area: 'tunnel', x: tp(45, 6).x, y: tp(45, 6).y, dir: 'left' },
       label: 'Back through the clock house',
-      cond: [{ before: 'forbiddenFeast' }],
-      denyText: 'The way back is dark and full of water sounds. Not yet — not without them.'
+      label: 'Back through the tunnel'
     },
     {
       tx: 27, ty: 45, tw: 6, th: 1,
       to: { area: 'bridge', x: tp(20, 2).x, y: tp(20, 2).y, dir: 'down' },
-      label: 'Down to the bridge',
-      cond: { atLeast: 'forbiddenFeast' },
-      denyText: 'Steps go down toward lantern light and a great wooden building. Your parents are still eating.'
+      label: 'Down to the bridge'
     },
-    // Opened only for the walk home.
-    {
-      tx: 29, ty: 2, tw: 3, th: 1,
-      to: { area: 'tunnel', x: tp(45, 6).x, y: tp(45, 6).y, dir: 'left' },
-      label: 'Home',
-      cond: [{ chapter: 'done' }],
-      silent: true
-    }
   ],
   triggers: [
     {
       id: 'feastScene',
       tx: 22, ty: 20, tw: 8, th: 3,
       once: true,
-      cond: { chapter: 'throughTunnel' },
+      cond: { atLeast: 'theKeys' },
       fx: [{ type: 'cutscene', id: 'feastScene' }]
     },
     {
       id: 'duskFalls',
       tx: 16, ty: 36, tw: 28, th: 3,
       once: true,
-      cond: { atLeast: 'forbiddenFeast' },
       fx: [
-        { type: 'toast', text: 'Lanterns come on by themselves, all the way down the hill.' },
+        { type: 'toast', text: 'Market day runs on into the evening here, apparently every day.' },
         { type: 'sfx', id: 'chime' }
       ]
     }
@@ -139,15 +139,16 @@ export const market = makeArea('market', {
 /* ----------------------------------------------------- bridge of lamps -- */
 
 export const bridge = makeArea('bridge', {
-  wind: 'spirit',
-  name: 'Bridge of Nine Lamps',
+  apron: 'water',
+  skyline: 'hills',
+  wind: 'breeze',
+  name: 'The Old Bridge',
   region: 'spirit',
   w: 40, h: 30,
   fill: T.water,
-  spirit: true,
-  music: 'bridge',
-  tint: 'night',
-  weather: 'embers',
+  music: 'village',
+  tint: 'dusk',
+  weather: 'leaves',
   build(d) {
     d.fill(14, 0, 12, 4, T.stone);       // market landing
     d.fill(16, 3, 8, 24, T.bridge);      // the span
@@ -158,11 +159,12 @@ export const bridge = makeArea('bridge', {
     return d;
   },
   npcs: [
-    { id: 'bridgeren', name: 'Ren', ...tp(20, 10), dir: 'up', palette: PAL.ren, script: 'bridgeRen', showIf: { chapter: 'findWork' } },
-    { id: 'lamplighter', name: 'The Lamplighter', ...tp(18, 22), dir: 'right', palette: PAL.shade, kind: 'shade', script: 'lamplighter', showIf: { atLeast: 'findWork' } },
-    { id: 'radish', name: 'Radish Spirit', ...tp(22, 16), dir: 'down', palette: PAL.radish, kind: 'radish', script: 'radishSpirit', showIf: { atLeast: 'loseName' }, wander: 2 },
-    { id: 'guestfrog', name: 'A Guest', ...tp(19, 6), dir: 'down', palette: PAL.frog, kind: 'frog', script: 'guestFrog', showIf: { atLeast: 'loseName' }, wander: 3 },
-    { id: 'hollowbridge', name: 'The Hollow One', ...tp(23, 20), dir: 'up', palette: PAL.hollow, kind: 'hollow', script: 'hollowBridge', showIf: [{ atLeast: 'loseName' }, { before: 'hollowGuest' }] }
+    { id: 'bridgeren', name: 'Ren', ...tp(20, 10), dir: 'up', palette: PAL.ren, script: 'bridgeRen', life: 'idle' },
+    { id: 'lamplighter', name: 'The Lamplighter', ...tp(18, 22), dir: 'right', palette: PAL.gran2, script: 'lamplighter', life: 'work' },
+    { id: 'fisher', name: 'A Man Fishing', ...tp(22, 16), dir: 'down', palette: PAL.farmerB, script: 'fisher', life: 'idle' },
+    { id: 'dogwalker', name: 'A Woman and a Dog', ...tp(19, 6), dir: 'down', palette: PAL.gran2, script: 'dogWalker', life: 'patrol',
+      route: [[19, 4], [21, 24], [19, 6]] },
+    { id: 'bridgeteen', name: 'A Bored Teenager', ...tp(23, 20), dir: 'up', palette: PAL.teen, script: 'boredTeen', life: 'idle' }
   ],
   props: [
     { id: 'lampL1', type: 'lamp', ...tp(15, 6), lamp: 1 },
@@ -174,7 +176,7 @@ export const bridge = makeArea('bridge', {
     { id: 'lampL4', type: 'lamp', ...tp(15, 21), lamp: 7, unlit: true, script: 'darkLamp' },
     { id: 'lampR4', type: 'lamp', ...tp(24, 21), lamp: 8 },
     { id: 'lampMid', type: 'lamp', ...tp(20, 26), lamp: 9 },
-    { id: 'gatesign', type: 'sign', ...tp(17, 28), script: 'gateSign' }
+    { id: 'gatesign', type: 'sign', ...tp(17, 28), script: 'bridgeSign' }
   ],
   portals: [
     {
@@ -186,8 +188,6 @@ export const bridge = makeArea('bridge', {
       tx: 18, ty: 29, tw: 4, th: 1,
       to: { area: 'bathhouse', x: tp(26, 35).x, y: tp(26, 35).y, dir: 'up' },
       label: 'The bathhouse gate',
-      cond: { atLeast: 'findWork' },
-      denyText: 'The gate is shut to anyone with no business here. Business means work.'
     }
   ],
   triggers: [
@@ -195,7 +195,7 @@ export const bridge = makeArea('bridge', {
       id: 'holdBreath',
       tx: 16, ty: 4, tw: 8, th: 3,
       once: true,
-      cond: { chapter: 'findWork' },
+      cond: { atLeast: 'theKeys' },
       fx: [{ type: 'cutscene', id: 'bridgeMeeting' }]
     }
   ]
@@ -204,11 +204,10 @@ export const bridge = makeArea('bridge', {
 /* ----------------------------------------------------------- bathhouse -- */
 
 export const bathhouse = makeArea('bathhouse', {
-  name: 'Yuzuki\'s Bathhouse — Great Floor',
+  name: 'The Village Bathhouse',
   region: 'spirit',
   w: 52, h: 38,
   fill: T.wall,
-  spirit: true,
   indoors: true,
   music: 'bathhouse',
   tint: 'lamplight',
@@ -233,22 +232,25 @@ export const bathhouse = makeArea('bathhouse', {
     return d;
   },
   npcs: [
-    { id: 'gansuke', name: 'Gansuke', ...tp(26, 29), dir: 'down', palette: PAL.frog, kind: 'frog', script: 'gansuke' },
-    { id: 'osen', name: 'Osen', ...tp(12, 26), dir: 'right', palette: PAL.osen, script: 'osen', showIf: { atLeast: 'loseName' } },
-    { id: 'worker1', name: 'Bath Hand', ...tp(38, 26), dir: 'left', palette: PAL.frog, kind: 'frog', script: 'bathHand', wander: 3, showIf: { atLeast: 'loseName' } },
-    { id: 'worker2', name: 'Bath Hand', ...tp(9, 30), dir: 'up', palette: PAL.frog, kind: 'frog', script: 'bathHand', wander: 3, showIf: { atLeast: 'loseName' } },
-    { id: 'bathren', name: 'Ren', ...tp(44, 24), dir: 'left', palette: PAL.ren, script: 'bathRen', showIf: { atLeast: 'loseName' } },
-    { id: 'riverguest', name: 'The Stink Guest', ...tp(26, 19), dir: 'down', palette: PAL.river, kind: 'river', script: 'riverGuest', showIf: [{ chapter: 'riverGuest' }] },
-    { id: 'hollowbath', name: 'The Hollow One', ...tp(30, 25), dir: 'down', palette: PAL.hollow, kind: 'hollow', script: 'hollowBath', showIf: [{ chapter: 'hollowGuest' }] }
+    { id: 'gansuke', name: 'Gansuke', ...tp(26, 29), dir: 'down', palette: PAL.frog, script: 'gansuke', life: 'work' },
+    { id: 'osen', name: 'Osen', ...tp(12, 26), dir: 'right', palette: PAL.osen, script: 'osen', life: 'patrol',
+      route: [[12, 26], [20, 33], [36, 27], [14, 24]] },
+    { id: 'worker1', name: 'Bath Attendant', ...tp(38, 26), dir: 'left', palette: PAL.frog, script: 'bathHand', life: 'work' },
+    { id: 'worker2', name: 'Bath Attendant', ...tp(9, 30), dir: 'up', palette: PAL.tofu, script: 'bathHand', life: 'patrol',
+      route: [[9, 30], [9, 24], [18, 24], [10, 32]] },
+    { id: 'bathren', name: 'Ren', ...tp(44, 24), dir: 'left', palette: PAL.ren, script: 'bathRen', showIf: { atLeast: 'water' }, life: 'idle' },
+    { id: 'bathgran', name: 'Grandmother Shio', ...tp(20, 21), dir: 'down', palette: PAL.gran2, script: 'granShio', showIf: { atLeast: 'home' }, life: 'idle' },
+    { id: 'bathyuzuki', name: 'Yuzuki', ...tp(30, 25), dir: 'down', palette: PAL.yuzuki, script: 'dinnerYuzuki', showIf: { atLeast: 'home' }, life: 'idle' },
+    { id: 'bathtsuda', name: 'Old Man Tsuda', ...tp(24, 25), dir: 'down', palette: PAL.farmerB, script: 'dinnerTsuda', showIf: { atLeast: 'home' }, life: 'idle' }
   ],
   props: [
-    { id: 'chute', type: 'chute', ...tp(4, 5), solid: true, script: 'herbChute' },
+    { id: 'chute', type: 'chute', ...tp(4, 5), solid: true, script: 'bathTap' },
     { id: 'lift', type: 'lift', ...tp(47, 5), solid: true, script: 'liftProp' },
     { id: 'tubside', type: 'bucket', ...tp(16, 20), script: 'bucket' },
     { id: 'shrineB', type: 'lantern', ...tp(8, 24) },
     { id: 'shrineC', type: 'lantern', ...tp(44, 24) },
     { id: 'ledger', type: 'ledger', ...tp(30, 30), solid: true, script: 'ledgerProp' },
-    { id: 'notice', type: 'sign', ...tp(18, 33), script: 'noticeBoard' },
+    { id: 'notice', type: 'sign', ...tp(18, 33), script: 'bathNotice' },
     { id: 'lampF1', type: 'lantern', ...tp(11, 28) },
     { id: 'lampF2', type: 'lantern', ...tp(40, 28) },
     { id: 'lampF3', type: 'lantern', ...tp(20, 22) },
@@ -268,21 +270,16 @@ export const bathhouse = makeArea('bathhouse', {
       tx: 3, ty: 32, tw: 3, th: 3,
       to: { area: 'boiler', x: tp(40, 10).x, y: tp(40, 10).y, dir: 'left' },
       label: 'Down to the boiler',
-      cond: { atLeast: 'findWork' }
     },
     {
       tx: 45, ty: 6, tw: 5, th: 4,
       to: { area: 'office', x: tp(13, 15).x, y: tp(13, 15).y, dir: 'up' },
-      label: 'The lift, going up',
-      cond: { atLeast: 'findWork' },
-      denyText: 'The lift only answers to staff.'
+      label: 'The lift, going up'
     },
     {
       tx: 46, ty: 30, tw: 4, th: 4,
       to: { area: 'railstop', x: tp(17, 12).x, y: tp(17, 12).y, dir: 'up' },
-      label: 'The water-rail door',
-      cond: { atLeast: 'sixthStation' },
-      denyText: 'A door to the water. It is locked, and the lock has no keyhole.'
+      label: 'Out to the lake jetty'
     }
   ],
   triggers: [
@@ -290,8 +287,20 @@ export const bathhouse = makeArea('bathhouse', {
       id: 'firstFloor',
       tx: 20, ty: 33, tw: 12, th: 3,
       once: true,
-      cond: { chapter: 'findWork' },
-      fx: [{ type: 'toast', text: 'Every head on the floor turns. Every single one smells you.' }]
+      cond: { atLeast: 'theKeys' },
+      fx: [{ type: 'toast', text: 'Every head on the floor turns, says good evening, and goes back to what it was doing.' }]
+    },
+    {
+      id: 'dinner',
+      tx: 20, ty: 24, tw: 14, th: 6,
+      once: true,
+      cond: { chapter: 'home' },
+      fx: [
+        { type: 'chapter', id: 'done' },
+        { type: 'journal', text: 'Dinner at the bathhouse. Somebody had saved you a seat.' },
+        { type: 'toast', text: 'They had saved you a seat. Of course they had.' },
+        { type: 'sfx', id: 'chapter' }
+      ]
     }
   ]
 });
@@ -299,11 +308,10 @@ export const bathhouse = makeArea('bathhouse', {
 /* --------------------------------------------------------- boiler room -- */
 
 export const boiler = makeArea('boiler', {
-  name: 'The Boiler Room',
+  name: 'The Bathhouse Boiler Room',
   region: 'spirit',
   w: 44, h: 22,
   fill: T.wall,
-  spirit: true,
   indoors: true,
   music: 'boiler',
   tint: 'ember',
@@ -317,11 +325,9 @@ export const boiler = makeArea('boiler', {
     return d;
   },
   npcs: [
-    { id: 'kamashiro', name: 'Kamashiro', ...tp(20, 8), dir: 'up', palette: PAL.kama, kind: 'boilerman', script: 'kamashiro' },
-    { id: 'mite1', name: 'Cinder Mite', ...tp(10, 12), dir: 'up', palette: { skin: '#1a1a1a', hair: '#111', cloth: '#1a1a1a', trim: '#e0a040' }, kind: 'mite', script: 'cinderMite', wander: 3 },
-    { id: 'mite2', name: 'Cinder Mite', ...tp(14, 14), dir: 'up', palette: { skin: '#1a1a1a', hair: '#111', cloth: '#1a1a1a', trim: '#e0a040' }, kind: 'mite', script: 'cinderMite', wander: 3 },
-    { id: 'mite3', name: 'Cinder Mite', ...tp(28, 13), dir: 'up', palette: { skin: '#1a1a1a', hair: '#111', cloth: '#1a1a1a', trim: '#e0a040' }, kind: 'mite', script: 'cinderMite', wander: 3 },
-    { id: 'mite4', name: 'Cinder Mite', ...tp(32, 10), dir: 'up', palette: { skin: '#1a1a1a', hair: '#111', cloth: '#1a1a1a', trim: '#e0a040' }, kind: 'mite', script: 'cinderMite', wander: 2 }
+    { id: 'kamashiro', name: 'Kamashiro', ...tp(20, 8), dir: 'up', palette: PAL.kama, script: 'kamashiro', life: 'work' },
+    { id: 'apprentice', name: 'The Apprentice', ...tp(14, 13), dir: 'right', palette: PAL.teen, script: 'apprentice', life: 'patrol',
+      route: [[14, 13], [6, 12], [24, 16], [16, 14]] }
   ],
   props: [
     { id: 'coalpile', type: 'coal', ...tp(4, 12), script: 'coalPile' },
@@ -342,11 +348,10 @@ export const boiler = makeArea('boiler', {
 /* ------------------------------------------------------ yuzuki's office -- */
 
 export const office = makeArea('office', {
-  name: 'The High Office',
+  name: 'Yuzuki\'s Office',
   region: 'spirit',
   w: 26, h: 18,
   fill: T.wall,
-  spirit: true,
   indoors: true,
   music: 'office',
   tint: 'gold',
@@ -359,13 +364,14 @@ export const office = makeArea('office', {
     return d;
   },
   npcs: [
-    { id: 'yuzuki', name: 'Lady Yuzuki', ...tp(13, 2), dir: 'down', palette: PAL.yuzuki, script: 'yuzuki' },
-    { id: 'heir', name: 'The Heir', ...tp(23, 5), dir: 'left', palette: { skin: '#f0d8c0', hair: '#2a221c', cloth: '#d0a8b8', trim: '#f4e8d8' }, kind: 'heir', script: 'heir' }
+    { id: 'yuzuki', name: 'Yuzuki', ...tp(13, 2), dir: 'down', palette: PAL.yuzuki, script: 'yuzuki', life: 'work' },
+    { id: 'grandson', name: 'Her Grandson', ...tp(23, 5), dir: 'left', palette: PAL.teen, script: 'grandson', life: 'idle' }
   ],
   props: [
-    { id: 'contract', type: 'contract', ...tp(16, 4), solid: true, script: 'contractProp' },
+    { id: 'contract', type: 'contract', ...tp(16, 4), solid: true, script: 'leasePapers' },
     { id: 'brazier', type: 'brazier', ...tp(8, 4), solid: true, script: 'brazier' },
-    { id: 'namebox', type: 'namebox', ...tp(11, 12), solid: true, script: 'nameBox' }
+    { id: 'keybox', type: 'namebox', ...tp(11, 12), solid: true, script: 'keyBox' },
+    { id: 'officetable', type: 'table', ...tp(13, 8), solid: true, script: 'officeTable' }
   ],
   portals: [
     {
@@ -379,14 +385,15 @@ export const office = makeArea('office', {
 /* ----------------------------------------------------------- water rail -- */
 
 export const railstop = makeArea('railstop', {
-  wind: 'spirit',
-  name: 'The Water Rail',
+  apron: 'water',
+  skyline: 'hills',
+  wind: 'breeze',
+  name: 'The Lake Jetty',
   region: 'spirit',
   w: 34, h: 18,
   fill: T.railwater,
-  spirit: true,
-  music: 'rail',
-  tint: 'night',
+  music: 'lake',
+  tint: 'lateblue',
   build(d) {
     d.fill(4, 8, 26, 4, T.stone);
     d.fill(14, 4, 6, 4, T.wall);
@@ -395,13 +402,13 @@ export const railstop = makeArea('railstop', {
     return d;
   },
   npcs: [
-    { id: 'railman', name: 'The Rail Attendant', ...tp(11, 10), dir: 'right', palette: PAL.shade, kind: 'shade', script: 'railman' },
-    { id: 'waiting1', name: 'A Waiting Shade', ...tp(22, 10), dir: 'down', palette: PAL.shade, kind: 'shade', script: 'waitingShade' },
-    { id: 'waiting2', name: 'A Waiting Shade', ...tp(25, 10), dir: 'down', palette: PAL.shade, kind: 'shade', script: 'waitingShade' }
+    { id: 'ferryman', name: 'The Ferryman', ...tp(11, 10), dir: 'right', palette: PAL.farmerB, script: 'ferryman', life: 'idle' },
+    { id: 'jettyfisher', name: 'A Girl Fishing', ...tp(22, 10), dir: 'down', palette: PAL.kid2, script: 'jettyFisher', life: 'idle' },
+    { id: 'jettygran', name: 'A Woman Waiting', ...tp(25, 10), dir: 'down', palette: PAL.gran2, script: 'waitingWoman', life: 'idle' }
   ],
   props: [
-    { id: 'railsign', type: 'sign', ...tp(8, 9), script: 'railSign' },
-    { id: 'railcar', type: 'railcar', ...tp(17, 14), solid: true, script: 'railCar' }
+    { id: 'railsign', type: 'sign', ...tp(8, 9), script: 'jettySign' },
+    { id: 'railcar', type: 'railcar', ...tp(17, 14), solid: true, script: 'ferryBoat' }
   ],
   portals: [
     {
@@ -415,12 +422,13 @@ export const railstop = makeArea('railstop', {
 /* ---------------------------------------------------------- marsh house -- */
 
 export const marshhouse = makeArea('marshhouse', {
+  apron: 'marshWater',
+  skyline: 'forest',
   wind: 'breeze',
-  name: 'Sixth Station — The Marsh House',
+  name: 'The Weaver\'s Cottage',
   region: 'spirit',
   w: 34, h: 24,
   fill: T.marsh,
-  spirit: true,
   music: 'marsh',
   tint: 'lateblue',
   build(d, rng) {
@@ -436,8 +444,7 @@ export const marshhouse = makeArea('marshhouse', {
     return d;
   },
   npcs: [
-    { id: 'yumeno', name: 'Granny Yumeno', ...tp(17, 10), dir: 'down', palette: PAL.yumeno, script: 'yumeno' },
-    { id: 'hollowguest', name: 'The Hollow One', ...tp(20, 13), dir: 'left', palette: PAL.hollow, kind: 'hollow', script: 'hollowSettled', showIf: { flag: 'hollowFollowed' } }
+    { id: 'yumeno', name: 'Yumeno', ...tp(17, 10), dir: 'down', palette: PAL.yumeno, script: 'yumeno', life: 'work' }
   ],
   props: [
     { id: 'wheel', type: 'wheel', ...tp(13, 13), solid: true, script: 'spinningWheel' },
@@ -450,12 +457,13 @@ export const marshhouse = makeArea('marshhouse', {
 /* ------------------------------------------------- grove of folded names -- */
 
 export const grove = makeArea('grove', {
+  apron: 'moss',
+  skyline: 'forest',
   wind: 'breeze',
-  name: 'The Grove of Folded Names',
+  name: 'The Cedar Grove',
   region: 'spirit',
   w: 40, h: 30,
   fill: T.moss,
-  spirit: true,
   music: 'grove',
   tint: 'dawn',
   weather: 'petals',
@@ -469,12 +477,12 @@ export const grove = makeArea('grove', {
     return d;
   },
   npcs: [
-    { id: 'groveren', name: 'Ren', ...tp(20, 20), dir: 'up', palette: PAL.ren, kind: 'dragon', script: 'groveRen' }
+    { id: 'groveren', name: 'Ren', ...tp(20, 20), dir: 'up', palette: PAL.ren, script: 'groveRen', life: 'idle' }
   ],
   props: [
-    { id: 'slips1', type: 'slips', ...tp(16, 10), script: 'nameSlips' },
-    { id: 'slips2', type: 'slips', ...tp(25, 12), script: 'nameSlips' },
-    { id: 'stoneMarker', type: 'jizo', ...tp(20, 6), solid: true, script: 'groveStone' }
+    { id: 'slips1', type: 'slips', ...tp(16, 10), script: 'prayerSlips' },
+    { id: 'slips2', type: 'slips', ...tp(25, 12), script: 'prayerSlips' },
+    { id: 'stoneMarker', type: 'jizo', ...tp(20, 6), solid: true, script: 'groveShrine' }
   ],
   portals: []
 });

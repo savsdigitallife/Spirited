@@ -1,10 +1,13 @@
 # Spirited — The Long Way Home
 
-An open-world adventure game inspired by *Spirited Away*. You play **Aiko**, twelve
-years old, being moved out of Tokyo against her will. The game starts in a stripped
-flat above the Sakuragaoka crossing, follows her north to a rice valley called
-Kaminohara, and — once her father walks into a tunnel he should have left alone —
-into somewhere older than maps, where she has to work for her name back.
+A cosy open-world game about starting again. **Aiko Nakazato is thirty.** She has
+handed in her notice, packed eleven years of Tokyo into four boxes, and taken the
+lease on a smallholding in Kaminohara that has stood empty for eleven years and is
+mostly bramble.
+
+Clear the ground. Get seed in before the season turns. Find out why the water
+channel is dry. Take on six hens and a goat. Hold it all together through a
+typhoon, and carry the first basket down to the village market.
 
 Runs in any modern browser. No engine, no build step, no asset files — not one
 image, not one sound. The world is real 3D: extruded geometry, a sun that casts
@@ -29,6 +32,7 @@ Any static server works (`python3 -m http.server`, `npx http-server`, …). Open
 | Space / Enter / E | Talk, read, examine, choose |
 | J or Tab | Journal — current chapter, side threads, what happened |
 | I | Satchel — inventory; Enter eats what can be eaten |
+| V | Switch between third person and first person |
 | M | Mute |
 | [ and ] | Pull the camera in / push it out |
 | Esc | Pause menu (save, load, quit to title) |
@@ -39,67 +43,53 @@ since 2021 has it.
 
 ## What's in it
 
-**Fourteen chapters across thirteen hand-built areas**, in three regions:
+**Twelve chapters, and the journal always tells you exactly what to do next.**
+Every chapter states one task and where to do it; press J at any point and it is
+written down, with a hint underneath.
 
-- **Tokyo** — the emptied flat, the crossing and its shrine, Kitano station, and the
-  northbound local.
-- **Kaminohara** — the paddy road, Tsuda's farm, the fox shrine, and the tunnel.
-- **Beyond** — the hollow market, the Bridge of Nine Lamps, Yuzuki's bathhouse and
-  its boiler floor, the high office, the water rail, the marsh house at the sixth
-  station, and the grove where taken names are kept.
+**Sixteen areas across three places:**
 
-**About a hundred conversations**, most of which change with the chapter, what Aiko
-is carrying, and what she has already worked out. Choices matter in small, local
-ways rather than branching the ending: whether you expose a frog who has been
-skimming the bath fees, whether you give away the coal you need, whether you pull
-the bicycle out of a river spirit alone or call the whole floor to help.
+- **Tokyo** — the emptied flat, a rain-soaked neon crossing with ramen counters and
+  a konbini, Kitano station, and the last northbound train.
+- **Kaminohara** — the paddy road, Tsuda's farm, the tunnel through the hill, and
+  **your own farm**: a walled garden, a woodshed, a water channel, a coop, and a
+  farmhouse with a kitchen, a hearth and a wooden bath.
+- **The village** — a market street with real stalls, the old bridge and its nine
+  lamps, the bathhouse everybody ends up in, the boiler room under it, Yuzuki's
+  office, the lake jetty and the weaver's cottage across the water.
 
-**Five optional threads** you can finish or ignore — the nine lamps, the cinder
-mites' wages, the crooked ledger, the cook who never left, and three river stones
-for someone who has forgotten what river he is. Each one adds a paragraph to the
-epilogue.
+**A street full of people with somewhere to be.** NPCs have lives, not loops:
+commuters walk routes at pace, shopkeepers work at their stalls, a courier crosses
+the whole map and back, a postman does his round, kids patrol, a cat sleeps until
+it decides not to, hens peck and the goat grazes. Everyone has their own speed and
+their own pauses.
 
-**Systems**: a name you can lose and get back, a fade meter that thins you out in the
-spirit world if you never eat, a journal, an inventory, weather, procedural
-pentatonic music that re-tunes per location, and a soft-fail collapse instead of a
-death screen.
+**Five optional threads** — the nine bridge lamps, a barn cat who might stay, a
+sixty-year-old hole in the bathhouse ledger, three river stones for Ren, and
+cuttings from the weaver across the lake. Each adds a paragraph to the epilogue.
 
-**Rendered in 3D**: the tile grid is extruded into solid geometry — buildings six
-storeys tall, rice standing in flooded paddies, awnings on posts, a cliff around the
-whole valley. A directional sun casts real shadows through a 2048px shadow map;
-ambient occlusion is baked into the mesh; water rolls in two crossing swells with
-specular and fresnel on top; lanterns carry glow shells and Aiko carries her own
-light into dark places. Each area has its own sun angle, sky gradient and fog.
-Anything that comes between the camera and Aiko dissolves through a dither cone, so
-a wall never hides her.
+**Rendered in 3D**: the tile grid is extruded into solid geometry — Tokyo towers
+fifteen storeys tall, rice standing in flooded paddies, market awnings on posts.
+A directional sun casts real shadows through a 2048px shadow map; ambient occlusion
+is baked into the mesh; water rolls in two crossing swells. The ground continues
+past the last tile to a ridge on the horizon, so there is no edge to fall off.
+Anything between the camera and Aiko dissolves through a dither cone.
 
 **Wind moves the world.** Every vertex carries how freely it can move and its own
-phase, so a gust travels across a field as a wave rather than shoving everything at
-once. Grass bends from the root, rice bows, bushes shiver, branches lean — and each
-of the ~250 leaves on a tree flutters on its own clock. Shadows bend with it,
-because the shadow pass runs the same wind. Each region has its own weather: a
-gusty valley, a storm over the city, a slow strange drift beyond the tunnel.
+phase, so a gust travels across a field as a wave. Grass bends from the root, rice
+bows, and each of the ~250 leaves on a tree flutters on its own clock. Shadows bend
+with it, because the shadow pass runs the same wind.
 
-**Tokyo is a wet neon night.** The move happens under a downpour: two thousand rain
-streaks slanting with the wind in a single draw call, shop signs in magenta, cyan
-and amber — some of them flickering — and a road that goes glossy and throws their
-colour back at you. Puddles pool where the ground dips, ripple rings spread where
-the rain lands, and every footstep out there picks up a splash.
-
-**People look like people.** Characters are a jointed rig, not a stack of boxes:
-hips and shoulders swing in opposition, knees and elbows bend the way joints
-actually bend, the body rises and falls on each step, and idle characters breathe.
-Heads, hands and shoulders are spheres; limbs are capped cylinders that hinge at
-the joint.
+**Tokyo is a wet neon night** — two thousand rain streaks in a single draw call,
+shop signs in magenta, cyan and amber, warm light spilling out of ramen counters,
+and a road that goes glossy and throws the colour back at you.
 
 **Sound is synthesised end to end.** Every scene has a composed track — key, chord
-progression, bass line, arpeggio, melody and drum pattern — played by a
-sixteenth-note scheduler through pads, plucks, bells and a drum kit built from
-oscillators and filtered noise, with a shared convolution reverb. The city gets a
-dark synth four-on-the-floor; the bathhouse a plucked pentatonic over taiko; the
-tunnel a drone and the occasional bell. Footsteps are synthesised per surface —
-grass, gravel, wet stone, tatami, wood, water, metal — alternating feet, detuned
-each step so a walk never turns into a metronome.
+progression, bass, and a melody line — played by a sixteenth-note scheduler through
+pads, plucks and bells with a long shared reverb. Nothing is faster than 66bpm and
+there is no percussion anywhere: the loudest thing in the game is a bell. Footsteps
+are synthesised per surface (grass, gravel, wet stone, tatami, wood, water, metal),
+alternating feet, detuned each step.
 
 ## How it's built
 
@@ -139,10 +129,11 @@ Thirty-four tests, no browser required. The four that matter most:
 - `tests/world.test.js` validates every map — no NPC standing inside a wall, no
   portal landing in solid rock, no unreachable area, no dialogue script referenced
   by the world that doesn't exist, and every script runs cleanly in every chapter.
-- `tests/story.test.js` plays the game from the Tokyo flat to the walk home through
-  the real dialogue graphs and the real reducer, asserting each chapter, each locked
-  door and each item along the way. If a story beat ever becomes unreachable, this
-  goes red.
+- `tests/story.test.js` plays the whole game — flat, ramen counter, ticket machine,
+  train, locked gate, lease, brambles, seed, sluice, hens, coop, typhoon, harvest,
+  market, dinner — through the real dialogue graphs and the real reducer, asserting
+  each chapter, each locked door and each item along the way. If a story beat ever
+  becomes unreachable, this goes red.
 - `tests/render3d.test.js` builds the geometry for every area and checks it is
   finite, non-empty, correctly indexed, inside the map, and deterministic — the
   things that would otherwise show up as a hole in the world.
@@ -153,7 +144,7 @@ Thirty-four tests, no browser required. The four that matter most:
 
 ## On the inspiration
 
-This is an homage, not an adaptation. The shape of the story — a child, a tunnel, a
-bathhouse, a bargain over a name — is Miyazaki's. Every character, place and line
-here is original: Aiko, Ren, Lady Yuzuki, Granny Yumeno, Kamashiro, Gansuke, the
-Hollow One, the Sazanami.
+The look and the mood owe a debt to Miyazaki — the bathhouse, the tunnel through the
+hill, a valley that runs on its own rules. The story is its own: nobody is spirited
+away, and the hardest thing anyone faces is bramble, a dry channel and a typhoon in
+the first season. Every character and place here is original.

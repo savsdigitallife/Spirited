@@ -54,19 +54,33 @@ test('every area builds finite, non-empty geometry', () => {
   }
 });
 
-test('geometry stays inside the map, give or take the surrounding cliff', () => {
-  const area = getArea('paddyroad');
+test('the ground runs well past the last tile, so there is no edge to fall off', () => {
+  for (const id of ['paddyroad', 'street', 'grove']) {
+    const area = getArea(id);
+    const { solid } = buildAreaMesh(area);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity;
+    for (let i = 0; i < solid.data.length; i += VERTEX_FLOATS) {
+      minX = Math.min(minX, solid.data[i]);
+      maxX = Math.max(maxX, solid.data[i]);
+      minY = Math.min(minY, solid.data[i + 1]);
+    }
+    assert.ok(minX < -30, `${id}: ground should continue west of the map, got ${minX}`);
+    assert.ok(maxX > area.w + 30, `${id}: ground should continue east of the map, got ${maxX}`);
+    // Distant hills are half-buried spheres, so they reach a long way down;
+    // what matters is that nothing is absurdly far below the world.
+    assert.ok(minY >= -60, `${id}: geometry drops to ${minY}`);
+  }
+});
+
+test('indoor areas are wrapped instead, with no apron sprawling outside', () => {
+  const area = getArea('flat');
   const { solid } = buildAreaMesh(area);
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let minX = Infinity, maxX = -Infinity;
   for (let i = 0; i < solid.data.length; i += VERTEX_FLOATS) {
     minX = Math.min(minX, solid.data[i]);
     maxX = Math.max(maxX, solid.data[i]);
-    minY = Math.min(minY, solid.data[i + 1]);
-    maxY = Math.max(maxY, solid.data[i + 1]);
   }
-  assert.ok(minX >= -2 && maxX <= area.w + 2, 'geometry should not sprawl past the edge wall');
-  assert.ok(minY >= -8, 'nothing should drop below the skirt');
-  assert.ok(maxY < 20, 'nothing should tower absurdly over the valley');
+  assert.ok(minX > -4 && maxX < area.w + 4, 'a room should not have a field around it');
 });
 
 test('the mesh builder is deterministic — a revisited area looks the same', () => {

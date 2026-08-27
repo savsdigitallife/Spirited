@@ -17,6 +17,24 @@ export function rgb(hex) {
 
 export const YAW = { down: 0, up: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 
+/**
+ * Aiko: thirty, leaving the city for a farm she has never seen.
+ * Ochre canvas work jacket, cream shirt, deep green trousers, an indigo scarf
+ * her grandmother wove, and a long dark braid — legible from above, which is
+ * where you will mostly be looking at her from.
+ */
+export const HERO = {
+  skin: '#e6b795',
+  hair: '#221a16',
+  cloth: '#c8862e',      // the jacket
+  trim: '#f0e6d2',       // the shirt at the collar and cuffs
+  legs: '#3c4a3a',
+  boots: '#4a3527',
+  scarf: '#3d5a8c',
+  longHair: true,
+  scale: 1.34
+};
+
 /** Draw a box positioned in the model's local frame, with `y` as its base. */
 function part(r, o, lx, y, lz, sx, sy, sz, color, opts = {}) {
   const c = Math.cos(o.yaw);
@@ -80,6 +98,28 @@ export function drawActor3D(r, a, time) {
       part(r, o, 0, 0.3, -0.32, 0.07, 0.07, 0.28, cloth, opts);
       for (const [lx, lz] of [[-0.09, 0.18], [0.09, 0.18], [-0.09, -0.16], [0.09, -0.16]]) {
         part(r, o, lx, 0, lz, 0.07, 0.17, 0.07, cloth, opts);
+      }
+      break;
+    }
+    case 'hen': {
+      const peck = Math.max(0, Math.sin(time * 2.2 + o.x * 3)) * 0.1;
+      part(r, o, 0, 0.12, 0, 0.2, 0.18, 0.28, skin, opts);
+      ball(r, o, 0, 0.34 - peck, 0.12, 0.07, 0.075, 0.07, skin, opts);
+      part(r, o, 0, 0.36 - peck, 0.16, 0.05, 0.06, 0.04, rgb('#c23a2a'), opts);   // comb
+      part(r, o, 0, 0.3 - peck, 0.2, 0.045, 0.03, 0.05, trim, opts);             // beak
+      part(r, o, 0, 0.16, -0.18, 0.12, 0.14, 0.1, hair, opts);                   // tail
+      for (const lx of [-0.06, 0.06]) part(r, o, lx, 0, 0.02, 0.03, 0.12, 0.03, trim, opts);
+      break;
+    }
+    case 'goat': {
+      part(r, o, 0, 0.3, 0, 0.3, 0.28, 0.62, skin, opts);
+      part(r, o, 0, 0.42, 0.36, 0.22, 0.22, 0.22, skin, opts);
+      part(r, o, 0, 0.4, 0.48, 0.12, 0.1, 0.1, hair, opts);
+      for (const lx of [-0.08, 0.08]) part(r, o, lx, 0.6, 0.3, 0.05, 0.14, 0.05, trim, opts);
+      part(r, o, 0, 0.3, 0.46, 0.06, 0.14, 0.05, trim, opts);                    // beard
+      part(r, o, 0, 0.4, -0.34, 0.08, 0.16, 0.06, skin, opts);
+      for (const [lx, lz] of [[-0.11, 0.2], [0.11, 0.2], [-0.11, -0.2], [0.11, -0.2]]) {
+        part(r, o, lx, 0, lz, 0.07, 0.3, 0.07, hair, opts);
       }
       break;
     }
@@ -195,7 +235,7 @@ export function drawActor3D(r, a, time) {
       // People: a jointed rig rather than a stack of boxes. Hips and shoulders
       // swing, knees and elbows bend behind them, and the whole body rises and
       // falls on each step.
-      const S = a.scale ?? 1;
+      const S = a.scale ?? pal.scale ?? 1;
       const walk = a.walk ?? 0;
       const speed = Math.min(1, Math.abs(a.walk ?? 0) > 0 ? (a.moving ? 1 : 0.15) : 0.15);
       const gait = Math.sin(walk) * speed;
@@ -211,7 +251,8 @@ export function drawActor3D(r, a, time) {
       const shin = 0.26 * S;
       const upperArm = 0.21 * S;
       const foreArm = 0.2 * S;
-      const trouser = [0.16, 0.15, 0.19];
+      const trouser = pal.legs ? rgb(pal.legs) : [0.16, 0.15, 0.19];
+      const bootColor = pal.boots ? rgb(pal.boots) : rgb('#2f2823');
 
       // Legs, each a thigh that swings and a shin that only ever bends back.
       for (const side of [-1, 1]) {
@@ -222,7 +263,7 @@ export function drawActor3D(r, a, time) {
         const ankle = bone(r, o, knee[0], knee[1], knee[2], legR * 0.88, shin,
           swing * 0.62 + bend, trouser, opts);
         part(r, o, ankle[0], ankle[1] - 0.03 * S, ankle[2] + 0.03 * S,
-          0.095 * S, 0.05 * S, 0.18 * S, rgb('#2f2823'), { ...opts, rot: o.yaw });
+          0.095 * S, 0.06 * S, 0.18 * S, bootColor, { ...opts, rot: o.yaw });
       }
 
       // Torso: hips, a tapered waist and a chest, so the silhouette narrows.
@@ -253,6 +294,28 @@ export function drawActor3D(r, a, time) {
       ball(r, o, -0.04 * S, headY + 0.012 * S, 0.086 * S, 0.017 * S, 0.022 * S, 0.012 * S, [0.1, 0.08, 0.07], opts);
       ball(r, o, 0.04 * S, headY + 0.012 * S, 0.086 * S, 0.017 * S, 0.022 * S, 0.012 * S, [0.1, 0.08, 0.07], opts);
       ball(r, o, 0, headY - 0.012 * S, 0.095 * S, 0.014 * S, 0.017 * S, 0.014 * S, skin, opts);
+
+      // Long hair: a sheet down the back and a braid that swings behind her.
+      if (pal.longHair) {
+        const swayHair = -gait * 0.12;
+        part(r, o, 0, shoulderY - 0.16 * S, -0.115 * S, 0.2 * S, 0.42 * S, 0.075 * S, hair, opts);
+        part(r, o, 0, shoulderY - 0.3 * S, -0.105 * S, 0.13 * S, 0.18 * S, 0.07 * S, hair, opts);
+        ball(r, o, swayHair * S, shoulderY - 0.34 * S, -0.1 * S, 0.05 * S, 0.06 * S, 0.05 * S, hair, opts);
+        // A tie where the braid starts.
+        part(r, o, 0, shoulderY - 0.03 * S, -0.115 * S, 0.09 * S, 0.035 * S, 0.08 * S,
+          pal.scarf ? rgb(pal.scarf) : trim, opts);
+      }
+      // The scarf sits over the collar and lifts a little in the wind.
+      if (pal.scarf) {
+        const scarf = rgb(pal.scarf);
+        part(r, o, 0, shoulderY - 0.06 * S, 0, 0.24 * S, 0.075 * S, 0.185 * S, scarf, opts);
+        part(r, o, 0.05 * S, shoulderY - 0.24 * S, 0.09 * S, 0.07 * S, 0.2 * S, 0.05 * S, scarf, opts);
+      }
+      // A jacket that hangs open over the shirt.
+      if (a.hero) {
+        part(r, o, -0.115 * S, hipY + 0.14 * S, 0.085 * S, 0.06 * S, 0.28 * S, 0.03 * S, cloth, opts);
+        part(r, o, 0.115 * S, hipY + 0.14 * S, 0.085 * S, 0.06 * S, 0.28 * S, 0.03 * S, cloth, opts);
+      }
       break;
     }
   }
@@ -450,6 +513,160 @@ const PROPS = {
     ['box', 0, 2.3, 0, 2.6, 0.3, 0.12, 'NEON', { emissive: 1.7 }],
     ['box', 0, 2.16, 0.05, 2.4, 0.06, 0.06, '#ffffff', { emissive: 1.4 }]
   ],
+  // --- the farm ---
+  gate: [
+    ['box', -0.9, 0, 0, 0.18, 1.5, 0.18, C.darkwood], ['box', 0.9, 0, 0, 0.18, 1.5, 0.18, C.darkwood],
+    ['box', 0, 1.1, 0, 1.9, 0.14, 0.1, C.wood], ['box', 0, 0.6, 0, 1.9, 0.12, 0.1, C.wood],
+    ['box', 0, 0.85, 0.06, 0.24, 0.24, 0.06, C.metal]
+  ],
+  brambles: [
+    ['sphere', 0, 0, 0, 1.5, 0.9, 1.4, '#4a5a34'],
+    ['sphere', 0.4, 0.3, -0.3, 1.0, 0.8, 1.0, '#3d4c2b'],
+    ['sphere', -0.4, 0.2, 0.3, 0.9, 0.7, 0.9, '#55663c']
+  ],
+  stonepile: [
+    ['sphere', -0.25, 0, -0.1, 0.7, 0.5, 0.7, '#7d786c'],
+    ['sphere', 0.3, 0, 0.2, 0.8, 0.6, 0.8, '#6b6659'],
+    ['sphere', 0.05, 0.3, -0.05, 0.6, 0.5, 0.6, '#8f8a7c']
+  ],
+  brokenfence: [
+    ['box', -0.5, 0, 0, 0.12, 0.9, 0.12, C.darkwood],
+    ['box', 0.45, 0, 0, 0.12, 0.5, 0.12, C.darkwood],
+    ['box', 0, 0.12, 0.3, 1.2, 0.1, 0.1, C.wood, { rot: 0.4 }]
+  ],
+  seedbed: [
+    ['box', 0, 0, 0, 2.6, 0.24, 1.5, '#6a5233'],
+    ['box', 0, 0.24, 0, 2.4, 0.06, 1.3, '#4f3f28']
+  ],
+  sluice: [
+    ['box', -0.6, 0, 0, 0.2, 0.9, 0.7, C.stone], ['box', 0.6, 0, 0, 0.2, 0.9, 0.7, C.stone],
+    ['box', 0, 0.4, 0, 1.1, 0.7, 0.12, C.darkwood],
+    ['box', 0, 1.1, 0, 0.12, 0.5, 0.12, C.metal]
+  ],
+  coop: [
+    ['box', 0, 0, 0, 2.2, 1.1, 1.6, C.wood],
+    ['box', 0, 1.1, 0, 2.5, 0.18, 1.9, '#8d2f2c'],
+    ['box', 0, 0.1, 0.82, 0.5, 0.6, 0.06, C.darkwood],
+    ['box', -0.7, 0.5, 0.82, 0.5, 0.4, 0.05, '#3a3630']
+  ],
+  timber: [
+    ['box', 0, 0, 0, 2.0, 0.16, 0.3, C.wood],
+    ['box', 0, 0.16, 0.4, 2.0, 0.16, 0.3, C.wood],
+    ['box', 0.3, 0.32, 0.2, 1.4, 0.14, 0.25, C.wood, { rot: 0.3 }]
+  ],
+  logpile: [
+    ['box', 0, 0, 0, 1.8, 0.4, 0.9, C.darkwood],
+    ['box', 0, 0.4, 0, 1.6, 0.38, 0.8, '#6b4b31'],
+    ['box', 0, 0.78, 0, 1.2, 0.34, 0.7, C.darkwood]
+  ],
+  tools: [
+    ['box', 0, 0, 0, 1.1, 1.4, 0.16, C.wood],
+    ['box', -0.3, 0.4, 0.12, 0.08, 1.0, 0.08, C.darkwood],
+    ['box', -0.3, 1.4, 0.12, 0.3, 0.1, 0.1, C.metal],
+    ['box', 0.2, 0.5, 0.12, 0.08, 0.9, 0.08, C.darkwood],
+    ['box', 0.2, 1.4, 0.12, 0.24, 0.16, 0.06, C.metal]
+  ],
+  washline: [
+    ['box', -1.4, 0, 0, 0.1, 1.8, 0.1, C.darkwood], ['box', 1.4, 0, 0, 0.1, 1.8, 0.1, C.darkwood],
+    ['box', 0, 1.75, 0, 2.8, 0.03, 0.03, '#cfc7b4'],
+    ['box', -0.7, 1.35, 0, 0.5, 0.42, 0.03, '#e8e0cc'],
+    ['box', 0.2, 1.3, 0, 0.45, 0.48, 0.03, '#8fa6c4'],
+    ['box', 0.9, 1.4, 0, 0.4, 0.36, 0.03, '#d9c9a8']
+  ],
+  // --- rooms that look like somebody lives in them ---
+  stove: [
+    ['box', 0, 0, 0, 1.1, 0.9, 0.7, '#3a3a3f'],
+    ['box', 0, 0.9, 0, 1.15, 0.08, 0.75, '#22242a'],
+    ['sphere', -0.25, 0.94, 0, 0.34, 0.06, 0.34, '#15161a'],
+    ['sphere', 0.25, 0.94, 0, 0.34, 0.06, 0.34, '#15161a'],
+    ['box', 0, 0.45, 0.36, 0.7, 0.5, 0.04, '#5a5c62']
+  ],
+  sink: [
+    ['box', 0, 0, 0, 1.0, 0.85, 0.6, '#b9b2a4'],
+    ['box', 0, 0.85, 0, 1.05, 0.08, 0.65, '#8f959c'],
+    ['box', 0, 0.8, 0, 0.7, 0.1, 0.4, '#6f757c'],
+    ['box', 0, 0.95, -0.22, 0.06, 0.34, 0.06, C.metal],
+    ['box', 0, 1.24, -0.12, 0.06, 0.06, 0.22, C.metal]
+  ],
+  fridge: [
+    ['box', 0, 0, 0, 0.85, 1.7, 0.7, '#dfe2e4'],
+    ['box', 0, 1.0, 0.36, 0.8, 0.02, 0.02, '#9aa0a6'],
+    ['box', 0.3, 1.3, 0.37, 0.06, 0.5, 0.05, '#9aa0a6'],
+    ['box', -0.2, 1.45, 0.37, 0.22, 0.16, 0.01, '#f0e6c0']
+  ],
+  table: [
+    ['box', 0, 0.55, 0, 1.6, 0.12, 1.0, C.wood],
+    ['box', -0.65, 0, -0.4, 0.1, 0.55, 0.1, C.darkwood],
+    ['box', 0.65, 0, -0.4, 0.1, 0.55, 0.1, C.darkwood],
+    ['box', -0.65, 0, 0.4, 0.1, 0.55, 0.1, C.darkwood],
+    ['box', 0.65, 0, 0.4, 0.1, 0.55, 0.1, C.darkwood],
+    ['box', -0.3, 0.67, 0, 0.24, 0.1, 0.24, '#e8e0cc'],
+    ['box', 0.25, 0.67, 0.1, 0.16, 0.16, 0.16, '#a8543a']
+  ],
+  chest: [
+    ['box', 0, 0, 0, 1.2, 0.9, 0.6, '#6b4b31'],
+    ['box', 0, 0.35, 0.31, 1.0, 0.06, 0.04, C.gold],
+    ['box', 0, 0.72, 0.31, 1.0, 0.06, 0.04, C.gold]
+  ],
+  hearth: [
+    ['box', 0, 0, 0, 1.6, 0.35, 1.6, C.stone],
+    ['box', 0, 0.35, 0, 1.2, 0.12, 1.2, '#2a241e'],
+    ['sphere', 0, 0.4, 0, 0.7, 0.3, 0.7, '#ff8a34', { emissive: 1.3 }],
+    ['box', 0, 1.6, 0, 0.08, 1.2, 0.08, C.metal],
+    ['sphere', 0, 1.0, 0, 0.6, 0.5, 0.6, '#3a3630']
+  ],
+  radio: [
+    ['box', 0, 0, 0, 0.6, 0.4, 0.3, '#7a5533'],
+    ['box', 0, 0.15, 0.16, 0.34, 0.22, 0.02, '#3a3630'],
+    ['box', 0.2, 0.42, 0, 0.03, 0.4, 0.03, C.metal]
+  ],
+  tub: [
+    ['box', 0, 0, 0, 1.6, 0.7, 1.1, '#8a6a4a'],
+    ['box', 0, 0.6, 0, 1.4, 0.12, 0.95, '#4a8090'],
+    ['box', -0.9, 0.2, 0, 0.12, 0.5, 0.9, '#7a5c40']
+  ],
+  // --- the city ---
+  ramen: [
+    ['box', 0, 0, 0, 2.2, 0.95, 0.7, C.wood],                              // counter
+    ['box', 0, 0.95, 0, 2.3, 0.1, 0.8, '#8a5a34'],
+    ['box', 0, 2.05, -0.15, 2.4, 0.7, 0.5, '#8d2f2c'],                     // noren
+    ['box', 0, 2.4, -0.2, 2.5, 0.2, 0.55, '#3a2a22'],
+    ['box', 0, 1.1, -0.6, 2.2, 1.2, 0.1, '#ffd89a', { emissive: 1.5 }],    // lit interior
+    ['box', -0.6, 1.02, 0.1, 0.26, 0.16, 0.26, '#e8e0cc'],                 // bowls
+    ['box', 0.2, 1.02, 0.1, 0.26, 0.16, 0.26, '#e8e0cc'],
+    ['box', -0.7, 0, 0.6, 0.3, 0.6, 0.3, C.darkwood],                      // stools
+    ['box', 0, 0, 0.6, 0.3, 0.6, 0.3, C.darkwood],
+    ['box', 0.7, 0, 0.6, 0.3, 0.6, 0.3, C.darkwood]
+  ],
+  konbini: [
+    ['box', 0, 0, 0, 3.0, 2.6, 0.4, '#e8ecef'],
+    ['box', 0, 0.4, 0.22, 2.6, 1.6, 0.06, '#dff0f8', { emissive: 1.25 }],
+    ['box', 0, 2.3, 0.24, 2.8, 0.5, 0.1, '#2f7a4a', { emissive: 0.6 }],
+    ['box', 0, 2.3, 0.3, 2.2, 0.24, 0.04, '#ffffff', { emissive: 0.9 }]
+  ],
+  koban: [
+    ['box', 0, 0, 0, 2.0, 2.8, 2.0, '#dfe2e4'],
+    ['box', 0, 0.6, 1.02, 1.4, 1.2, 0.06, '#bcd8e8', { emissive: 0.5 }],
+    ['box', 0, 2.8, 0, 2.3, 0.24, 2.3, '#3a4a5a'],
+    ['sphere', 0, 3.1, 0, 0.5, 0.5, 0.5, '#ff3a2a', { emissive: 1.4 }]
+  ],
+  crate: [
+    ['box', 0, 0, 0, 0.8, 0.5, 0.6, '#a5824f'],
+    ['box', 0, 0.5, 0.05, 0.7, 0.44, 0.5, '#96794a'],
+    ['box', 0, 0.94, 0, 0.6, 0.1, 0.45, '#6b4b31']
+  ],
+  produce: [
+    ['box', 0, 0, 0, 2.0, 0.85, 1.0, C.wood],
+    ['box', 0, 0.85, 0, 2.1, 0.12, 1.1, '#8a5a34'],
+    ['sphere', -0.55, 0.95, 0, 0.5, 0.3, 0.5, '#c2513a'],
+    ['sphere', 0.05, 0.95, 0.1, 0.5, 0.3, 0.5, '#6f9a4a'],
+    ['sphere', 0.6, 0.95, -0.05, 0.45, 0.28, 0.45, '#e0b060'],
+    ['box', 0, 2.0, -0.2, 2.3, 0.16, 1.2, '#8d2f2c']
+  ],
+  bikeRack: [
+    ['box', -0.6, 0, 0, 0.06, 0.5, 0.5, C.metal], ['box', 0, 0, 0, 0.06, 0.5, 0.5, C.metal],
+    ['box', 0.6, 0, 0, 0.06, 0.5, 0.5, C.metal]
+  ],
   slips: [],
   default: [['box', 0, 0, 0, 0.6, 0.6, 0.6, '#8a7550']]
 };
@@ -479,7 +696,9 @@ export function drawProp3D(r, prop, time) {
   // Lamps get a soft halo, so lantern light reads as light and not as paint.
   const GLOW = { lantern: [0.55, 1.9, '#ffc266'], lamp: [0.6, 2.15, '#ffc266'],
                  streetlamp: [0.75, 3.35, '#ffe0a8'], brazier: [0.5, 0.55, '#ff9040'],
-                 vending: [0.5, 0.9, '#cfe6f0'] };
+                 vending: [0.5, 0.9, '#cfe6f0'], ramen: [1.0, 1.5, '#ffb861'],
+                 konbini: [1.1, 1.6, '#cfe8f4'], hearth: [0.7, 0.6, '#ff9040'],
+                 koban: [0.5, 3.1, '#ff6a5a'] };
   const glow = GLOW[prop.type];
   if (glow) {
     const [radius, gy, color] = glow;

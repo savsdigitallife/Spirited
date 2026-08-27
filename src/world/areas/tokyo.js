@@ -46,16 +46,31 @@ export const flat = makeArea('flat', {
     return d;
   },
   npcs: [
-    { id: 'mom', name: 'Mom', ...tp(15, 4), dir: 'down', palette: PAL.mom, script: 'mom' },
-    { id: 'dad', name: 'Dad', ...tp(17, 9), dir: 'left', palette: PAL.dad, script: 'dad' }
+    { id: 'mom', name: 'Mei', ...tp(15, 4), dir: 'down', palette: PAL.mei, script: 'mom', life: 'work' },
+    { id: 'dad', name: 'The Removal Man', ...tp(17, 9), dir: 'left', palette: PAL.dad, script: 'dad', life: 'patrol',
+      route: [[17, 9], [13, 12], [19, 6]] }
   ],
   props: [
-    { id: 'boxes1', type: 'boxes', ...tp(13, 7), solid: true, script: 'boxes' },
-    { id: 'boxes2', type: 'boxes', ...tp(14, 10), solid: true, script: 'boxes' },
-    { id: 'boxes3', type: 'boxes', ...tp(19, 6), solid: true, script: 'boxes' },
+    // Kitchen along the north wall.
+    { id: 'stoveT', type: 'stove', ...tp(13, 2), solid: true, script: 'flatStove' },
+    { id: 'sinkT', type: 'sink', ...tp(15, 2), solid: true, script: 'flatSink' },
+    { id: 'fridgeT', type: 'fridge', ...tp(18, 2), solid: true, script: 'flatFridge' },
+    { id: 'kettleT', type: 'kettle', ...tp(20, 3), solid: true, script: 'flatKettle' },
+    { id: 'tableT', type: 'table', ...tp(16, 5), solid: true, script: 'flatTable' },
+    // Bedroom.
     { id: 'satchel', type: 'satchel', ...tp(3, 3), script: 'satchelProp', hideIf: { has: 'satchel' } },
     { id: 'futon', type: 'futon', ...tp(5, 5), script: 'futon' },
     { id: 'shelf', type: 'shelf', ...tp(2, 1), solid: true, script: 'shelf' },
+    { id: 'chestT', type: 'chest', ...tp(6, 1), solid: true, script: 'flatChest' },
+    { id: 'lampT', type: 'lantern', ...tp(1, 6) },
+    // Bathroom.
+    { id: 'tubT', type: 'tub', ...tp(3, 12), solid: true, script: 'flatTub' },
+    { id: 'basinT', type: 'sink', ...tp(5, 11), solid: true, script: 'flatBasin' },
+    // Living space and the door.
+    { id: 'boxes1', type: 'boxes', ...tp(13, 7), solid: true, script: 'boxes' },
+    { id: 'boxes2', type: 'boxes', ...tp(14, 10), solid: true, script: 'boxes' },
+    { id: 'boxes3', type: 'boxes', ...tp(19, 6), solid: true, script: 'boxes' },
+    { id: 'radioT', type: 'radio', ...tp(19, 9), solid: true, script: 'flatRadio' },
     { id: 'balcony', type: 'plant', ...tp(20, 11), script: 'balcony' },
     { id: 'shoes', type: 'shoes', ...tp(11, 12), script: 'shoes' }
   ],
@@ -73,6 +88,8 @@ export const flat = makeArea('flat', {
 /* --------------------------------------------------------- the crossing -- */
 
 export const street = makeArea('street', {
+  apron: 'asphalt',
+  skyline: 'towers',
   wind: 'storm',
   name: 'Sakuragaoka Crossing',
   region: 'tokyo',
@@ -97,6 +114,18 @@ export const street = makeArea('street', {
       d.set(30, 17 + i, T.crosswalk);
     }
 
+    // Towers in the middle of each block, low-rise at the street edge: that is
+    // roughly how a Tokyo block stacks up, and it gives the skyline a shape.
+    for (const [bx, by, bw, bh] of [[2, 2, 18, 10], [34, 26, 18, 10], [2, 28, 14, 8], [36, 2, 14, 8]]) {
+      for (let y = by; y < by + bh; y++) {
+        for (let x = bx; x < bx + bw; x++) {
+          if (d.get(x, y) !== T.facade) continue;
+          const lit = ((x * 7 + y * 13) % 5) < 3;
+          d.set(x, y, lit ? T.towerlit : T.tower);
+        }
+      }
+    }
+
     // Windows wherever a building faces a street.
     for (let y = 0; y < 40; y++) {
       for (let x = 0; x < 56; x++) {
@@ -104,6 +133,18 @@ export const street = makeArea('street', {
         const facing = [[0, 1], [0, -1], [1, 0], [-1, 0]]
           .some(([dx, dy]) => [T.sidewalk, T.road].includes(d.get(x + dx, y + dy)));
         if (facing && (x + y) % 3 === 0) d.set(x, y, T.window);
+      }
+    }
+
+    // Hole-in-the-wall shopfronts: a slot cut into the block, lit from inside.
+    for (const [sx, sy, horizontal] of [[6, 13, true], [12, 13, true], [4, 25, true],
+                                        [12, 25, true], [33, 8, false], [33, 30, false]]) {
+      if (horizontal) {
+        d.fill(sx, sy - 2, 4, 3, T.wood);
+        d.fill(sx, sy, 4, 1, T.counter);
+      } else {
+        d.fill(sx - 2, sy, 3, 4, T.wood);
+        d.fill(sx, sy, 1, 4, T.counter);
       }
     }
 
@@ -129,12 +170,32 @@ export const street = makeArea('street', {
     return d;
   },
   npcs: [
-    { id: 'mei', name: 'Mei', ...tp(44, 9), dir: 'down', palette: PAL.mei, script: 'mei' },
-    { id: 'keeper', name: 'Shrine Keeper', ...tp(41, 5), dir: 'down', palette: PAL.gran, script: 'keeper' },
-    { id: 'salaryman', name: 'Man in a Hurry', ...tp(33, 20), dir: 'left', palette: PAL.suit, script: 'salaryman', wander: 3 },
-    { id: 'grocer', name: 'Grocer', ...tp(6, 24), dir: 'down', palette: PAL.gran, script: 'grocer' },
-    { id: 'boy', name: 'Boy with a Net', ...tp(19, 30), dir: 'right', palette: PAL.kid, script: 'boy', wander: 2 },
-    { id: 'cat', name: 'Alley Cat', ...tp(19, 36), dir: 'left', palette: { skin: '#2a2622', hair: '#2a2622', cloth: '#3a352f', trim: '#e6d089' }, kind: 'cat', script: 'cat', wander: 2 }
+    { id: 'mei', name: 'Mei', ...tp(8, 16), dir: 'up', palette: PAL.mei, script: 'mei', life: 'idle' },
+    { id: 'ramenchef', name: 'The Ramen Cook', ...tp(7, 12), dir: 'down', palette: PAL.gran, script: 'ramenCook', life: 'work' },
+    { id: 'ramenchef2', name: 'A Cook in a Cap', ...tp(13, 12), dir: 'down', palette: PAL.suit, script: 'ramenCook2', life: 'work' },
+    { id: 'salaryman', name: 'Man in a Hurry', ...tp(33, 20), dir: 'left', palette: PAL.suit, script: 'salaryman', life: 'commute',
+      route: [[40, 16], [31, 16], [31, 34], [22, 34], [22, 16], [40, 16]] },
+    { id: 'salaryman2', name: 'Man on the Phone', ...tp(23, 26), dir: 'down', palette: PAL.suit, script: 'phoneMan', life: 'commute',
+      route: [[23, 38], [23, 16], [4, 16], [23, 24]] },
+    { id: 'salaryman3', name: 'Two Colleagues', ...tp(30, 30), dir: 'up', palette: PAL.dad, script: 'colleagues', life: 'patrol',
+      route: [[31, 34], [31, 16], [22, 16], [22, 34]] },
+    { id: 'student1', name: 'A Student', ...tp(15, 16), dir: 'right', palette: PAL.kid, script: 'student', life: 'patrol',
+      route: [[4, 16], [20, 16], [22, 24], [10, 24]] },
+    { id: 'student2', name: 'A Student', ...tp(16, 16), dir: 'right', palette: PAL.mei, script: 'student2', life: 'patrol',
+      route: [[5, 16], [21, 16], [22, 25], [11, 24]] },
+    { id: 'grocer', name: 'Konbini Clerk', ...tp(17, 23), dir: 'down', palette: PAL.gran, script: 'grocer', life: 'work' },
+    { id: 'officer', name: 'The Officer', ...tp(33, 23), dir: 'down', palette: PAL.suit, script: 'officer', life: 'idle' },
+    { id: 'busker', name: 'A Busker', ...tp(28, 24), dir: 'up', palette: PAL.kid, script: 'busker', life: 'work' },
+    { id: 'gran', name: 'A Woman with Shopping', ...tp(25, 24), dir: 'left', palette: PAL.gran, script: 'shoppingWoman', life: 'patrol',
+      route: [[27, 24], [16, 24], [16, 16], [27, 24]] },
+    { id: 'courier', name: 'A Courier', ...tp(26, 20), dir: 'right', palette: PAL.mei, script: 'courier', life: 'commute',
+      route: [[2, 20], [52, 20], [52, 24], [2, 24]] },
+    { id: 'tourist', name: 'Someone Lost', ...tp(31, 19), dir: 'down', palette: PAL.kid, script: 'tourist', life: 'idle' },
+    { id: 'boy', name: 'A Kid on a Scooter', ...tp(19, 30), dir: 'right', palette: PAL.kid, script: 'boy', life: 'patrol',
+      route: [[19, 30], [19, 38], [21, 26], [19, 32]] },
+    { id: 'cat', name: 'Alley Cat', ...tp(19, 36), dir: 'left', palette: { skin: '#2a2622', hair: '#2a2622', cloth: '#3a352f', trim: '#e6d089' }, kind: 'cat', script: 'cat', life: 'cat', wander: 3 },
+    { id: 'keeper', name: 'Shrine Keeper', ...tp(41, 5), dir: 'down', palette: PAL.gran, script: 'keeper', life: 'idle' },
+    { id: 'shrinevisitor', name: 'Someone Praying', ...tp(44, 6), dir: 'up', palette: PAL.suit, script: 'shrineVisitor', life: 'idle' }
   ],
   props: [
     { id: 'vending', type: 'vending', ...tp(14, 24), solid: true, script: 'vending' },
@@ -147,6 +208,16 @@ export const street = makeArea('street', {
     { id: 'lamp1', type: 'streetlamp', ...tp(23, 15), solid: true },
     { id: 'lamp2', type: 'streetlamp', ...tp(31, 25), solid: true },
     { id: 'lamp3', type: 'streetlamp', ...tp(23, 30), solid: true },
+    { id: 'ramen1', type: 'ramen', ...tp(7, 15), solid: true, script: 'ramenShop' },
+    { id: 'ramen2', type: 'ramen', ...tp(13, 15), solid: true, script: 'ramenShop2' },
+    { id: 'ramen3', type: 'ramen', ...tp(5, 24), solid: true, script: 'ramenShop3' },
+    { id: 'konbini', type: 'konbini', ...tp(17, 24), solid: true, script: 'konbini' },
+    { id: 'koban', type: 'koban', ...tp(33, 24), solid: true, script: 'koban' },
+    { id: 'bikerack', type: 'bikeRack', ...tp(26, 15), script: 'bikeRack' },
+    { id: 'crateA', type: 'crate', ...tp(19, 16), solid: true, script: 'alleyCrates' },
+    { id: 'crateB', type: 'crate', ...tp(19, 27), solid: true, script: 'alleyCrates' },
+    { id: 'vending2', type: 'vending', ...tp(27, 24), solid: true, script: 'vending' },
+    { id: 'vending3', type: 'vending', ...tp(31, 15), solid: true, script: 'vending' },
     { id: 'neon0', type: 'neon', ...tp(3, 15), color: '#ff2fa0' },
     { id: 'neon1', type: 'neon', ...tp(7, 15), color: '#22e8ff', steady: true },
     { id: 'neon2', type: 'neon', ...tp(11, 15), color: '#ff8a1e', steady: true },
@@ -218,8 +289,8 @@ export const station = makeArea('station', {
     return d;
   },
   npcs: [
-    { id: 'stationmom', name: 'Mom', ...tp(17, 10), dir: 'right', palette: PAL.mom, script: 'stationMom' },
-    { id: 'stationdad', name: 'Dad', ...tp(19, 10), dir: 'left', palette: PAL.dad, script: 'stationDad' },
+    { id: 'stationmom', name: 'Mei', ...tp(17, 10), dir: 'right', palette: PAL.mom, script: 'stationMom' },
+    { id: 'stationdad', name: 'Station Guard', ...tp(19, 10), dir: 'left', palette: PAL.dad, script: 'stationDad' },
     { id: 'attendant', name: 'Attendant', ...tp(26, 14), dir: 'down', palette: PAL.suit, script: 'attendant' },
     { id: 'oldwoman', name: 'Woman in Grey', ...tp(31, 9), dir: 'left', palette: PAL.gran, script: 'oldWoman' },
     { id: 'commuter', name: 'Commuter', ...tp(8, 18), dir: 'up', palette: PAL.suit, script: 'commuter', wander: 4 }
@@ -237,7 +308,7 @@ export const station = makeArea('station', {
       tx: 19, ty: 25, tw: 3, th: 2,
       to: { area: 'street', x: tp(19, 38).x, y: tp(19, 38).y, dir: 'up' },
       label: 'Back to the street',
-      cond: { before: 'wrongTurn' }
+      cond: { before: 'arrive' }
     },
     {
       tx: 12, ty: 5, tw: 16, th: 2,
@@ -272,8 +343,8 @@ export const train = makeArea('train', {
     return d;
   },
   npcs: [
-    { id: 'trainmom', name: 'Mom', ...tp(9, 3), dir: 'down', palette: PAL.mom, script: 'trainMom' },
-    { id: 'traindad', name: 'Dad', ...tp(11, 3), dir: 'down', palette: PAL.dad, script: 'trainDad' },
+    { id: 'trainmom', name: 'A Woman with a Basket', ...tp(9, 3), dir: 'down', palette: PAL.mom, script: 'trainMom' },
+    { id: 'traindad', name: 'A Man Reading', ...tp(11, 3), dir: 'down', palette: PAL.dad, script: 'trainDad' },
     { id: 'conductor', name: 'Conductor', ...tp(22, 6), dir: 'left', palette: PAL.suit, script: 'conductor', wander: 3 },
     { id: 'sleeper', name: 'Sleeping Passenger', ...tp(17, 7), dir: 'down', palette: PAL.gran, script: 'sleeper' }
   ],
@@ -298,7 +369,6 @@ export const train = makeArea('train', {
       tx: 1, ty: 2, tw: 28, th: 7,
       once: true,
       fx: [
-        { type: 'chapter', id: 'wrongTurn' },
         { type: 'journal', text: 'The city ran out somewhere past the third tunnel.' },
         { type: 'toast', text: 'Two hours north. The buildings thin out, then stop.' }
       ]

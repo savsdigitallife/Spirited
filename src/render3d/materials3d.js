@@ -44,6 +44,8 @@ const BY_NAME = {
   ash:        { floor: 'ash' },
   railwater:  { water: 'water', depth: 0.18 },
   lacquer:    { floor: 'lacquer' },
+  tower:      { block: 15, side: 'building', top: 'concrete' },
+  towerlit:   { block: 15, side: 'windowGlass', top: 'concrete', emissive: 0.55 },
   void:       { block: 6.0, side: 'cliff', top: 'cliff' }
 };
 

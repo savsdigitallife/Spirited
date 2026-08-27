@@ -63,157 +63,144 @@ function portalOpen(state, areaId, label) {
   return cond(state, portal.cond);
 }
 
-test('the whole story can be played from the Tokyo flat to the tunnel home', () => {
+test('the whole story can be played from the Tokyo flat to the first harvest', () => {
   const s = createState();
   assert.equal(s.chapter, 'packUp');
-  assert.equal(s.calledName, 'Aiko');
 
-  /* --- Act I: Tokyo ---------------------------------------------------- */
-  play(s, 'shoes');                       // the pink sandal, and the river
-  assert.equal(flag(s, 'knowsRiver'), true);
-  assert.equal(portalOpen(s, 'flat', 'Front door'), false, 'she cannot leave before she is ready');
-
+  /* --- Tokyo ------------------------------------------------------------ */
+  assert.equal(portalOpen(s, 'flat', 'Front door'), false, 'she does not leave without the bag');
   play(s, 'satchelProp');
   assert.ok(hasItem(s, 'satchel'));
-  play(s, 'mom', ['Ready.']);
+  play(s, 'mom', ['I handed in my notice']);
   assert.equal(s.chapter, 'farewell');
   assert.equal(portalOpen(s, 'flat', 'Front door'), true);
 
-  assert.equal(portalOpen(s, 'street', 'Kitano Station'), false, 'goodbye comes first');
-  play(s, 'mei', ['I promise.']);
+  assert.equal(portalOpen(s, 'street', 'Kitano Station'), false, 'ramen with Mei comes first');
+  play(s, 'mei', ['I am going to grow vegetables']);
   assert.equal(s.chapter, 'catchTrain');
-  assert.ok(hasItem(s, 'farewellCard'));
+  assert.ok(hasItem(s, 'radishSeed'));
   assert.equal(portalOpen(s, 'street', 'Kitano Station'), true);
 
   assert.equal(portalOpen(s, 'station', 'Northbound train'), false, 'no ticket, no train');
   play(s, 'ticketMachine');
   assert.equal(portalOpen(s, 'station', 'Northbound train'), true);
 
-  /* --- Act II: Kaminohara ---------------------------------------------- */
-  trigger(s, 'train', 'boarded');
-  assert.equal(s.chapter, 'wrongTurn');
+  /* --- Kaminohara ------------------------------------------------------- */
   assert.equal(portalOpen(s, 'train', 'Kaminohara — step down'), false);
   play(s, 'conductor');
   assert.equal(portalOpen(s, 'train', 'Kaminohara — step down'), true);
+  trigger(s, 'paddyroad', 'arrived');
+  assert.equal(s.chapter, 'arrive');
 
-  play(s, 'tunnelLantern');               // the candle that will not blow out
-  assert.ok(hasItem(s, 'lanternStub'));
-  trigger(s, 'tunnel', 'intunnel');
-  assert.equal(s.chapter, 'throughTunnel');
-  assert.equal(portalOpen(s, 'tunnel', 'Back to the valley'), true, 'the way back is open until they eat');
+  // The gate is locked, which is what sends her to the village.
+  play(s, 'farmGate');
+  assert.equal(s.chapter, 'theKeys');
+  assert.equal(portalOpen(s, 'farm', 'Into the house'), false, 'the house stays shut until the lease is hers');
 
-  /* --- Act III: beyond -------------------------------------------------- */
-  trigger(s, 'market', 'feastScene');
-  assert.equal(s.chapter, 'forbiddenFeast');
-  assert.equal(portalOpen(s, 'tunnel', 'Back to the valley'), false, 'the tunnel floods behind her');
+  play(s, 'marketRen');
+  play(s, 'yuzuki', ['Because I could not do another eleven years.']);
+  assert.ok(hasItem(s, 'farmKeys'));
+  assert.equal(flag(s, 'hasLease'), true);
 
-  play(s, 'feastMom');
-  play(s, 'feastDad');                    // the second warning triggers the change
-  assert.equal(flag(s, 'parentsLost'), true);
+  play(s, 'farmGate');
+  assert.equal(s.chapter, 'clearGround');
+  assert.equal(hasItem(s, 'farmKeys'), false, 'the key stays in the gate');
+  assert.equal(portalOpen(s, 'farm', 'Into the house'), true);
 
-  play(s, 'marketRen', ['Who are you?']);
-  assert.equal(s.chapter, 'findWork');
-  assert.ok(itemCount(s, 'riceBall') >= 2, 'Ren feeds her so she does not fade');
-  assert.equal(portalOpen(s, 'market', 'Down to the bridge'), true);
-  assert.equal(portalOpen(s, 'bridge', 'The bathhouse gate'), true);
+  /* --- The work --------------------------------------------------------- */
+  play(s, 'seedBed');
+  assert.equal(s.chapter, 'clearGround', 'the beds are not ready until all three jobs are done');
+  play(s, 'brambles');
+  play(s, 'gardenStones');
+  play(s, 'brokenFence');
+  play(s, 'seedBed');
+  assert.equal(s.chapter, 'firstSeeds');
 
-  play(s, 'kamashiro', ['I\'m not leaving']);
-  assert.equal(s.chapter, 'loseName');
-  assert.equal(portalOpen(s, 'bathhouse', 'The lift, going up'), true);
+  play(s, 'seedBed');
+  assert.equal(s.chapter, 'firstSeeds', 'nothing to sow until she has seed');
+  play(s, 'kanae', ['Something worth eating in February']);
+  assert.ok(hasItem(s, 'seedPacket'));
+  play(s, 'seedBed');
+  assert.equal(s.chapter, 'water');
+  assert.equal(flag(s, 'sown'), true);
 
-  play(s, 'yuzuki', ['Please give me work.']);
-  assert.equal(s.chapter, 'firstShift');
-  assert.equal(s.calledName, 'Ko', 'she signs away three characters');
-  assert.equal(s.trueName, 'Aiko', 'the real name is still in there');
+  play(s, 'sluice');
+  assert.equal(s.chapter, 'water', 'the sluice will not budge before she asks Ren');
+  play(s, 'bridgeRen', ['At the top, and work down.']);
+  assert.equal(flag(s, 'askedRen'), true);
+  play(s, 'sluice');
+  assert.equal(s.chapter, 'animals');
 
-  play(s, 'coalPile');
-  play(s, 'herbDrawers');
-  play(s, 'herbDrawers');
-  play(s, 'herbDrawers');
-  assert.equal(itemCount(s, 'herbToken'), 3);
-  play(s, 'kamashiro');
-  assert.equal(s.chapter, 'riverGuest');
+  play(s, 'coopSite');
+  assert.equal(s.chapter, 'animals', 'no coop without hens to put in it');
+  play(s, 'tsuda', ['Will you show me?']);
+  assert.ok(hasItem(s, 'henCrate'));
+  play(s, 'coopSite');
+  assert.equal(s.chapter, 'storm');
+  assert.equal(flag(s, 'coopBuilt'), true);
 
-  play(s, 'herbChute');
-  assert.equal(flag(s, 'drewHerbBath'), true);
-  play(s, 'riverGuest', ['Call the whole floor']);
-  assert.equal(s.chapter, 'hollowGuest');
-  assert.ok(hasItem(s, 'bitterCake'));
+  /* --- The storm, and the market --------------------------------------- */
+  play(s, 'coop');
+  assert.equal(flag(s, 'animalsIn'), true);
+  play(s, 'farmRen');
+  assert.equal(flag(s, 'renHelped'), true);
+  trigger(s, 'farm', 'stormPassed');
+  assert.equal(s.chapter, 'harvest');
 
-  play(s, 'hollowBath', ['Give it the bitter cake.']);
-  assert.equal(s.chapter, 'sixthStation');
-  assert.equal(flag(s, 'hollowFollowed'), true);
-  assert.equal(hasItem(s, 'bitterCake'), false, 'the cake is spent');
+  play(s, 'seedBed');
+  assert.ok(hasItem(s, 'basket'), 'there is a crop, battered but real');
+  play(s, 'kanae');
+  assert.equal(s.chapter, 'home');
 
-  play(s, 'bathRen');
-  assert.ok(hasItem(s, 'goldSeal'));
-  assert.equal(portalOpen(s, 'bathhouse', 'The water-rail door'), true);
-  play(s, 'kamashiro');
-  assert.ok(hasItem(s, 'railToken'));
-
-  const ride = play(s, 'railCar');
-  assert.equal(ride.find((e) => e.type === 'teleport').to.area, 'marshhouse');
-  assert.equal(hasItem(s, 'railToken'), false, 'the rail only goes out');
-
-  const marsh = play(s, 'yumeno', ['I\'m giving it back.']);
-  assert.equal(s.chapter, 'remember');
-  assert.ok(hasItem(s, 'nameSlip'));
-  assert.equal(hasItem(s, 'goldSeal'), false);
-  assert.equal(marsh.find((e) => e.type === 'teleport').to.area, 'grove');
-
-  play(s, 'nameSlips');
-  assert.equal(itemCount(s, 'riverStone'), 3, 'three stones for a river with no memory');
-  const grove = play(s, 'groveRen', ['Sazanami']);
-  assert.equal(s.chapter, 'homeward');
-  assert.equal(flag(s, 'gaveStones'), true);
-  assert.equal(grove.find((e) => e.type === 'teleport').to.area, 'market');
-
-  /* --- The test, and the walk home ------------------------------------- */
-  play(s, 'finalTest', ['The two on the left.', 'Neither.']);
+  play(s, 'dinnerYuzuki');
+  trigger(s, 'bathhouse', 'dinner');
   assert.equal(s.chapter, 'done');
-  assert.equal(s.calledName, 'Aiko', 'she gets all four characters back');
-  assert.ok(hasItem(s, 'hogCharm'));
-  assert.equal(portalOpen(s, 'market', 'Home'), true);
 
   const home = trigger(s, 'tunnel', 'goHome');
-  assert.ok(home.some((e) => e.type === 'ending'), 'walking out of the tunnel ends the game');
+  assert.ok(home.some((e) => e.type === 'ending'), 'walking home through the tunnel ends the game');
 });
 
 test('the optional threads can all be completed', () => {
   const s = createState();
-  // Fast-forward to the point where the side content is live.
-  s.chapter = 'firstShift';
-  s.calledName = 'Ko';
+  s.chapter = 'water';
 
   play(s, 'tunnelLantern');
   for (let i = 0; i < 3; i++) play(s, 'darkLamp');
   assert.equal(sideDone(s, 'lampLighter'), true);
   play(s, 'lamplighter');
-  assert.ok(hasItem(s, 'riverStone'), 'the lamplighter pays');
+  assert.ok(hasItem(s, 'riverStone'), 'the lamplighter pays in stones');
 
-  play(s, 'coalPile');
-  play(s, 'cinderMite', ['Give one of them your coal.']);
-  assert.equal(sideDone(s, 'cinderPay'), true);
-  assert.ok(hasItem(s, 'herbToken'), 'Kamashiro grumbles and pays her back');
+  play(s, 'prayerSlips');
+  play(s, 'fisher');
+  assert.equal(itemCount(s, 'riverStone'), 3, 'three stones, from three different people');
+  play(s, 'groveRen');
+  assert.equal(flag(s, 'gaveStones'), true);
+  assert.equal(sideDone(s, 'riverStones'), true);
 
   play(s, 'ledgerProp');
-  play(s, 'gansuke', ['Nothing. It\'s your ledger.']);
+  play(s, 'gansuke', ['Nothing. It is your ledger.']);
   assert.equal(sideDone(s, 'frogLedger'), true);
-  assert.ok(hasItem(s, 'railToken'), 'the frog remembers a kindness');
+  assert.ok(hasItem(s, 'bathToken'), 'the clerk remembers a kindness');
 
-  play(s, 'feastTable');
-  play(s, 'stallCook');
-  assert.equal(sideDone(s, 'stallKeeper'), true);
+  play(s, 'yumeno', []);
+  assert.equal(sideDone(s, 'teaGarden'), true);
+  assert.ok(hasItem(s, 'cuttings'));
+
+  for (let i = 0; i < 3; i++) {
+    applyEffects(s, [{ type: 'give', id: 'riceBall' }]);
+    play(s, 'strayCat');
+  }
+  assert.equal(sideDone(s, 'strayCat'), true);
 });
 
 test('a second playthrough of a finished beat does not rewind the story', () => {
   const s = createState();
   play(s, 'satchelProp');
-  play(s, 'mom', ['Ready.']);
-  play(s, 'mei', ['I can\'t promise that.']);
+  play(s, 'mom', ['I handed in my notice']);
+  play(s, 'mei', ['I have absolutely no idea what I am doing.']);
   assert.equal(s.chapter, 'catchTrain');
-  play(s, 'mei');                          // talking to her again
+  play(s, 'mei');
   play(s, 'mom');
   assert.equal(s.chapter, 'catchTrain');
-  assert.equal(itemCount(s, 'farewellCard'), 1, 'she does not hand over a second card');
+  assert.equal(itemCount(s, 'radishSeed'), 1, 'she does not hand over a second packet');
 });

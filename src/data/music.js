@@ -32,124 +32,126 @@ export function degree(root, scale, n) {
 }
 
 export const TRACKS = {
-  // Tokyo, at night, in the rain.
+  // Everything here is slow, quiet and mostly consonant. No four-on-the-floor,
+  // no driving bass: the loudest thing in the game is a bell.
   town: {
-    root: 'D2', scale: 'minor', bpm: 84, swing: 0.12,
-    progression: [0, 5, 3, 4],
-    pad: { gain: 0.05, wave: 'sawtooth', detune: 7 },
-    bass: { pattern: 'drive', gain: 0.1, wave: 'sawtooth' },
-    arp: { pattern: 'up16', gain: 0.045, wave: 'square', octave: 2 },
-    drums: 'four',
-    lead: { pattern: 'sparse', gain: 0.05, wave: 'triangle', octave: 2 }
+    root: 'D2', scale: 'dorian', bpm: 62, swing: 0.1,
+    progression: [0, 3, 5, 3],
+    pad: { gain: 0.055, wave: 'triangle', detune: 5 },
+    bass: { pattern: 'whole', gain: 0.05, wave: 'sine' },
+    lead: { pattern: 'motif', motif: [4, 2, 0, 2, 4, 5, 4, 2], gain: 0.045, wave: 'sine', octave: 2 },
+    drums: 'none'
   },
   station: {
-    root: 'A2', scale: 'minor', bpm: 76,
+    root: 'A2', scale: 'ritsu', bpm: 58,
     progression: [0, 4, 2, 4],
-    pad: { gain: 0.055, wave: 'sawtooth', detune: 5 },
-    bass: { pattern: 'half', gain: 0.07, wave: 'triangle' },
-    arp: { pattern: 'sparse', gain: 0.035, wave: 'square', octave: 2 },
-    drums: 'tick'
+    pad: { gain: 0.05, wave: 'triangle', detune: 4 },
+    bass: { pattern: 'whole', gain: 0.045, wave: 'sine' },
+    lead: { pattern: 'sparse', gain: 0.04, wave: 'sine', octave: 2, bell: true },
+    drums: 'none'
   },
   home: {
-    root: 'F2', scale: 'major', bpm: 68,
+    root: 'F2', scale: 'major', bpm: 56,
     progression: [0, 3, 4, 3],
     pad: { gain: 0.05, wave: 'triangle', detune: 4 },
-    bass: { pattern: 'half', gain: 0.06, wave: 'sine' },
-    lead: { pattern: 'motif', motif: [4, 2, 0, 2, 4, 5, 4, 2], gain: 0.05, wave: 'triangle', octave: 1 },
+    bass: { pattern: 'whole', gain: 0.045, wave: 'sine' },
+    lead: { pattern: 'motif', motif: [4, 2, 0, 2, 4, 5, 4, 2], gain: 0.045, wave: 'sine', octave: 1 },
     drums: 'none'
   },
   train: {
-    root: 'E2', scale: 'dorian', bpm: 96,
+    root: 'E2', scale: 'dorian', bpm: 64,
     progression: [0, 0, 5, 5],
-    pad: { gain: 0.05, wave: 'sawtooth', detune: 6 },
-    bass: { pattern: 'eighth', gain: 0.07, wave: 'triangle' },
-    drums: 'rail'
+    pad: { gain: 0.055, wave: 'triangle', detune: 5 },
+    bass: { pattern: 'half', gain: 0.045, wave: 'sine' },
+    lead: { pattern: 'rare', gain: 0.04, wave: 'sine', octave: 2, bell: true },
+    drums: 'tick'
   },
   country: {
-    root: 'G2', scale: 'ritsu', bpm: 62,
+    root: 'G2', scale: 'ritsu', bpm: 54,
     progression: [0, 4, 2, 4],
     pad: { gain: 0.045, wave: 'triangle', detune: 3 },
-    bass: { pattern: 'half', gain: 0.05, wave: 'sine' },
-    lead: { pattern: 'motif', motif: [0, 2, 4, 2, 1, 0, -1, 0], gain: 0.055, wave: 'triangle', octave: 1 },
+    bass: { pattern: 'whole', gain: 0.04, wave: 'sine' },
+    lead: { pattern: 'motif', motif: [0, 2, 4, 2, 1, 0, -1, 0], gain: 0.05, wave: 'sine', octave: 1 },
+    drums: 'none'
+  },
+  farm: {
+    root: 'C3', scale: 'major', bpm: 52,
+    progression: [0, 4, 5, 3],
+    pad: { gain: 0.05, wave: 'triangle', detune: 3 },
+    bass: { pattern: 'whole', gain: 0.04, wave: 'sine' },
+    lead: { pattern: 'koto', gain: 0.05, wave: 'sine', octave: 1 },
     drums: 'none'
   },
   tunnel: {
-    root: 'C2', scale: 'insen', bpm: 48,
-    progression: [0, 0, 1, 0],
-    pad: { gain: 0.075, wave: 'sawtooth', detune: 9 },
-    bass: { pattern: 'whole', gain: 0.06, wave: 'sine' },
-    lead: { pattern: 'rare', gain: 0.05, wave: 'sine', octave: 2, bell: true },
+    root: 'C2', scale: 'ritsu', bpm: 46,
+    progression: [0, 0, 4, 0],
+    pad: { gain: 0.06, wave: 'triangle', detune: 6 },
+    bass: { pattern: 'whole', gain: 0.045, wave: 'sine' },
+    lead: { pattern: 'rare', gain: 0.045, wave: 'sine', octave: 2, bell: true },
     drums: 'none'
   },
-  market: {
-    root: 'A2', scale: 'hira', bpm: 58,
-    progression: [0, 2, 0, 4],
-    pad: { gain: 0.06, wave: 'sawtooth', detune: 6 },
-    bass: { pattern: 'half', gain: 0.06, wave: 'triangle' },
-    lead: { pattern: 'koto', gain: 0.06, wave: 'triangle', octave: 1 },
-    drums: 'none'
-  },
-  bridge: {
-    root: 'D2', scale: 'hira', bpm: 54,
-    progression: [0, 3, 0, 2],
-    pad: { gain: 0.07, wave: 'sawtooth', detune: 8 },
-    bass: { pattern: 'whole', gain: 0.05, wave: 'sine' },
-    lead: { pattern: 'rare', gain: 0.05, wave: 'sine', octave: 2, bell: true },
+  village: {
+    root: 'A2', scale: 'ritsu', bpm: 58,
+    progression: [0, 2, 4, 2],
+    pad: { gain: 0.05, wave: 'triangle', detune: 4 },
+    bass: { pattern: 'half', gain: 0.045, wave: 'sine' },
+    lead: { pattern: 'koto', gain: 0.05, wave: 'triangle', octave: 1 },
     drums: 'none'
   },
   bathhouse: {
-    root: 'B2', scale: 'hira', bpm: 104,
-    progression: [0, 0, 3, 2],
-    pad: { gain: 0.04, wave: 'sawtooth', detune: 5 },
-    bass: { pattern: 'drive', gain: 0.08, wave: 'triangle' },
-    lead: { pattern: 'koto', gain: 0.07, wave: 'triangle', octave: 1 },
-    drums: 'taiko'
-  },
-  boiler: {
-    root: 'D2', scale: 'phrygian', bpm: 112,
-    progression: [0, 0, 1, 0],
-    bass: { pattern: 'eighth', gain: 0.09, wave: 'sawtooth' },
-    arp: { pattern: 'up16', gain: 0.03, wave: 'square', octave: 2 },
-    drums: 'forge'
-  },
-  office: {
-    root: 'G2', scale: 'insen', bpm: 72,
-    progression: [0, 1, 0, 4],
-    pad: { gain: 0.07, wave: 'sawtooth', detune: 10 },
-    bass: { pattern: 'half', gain: 0.07, wave: 'sawtooth' },
-    lead: { pattern: 'sparse', gain: 0.05, wave: 'square', octave: 1 },
+    root: 'B2', scale: 'ritsu', bpm: 60,
+    progression: [0, 3, 2, 4],
+    pad: { gain: 0.045, wave: 'triangle', detune: 4 },
+    bass: { pattern: 'half', gain: 0.05, wave: 'sine' },
+    lead: { pattern: 'koto', gain: 0.055, wave: 'triangle', octave: 1 },
     drums: 'none'
   },
-  rail: {
-    root: 'F2', scale: 'hira', bpm: 50,
+  boiler: {
+    root: 'D2', scale: 'dorian', bpm: 66,
+    progression: [0, 0, 3, 0],
+    pad: { gain: 0.05, wave: 'triangle', detune: 5 },
+    bass: { pattern: 'half', gain: 0.055, wave: 'sine' },
+    lead: { pattern: 'sparse', gain: 0.04, wave: 'sine', octave: 1 },
+    drums: 'tick'
+  },
+  office: {
+    root: 'G2', scale: 'ritsu', bpm: 56,
+    progression: [0, 3, 0, 4],
+    pad: { gain: 0.055, wave: 'triangle', detune: 5 },
+    bass: { pattern: 'whole', gain: 0.045, wave: 'sine' },
+    lead: { pattern: 'sparse', gain: 0.04, wave: 'sine', octave: 1, bell: true },
+    drums: 'none'
+  },
+  lake: {
+    root: 'F2', scale: 'ritsu', bpm: 48,
     progression: [0, 2, 3, 2],
-    pad: { gain: 0.07, wave: 'triangle', detune: 4 },
-    bass: { pattern: 'whole', gain: 0.05, wave: 'sine' },
+    pad: { gain: 0.06, wave: 'triangle', detune: 4 },
+    bass: { pattern: 'whole', gain: 0.04, wave: 'sine' },
     lead: { pattern: 'rare', gain: 0.045, wave: 'sine', octave: 2, bell: true },
-    drums: 'rail'
+    drums: 'none'
   },
   marsh: {
-    root: 'C3', scale: 'ritsu', bpm: 56,
+    root: 'C3', scale: 'ritsu', bpm: 50,
     progression: [0, 3, 4, 2],
     pad: { gain: 0.05, wave: 'triangle', detune: 3 },
-    bass: { pattern: 'half', gain: 0.045, wave: 'sine' },
-    lead: { pattern: 'motif', motif: [2, 1, 0, 1, 2, 4, 2, 1], gain: 0.05, wave: 'sine', octave: 1 },
+    bass: { pattern: 'whole', gain: 0.04, wave: 'sine' },
+    lead: { pattern: 'motif', motif: [2, 1, 0, 1, 2, 4, 2, 1], gain: 0.045, wave: 'sine', octave: 1 },
     drums: 'none'
   },
   grove: {
-    root: 'E3', scale: 'ritsu', bpm: 52,
+    root: 'E3', scale: 'ritsu', bpm: 50,
     progression: [0, 4, 2, 3],
-    pad: { gain: 0.055, wave: 'triangle', detune: 4 },
-    bass: { pattern: 'whole', gain: 0.04, wave: 'sine' },
-    lead: { pattern: 'koto', gain: 0.06, wave: 'sine', octave: 1, bell: true },
+    pad: { gain: 0.05, wave: 'triangle', detune: 4 },
+    bass: { pattern: 'whole', gain: 0.035, wave: 'sine' },
+    lead: { pattern: 'koto', gain: 0.05, wave: 'sine', octave: 1, bell: true },
     drums: 'none'
   },
   title: {
-    root: 'A2', scale: 'hira', bpm: 56,
+    root: 'A2', scale: 'ritsu', bpm: 52,
     progression: [0, 2, 4, 2],
-    pad: { gain: 0.07, wave: 'sawtooth', detune: 6 },
-    bass: { pattern: 'whole', gain: 0.05, wave: 'sine' },
-    lead: { pattern: 'koto', gain: 0.055, wave: 'triangle', octave: 1, bell: true },
+    pad: { gain: 0.06, wave: 'triangle', detune: 5 },
+    bass: { pattern: 'whole', gain: 0.04, wave: 'sine' },
+    lead: { pattern: 'koto', gain: 0.05, wave: 'sine', octave: 1, bell: true },
     drums: 'none'
   }
 };

@@ -43,56 +43,56 @@ const LIGHTING = {
     sun: [1.0, 0.6, 0.38], sunPower: 0.9, elevation: 0.22, azimuth: 1.2,
     sky: [0.32, 0.28, 0.4], ground: [0.16, 0.13, 0.15],
     horizon: [0.85, 0.5, 0.36], zenith: [0.18, 0.18, 0.36],
-    fog: [0.55, 0.38, 0.4], fogDensity: 0.016, lamp: 0.25
+    fog: [0.55, 0.38, 0.4], fogDensity: 0.016, lamp: 0
   },
   night: {
     sun: [0.4, 0.48, 0.78], sunPower: 0.6, elevation: 0.7, azimuth: 3.6,
     sky: [0.2, 0.24, 0.4], ground: [0.09, 0.1, 0.16],
     horizon: [0.1, 0.12, 0.24], zenith: [0.03, 0.04, 0.12],
-    fog: [0.08, 0.1, 0.2], fogDensity: 0.02, lamp: 0.9, stars: 0.8
+    fog: [0.08, 0.1, 0.2], fogDensity: 0.02, lamp: 0, stars: 0.8
   },
   dark: {
-    sun: [0.1, 0.1, 0.14], sunPower: 0.15, elevation: 0.9, azimuth: 2.0,
-    sky: [0.05, 0.05, 0.07], ground: [0.02, 0.02, 0.03],
-    horizon: [0.02, 0.02, 0.03], zenith: [0.0, 0.0, 0.01],
-    fog: [0.02, 0.02, 0.03], fogDensity: 0.05, lamp: 1.5
+    sun: [0.3, 0.3, 0.36], sunPower: 0.45, elevation: 0.9, azimuth: 2.0,
+    sky: [0.22, 0.21, 0.24], ground: [0.11, 0.1, 0.11],
+    horizon: [0.06, 0.06, 0.08], zenith: [0.02, 0.02, 0.03],
+    fog: [0.06, 0.06, 0.08], fogDensity: 0.04, lamp: 0
   },
   spiritdusk: {
     sun: [0.95, 0.62, 0.72], sunPower: 0.95, elevation: 0.3, azimuth: 1.6,
     sky: [0.4, 0.32, 0.52], ground: [0.2, 0.14, 0.24],
     horizon: [0.62, 0.36, 0.48], zenith: [0.16, 0.12, 0.32],
-    fog: [0.4, 0.26, 0.4], fogDensity: 0.018, lamp: 0.7
+    fog: [0.4, 0.26, 0.4], fogDensity: 0.018, lamp: 0
   },
   lamplight: {
     sun: [1.0, 0.8, 0.55], sunPower: 0.95, elevation: 0.85, azimuth: 2.6,
     sky: [0.46, 0.38, 0.32], ground: [0.26, 0.19, 0.15],
     horizon: [0.24, 0.16, 0.12], zenith: [0.1, 0.07, 0.06],
-    fog: [0.2, 0.14, 0.11], fogDensity: 0.02, lamp: 1.0
+    fog: [0.2, 0.14, 0.11], fogDensity: 0.02, lamp: 0
   },
   ember: {
     sun: [1.0, 0.6, 0.34], sunPower: 0.95, elevation: 0.8, azimuth: 1.8,
     sky: [0.42, 0.24, 0.16], ground: [0.28, 0.14, 0.08],
     horizon: [0.28, 0.12, 0.06], zenith: [0.1, 0.05, 0.04],
-    fog: [0.22, 0.1, 0.06], fogDensity: 0.024, lamp: 1.2
+    fog: [0.22, 0.1, 0.06], fogDensity: 0.024, lamp: 0
   },
   gold: {
     sun: [1.0, 0.86, 0.6], sunPower: 1.1, elevation: 0.9, azimuth: 2.2,
     sky: [0.44, 0.36, 0.26], ground: [0.26, 0.2, 0.13],
     horizon: [0.3, 0.22, 0.12], zenith: [0.14, 0.1, 0.06],
-    fog: [0.26, 0.19, 0.1], fogDensity: 0.018, lamp: 0.8
+    fog: [0.26, 0.19, 0.1], fogDensity: 0.018, lamp: 0
   },
   lateblue: {
     sun: [0.6, 0.7, 0.95], sunPower: 0.6, elevation: 0.4, azimuth: 3.0,
     sky: [0.24, 0.3, 0.44], ground: [0.1, 0.13, 0.17],
     horizon: [0.35, 0.42, 0.55], zenith: [0.1, 0.16, 0.34],
-    fog: [0.3, 0.36, 0.48], fogDensity: 0.014, lamp: 0.5
+    fog: [0.3, 0.36, 0.48], fogDensity: 0.014, lamp: 0
   },
   // The city, after the move went wrong: sodium and neon on a wet street.
   neon: {
-    sun: [0.34, 0.44, 0.82], sunPower: 0.42, elevation: 0.68, azimuth: 3.9,
-    sky: [0.16, 0.17, 0.3], ground: [0.09, 0.07, 0.12],
+    sun: [0.4, 0.5, 0.86], sunPower: 0.5, elevation: 0.68, azimuth: 3.9,
+    sky: [0.26, 0.25, 0.38], ground: [0.16, 0.12, 0.14],
     horizon: [0.24, 0.13, 0.3], zenith: [0.03, 0.03, 0.09],
-    fog: [0.14, 0.1, 0.22], fogDensity: 0.03, lamp: 0.85,
+    fog: [0.14, 0.1, 0.22], fogDensity: 0.03, lamp: 0,
     wetness: 1, rain: { color: [0.78, 0.86, 1.0], streak: 0.42 },
     neon: [0.5, 0.16, 0.55]
   },
@@ -101,14 +101,14 @@ const LIGHTING = {
     sun: [0.5, 0.55, 0.9], sunPower: 0.5, elevation: 0.7, azimuth: 3.9,
     sky: [0.24, 0.22, 0.32], ground: [0.13, 0.11, 0.14],
     horizon: [0.1, 0.08, 0.14], zenith: [0.04, 0.04, 0.08],
-    fog: [0.09, 0.08, 0.14], fogDensity: 0.02, lamp: 1.1,
+    fog: [0.09, 0.08, 0.14], fogDensity: 0.02, lamp: 0,
     neon: [0.35, 0.12, 0.4]
   },
   dawn: {
     sun: [1.0, 0.82, 0.78], sunPower: 0.95, elevation: 0.3, azimuth: 2.8,
     sky: [0.45, 0.42, 0.5], ground: [0.22, 0.2, 0.2],
     horizon: [0.92, 0.72, 0.7], zenith: [0.4, 0.5, 0.72],
-    fog: [0.8, 0.68, 0.68], fogDensity: 0.013, lamp: 0.2
+    fog: [0.8, 0.68, 0.68], fogDensity: 0.013, lamp: 0
   }
 };
 
@@ -135,6 +135,8 @@ export class Renderer3D {
     this.skyQuad = this.makeSkyQuad();
 
     this.areaMeshes = new Map();
+    this.cameraMode = 'third';
+    this.eyeYaw = 0;
     this.queue = [];
     this.light = DEFAULT_LIGHT;
     this.zoom = 1.1;
@@ -215,16 +217,33 @@ export class Renderer3D {
 
   /* ---------------------------------------------------------- camera -- */
 
-  cameraFor(target, area) {
-    // Indoors the camera stands closer and steeper, so a room reads as a room
-    // instead of as a wall seen from the doorway.
+  /** Where the camera sits, and what it looks at, for the current mode. */
+  cameraFor(target, area, facing) {
+    if (this.cameraMode === 'first') {
+      // Over her shoulder is nearly her eyeline: sit at head height and look
+      // the way she is walking.
+      const eye = [target[0], target[1] + 0.85, target[2]];
+      const look = [
+        eye[0] + Math.sin(this.eyeYaw) * 4,
+        eye[1] - 0.35,
+        eye[2] + Math.cos(this.eyeYaw) * 4
+      ];
+      return { eye, look, fov: 1.25 };
+    }
     const dist = (area.indoors ? 8 : 10.5) * this.zoom;
     const height = (area.indoors ? 9.6 : 8.6) * this.zoom;
     const eye = [target[0], target[1] + height, target[2] + dist];
-    // Keep the camera inside the map so it never floats out over the void.
     eye[0] = M.clamp(eye[0], -6, area.w + 6);
     eye[2] = M.clamp(eye[2], -4, area.h + 14);
-    return eye;
+    return { eye, look: target, fov: 0.66 };
+  }
+
+  /** Turn the head smoothly toward a new facing rather than snapping. */
+  turnEye(yaw, dt) {
+    let delta = yaw - this.eyeYaw;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    this.eyeYaw += delta * Math.min(1, dt * 9);
   }
 
   /* ---------------------------------------------------------- render -- */
@@ -238,11 +257,12 @@ export class Renderer3D {
     const w = this.canvas.width;
     const h = this.canvas.height;
     const target = [focus.x, focus.y + 0.8, focus.z];
-    const eye = this.cameraFor(target, area);
+    const shot = this.cameraFor(target, area);
+    const eye = shot.eye;
     this.eye = eye;
 
-    M.perspective(this.proj, 0.66, w / h, 0.3, 220);
-    M.lookAt(this.view, eye, target);
+    M.perspective(this.proj, shot.fov, w / h, 0.12, 260);
+    M.lookAt(this.view, eye, shot.look);
     M.multiply(this.viewProj, this.proj, this.view);
 
     // Sun direction and the light's view of the world around Aiko.
@@ -326,14 +346,15 @@ export class Renderer3D {
     gl.uniform2fv(P.uniforms.uWindDir, wind.dir);
     gl.uniform1f(P.uniforms.uWindStrength, wind.strength);
     gl.uniform1f(P.uniforms.uWindTime, windTime);
+    // No lamp follows Aiko around any more — dark places are lit by their own
+    // lanterns and by ambient, not by a halo stuck to the player.
     gl.uniform3f(P.uniforms.uLampPos, focus.x, focus.y + 1.0, focus.z);
-    const lamp = (L.lamp ?? 0) * (opts.lampBoost ?? 1);
-    gl.uniform3f(P.uniforms.uLampColor, lamp * 0.55, lamp * 0.42, lamp * 0.26);
-    gl.uniform1f(P.uniforms.uLampRange, 11);
+    gl.uniform3f(P.uniforms.uLampColor, 0, 0, 0);
+    gl.uniform1f(P.uniforms.uLampRange, 1);
     gl.uniform1f(P.uniforms.uWetness, L.wetness ?? 0);
     gl.uniform3fv(P.uniforms.uNeon, L.neon ?? [0, 0, 0]);
     gl.uniform3f(P.uniforms.uCutFrom, focus.x, focus.y, focus.z);
-    gl.uniform1f(P.uniforms.uCutEnabled, opts.cutaway === false ? 0 : 1);
+    gl.uniform1f(P.uniforms.uCutEnabled, opts.cutaway === false || this.cameraMode === 'first' ? 0 : 1);
     gl.uniform1f(P.uniforms.uAlpha, 1);
 
     M.identity(this.model);

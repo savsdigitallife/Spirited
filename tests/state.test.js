@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createState, addItem, removeItem, itemCount, hasItem, inventoryList,
   applyEffect, applyEffects, advanceTo, atLeast, isChapter, test as cond,
-  setFlag, bumpSide, sideDone, tickFade, MAX_HEART
+  setFlag, bumpSide, sideDone, MAX_HEART
 } from '../src/systems/state.js';
 
 test('items add, stack and remove', () => {
@@ -32,11 +32,11 @@ test('inventory lists key items first', () => {
 
 test('chapters only ever move forward', () => {
   const s = createState();
-  assert.equal(advanceTo(s, 'findWork'), true);
+  assert.equal(advanceTo(s, 'clearGround'), true);
   assert.equal(advanceTo(s, 'farewell'), false, 're-triggering an old beat must not rewind');
-  assert.equal(s.chapter, 'findWork');
+  assert.equal(s.chapter, 'clearGround');
   assert.equal(atLeast(s, 'catchTrain'), true);
-  assert.equal(atLeast(s, 'loseName'), false);
+  assert.equal(atLeast(s, 'harvest'), false);
   assert.throws(() => advanceTo(s, 'nonsense'));
 });
 
@@ -53,14 +53,12 @@ test('effects report events for the presentation layer', () => {
   assert.throws(() => applyEffect(s, { type: 'implode' }));
 });
 
-test('eating restores heart and clears the fade', () => {
+test('eating restores heart', () => {
   const s = createState();
   s.heart = 1;
-  s.fade = 0.8;
   addItem(s, 'riceBall');
   applyEffect(s, { type: 'eat', id: 'riceBall' });
   assert.equal(s.heart, 3);
-  assert.equal(s.fade, 0);
   assert.equal(hasItem(s, 'riceBall'), false);
 });
 
@@ -84,30 +82,17 @@ test('side quests cap at their step count', () => {
 test('conditions cover the shapes the scripts use', () => {
   const s = createState();
   addItem(s, 'ticket');
-  setFlag(s, 'metRen');
-  advanceTo(s, 'findWork');
+  setFlag(s, 'hasLease');
+  advanceTo(s, 'theKeys');
   assert.equal(cond(s, { has: 'ticket' }), true);
   assert.equal(cond(s, { lacks: 'ticket' }), false);
-  assert.equal(cond(s, { flag: 'metRen' }), true);
-  assert.equal(cond(s, { notFlag: 'metRen' }), false);
-  assert.equal(cond(s, { chapter: 'findWork' }), true);
+  assert.equal(cond(s, { flag: 'hasLease' }), true);
+  assert.equal(cond(s, { notFlag: 'hasLease' }), false);
+  assert.equal(cond(s, { chapter: 'theKeys' }), true);
   assert.equal(cond(s, { atLeast: 'catchTrain' }), true);
-  assert.equal(cond(s, { before: 'loseName' }), true);
-  assert.equal(cond(s, [{ has: 'ticket' }, { before: 'loseName' }]), true);
+  assert.equal(cond(s, { before: 'harvest' }), true);
+  assert.equal(cond(s, [{ has: 'ticket' }, { before: 'harvest' }]), true);
   assert.equal(cond(s, [{ has: 'ticket' }, { before: 'catchTrain' }]), false);
   assert.equal(cond(s, undefined), true, 'no condition means always allowed');
 });
 
-test('fading only bites in the spirit world, and never kills', () => {
-  const s = createState();
-  advanceTo(s, 'forbiddenFeast');
-  tickFade(s, 10, false);
-  assert.equal(s.fade, 0, 'the ordinary world does not thin you out');
-
-  let outcome = null;
-  for (let i = 0; i < 2000 && outcome !== 'collapse'; i++) {
-    outcome = tickFade(s, 1, true);
-  }
-  assert.equal(outcome, 'collapse');
-  assert.equal(s.heart, 0);
-});

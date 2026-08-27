@@ -43,7 +43,9 @@ const DEFS = [
   ['moss',      { solid: false, base: '#37533a', kind: 'grass', accent: '#486b48' }],
   ['ash',       { solid: false, base: '#4a453f', kind: 'grit', accent: '#5b554d', slow: 0.8 }],
   ['railwater', { solid: false, base: '#3b6f86', kind: 'water', accent: '#6fb0c4', slow: 0.9 }],
-  ['lacquer',   { solid: false, base: '#43202a', kind: 'panel', accent: '#5a2c38' }]
+  ['lacquer',   { solid: false, base: '#43202a', kind: 'panel', accent: '#5a2c38' }],
+  ['tower',     { solid: true,  base: '#2f3540', kind: 'facade', accent: '#414a5a' }],
+  ['towerlit',  { solid: true,  base: '#2b323c', kind: 'window', accent: '#e8d089' }]
 ];
 
 export const TILES = DEFS.map(([name, def], id) => ({ id, name, ...def }));

@@ -103,7 +103,7 @@ export function drawToasts(ctx, W, toasts) {
     const lines = wrap(ctx, t.text, W * 0.52);
     const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 28;
     const h = 10 + lines.length * 19;
-    const y = 70 + i * (h + 8);
+    const y = 86 + i * (h + 8);
     ctx.globalAlpha = 0.85 * alpha;
     ctx.fillStyle = '#14121f';
     ctx.fillRect(16, y, w, h);
@@ -145,15 +145,6 @@ export function drawStatus(ctx, W, state, area, fps) {
     ctx.fillRect(hx, 20, 14, 5);
     ctx.fillRect(hx + 3, 25, 8, 4);
   }
-  if (state.fade > 0.02) {
-    ctx.fillStyle = '#3a3448';
-    ctx.fillRect(150, 36, 88, 5);
-    ctx.fillStyle = state.fade > 0.6 ? '#d0566e' : '#7f8ea8';
-    ctx.fillRect(150, 36, 88 * state.fade, 5);
-    font(ctx, 10);
-    ctx.fillStyle = DIM;
-    ctx.fillText('fading', 244, 41);
-  }
 
   const ch = chapter(state);
   font(ctx, 13, 'bold');
@@ -162,8 +153,10 @@ export function drawStatus(ctx, W, state, area, fps) {
   ctx.fillText(ch.title, W - 18, 24);
   font(ctx, 12);
   ctx.fillStyle = DIM;
-  wrap(ctx, ch.objective, 470).slice(0, 2).forEach((line, i) => {
-    ctx.fillText(line, W - 18, 40 + i * 14);
+  // The objective is the one thing that must always be readable, so it gets
+  // room for three lines and the bar is sized to hold them.
+  wrap(ctx, ch.objective, Math.min(560, W * 0.56)).slice(0, 3).forEach((line, i) => {
+    ctx.fillText(line, W - 18, 40 + i * 15);
   });
   ctx.textAlign = 'left';
 
@@ -316,7 +309,7 @@ export function drawTitle(ctx, W, H, time, options, index) {
   ctx.fillText('The Long Way Home', W / 2, H / 2 - 28);
   font(ctx, 13);
   ctx.fillStyle = DIM;
-  ctx.fillText('Tokyo → Kaminohara → somewhere older than maps', W / 2, H / 2 + 2);
+  ctx.fillText('Leave the city. Take on a ruin. Grow something.', W / 2, H / 2 + 2);
 
   font(ctx, 16);
   options.forEach((opt, i) => {
@@ -327,7 +320,7 @@ export function drawTitle(ctx, W, H, time, options, index) {
 
   font(ctx, 11);
   ctx.fillStyle = '#5a5470';
-  ctx.fillText('Arrows / WASD move · Space or E acts · J journal · I satchel · M mute · Esc menu', W / 2, H - 28);
+  ctx.fillText('Arrows / WASD move · Space acts · J journal · I bag · V camera · M mute · Esc menu', W / 2, H - 28);
   ctx.textAlign = 'left';
 }
 
@@ -395,7 +388,7 @@ export function drawMinimap(ctx, W, area, player, scale = 2) {
   const mw = Math.min(150, area.w * scale);
   const mh = Math.min(110, area.h * scale);
   const x = W - mw - 16;
-  const y = 68;
+  const y = 84;
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = '#0d0b16';
   ctx.fillRect(x, y, mw, mh);

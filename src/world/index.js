@@ -1,10 +1,11 @@
 import { TOKYO_AREAS } from './areas/tokyo.js';
 import { COUNTRY_AREAS } from './areas/country.js';
+import { FARM_AREAS } from './areas/farm.js';
 import { SPIRIT_AREAS } from './areas/spirit.js';
 import { tileAt } from './mapbuilder.js';
 import { TILE_SIZE, isSolidTile, TILES } from './tiles.js';
 
-export const AREAS = { ...TOKYO_AREAS, ...COUNTRY_AREAS, ...SPIRIT_AREAS };
+export const AREAS = { ...TOKYO_AREAS, ...COUNTRY_AREAS, ...FARM_AREAS, ...SPIRIT_AREAS };
 
 export function getArea(id) {
   const area = AREAS[id];

@@ -105,8 +105,8 @@ export function buildAreaMesh(area) {
     }
   }
 
-  // A cliff around the whole map so the horizon is never a hole.
-  emitEdge(solid, area);
+  // The world keeps going past the last tile, so there is no edge to see.
+  emitEdge(solid, area, rng);
 
   return { solid: solid.finish() };
 }
@@ -272,19 +272,58 @@ function emitAwning(geo, cx, cz) {
   geo.box(cx, 2.06, cz, 1.02, 0.24, 1.02, { top: MATERIAL.carpet, side: MATERIAL.carpet }, { ao: 0.9 });
 }
 
-function emitEdge(geo, area) {
-  // Outdoors this is the cliff the valley sits in; indoors it is the rest of
-  // the building, so the room is never a raft floating in the sky.
-  const inside = area.indoors;
-  const mat = inside ? MATERIAL.plaster : MATERIAL.cliff;
-  const top = inside ? 5.5 : 0;
-  const layers = { top: mat, side: mat };
-  const opts = { ao: 0.6, faces: 0b111100 };
-  const height = top - EDGE_DROP;
-  geo.box(area.w / 2, EDGE_DROP, -0.5, area.w + 2, height, 1, layers, opts);
-  geo.box(-0.5, EDGE_DROP, area.h / 2, 1, height, area.h + 2, layers, opts);
-  geo.box(area.w + 0.5, EDGE_DROP, area.h / 2, 1, height, area.h + 2, layers, opts);
-  // The south wall is the one the camera always sits behind, so indoors it is
-  // simply left off — the fourth wall of a stage set.
-  geo.box(area.w / 2, EDGE_DROP, area.h + 0.5, area.w + 2, inside ? -EDGE_DROP : height, 1, layers, opts);
+const APRON = 90;   // how far the ground keeps going past the last tile
+
+/**
+ * The world does not stop at the last tile.
+ *
+ * Outdoors, the ground continues in every direction until the fog takes it,
+ * with a low ridge on the horizon for a silhouette — so there is never a
+ * visible edge to fall off. Indoors, the map is wrapped in the rest of the
+ * building instead.
+ */
+function emitEdge(geo, area, rng) {
+  if (area.indoors) {
+    const mat = MATERIAL.plaster;
+    const layers = { top: mat, side: mat };
+    const opts = { ao: 0.6, faces: 0b111100 };
+    const height = 5.5 - EDGE_DROP;
+    geo.box(area.w / 2, EDGE_DROP, -0.5, area.w + 2, height, 1, layers, opts);
+    geo.box(-0.5, EDGE_DROP, area.h / 2, 1, height, area.h + 2, layers, opts);
+    geo.box(area.w + 0.5, EDGE_DROP, area.h / 2, 1, height, area.h + 2, layers, opts);
+    // The camera always sits south of Aiko, so that wall is never needed.
+    geo.box(area.w / 2, EDGE_DROP, area.h + 0.5, area.w + 2, -EDGE_DROP, 1, layers, opts);
+    return;
+  }
+
+  const ground = MATERIAL[area.apron ?? 'grass'];
+  const layers = { top: ground, side: ground };
+  const strip = { ao: 0.9, faces: 0b000001 };     // a floor, nothing else
+  // Four aprons around the map, meeting at the corners.
+  geo.box(area.w / 2, -0.02, -APRON / 2, area.w + APRON * 2, 0.02, APRON, layers, strip);
+  geo.box(area.w / 2, -0.02, area.h + APRON / 2, area.w + APRON * 2, 0.02, APRON, layers, strip);
+  geo.box(-APRON / 2, -0.02, area.h / 2, APRON, 0.02, area.h, layers, strip);
+  geo.box(area.w + APRON / 2, -0.02, area.h / 2, APRON, 0.02, area.h, layers, strip);
+
+  // A ridge on the horizon, far enough out to read as distance.
+  const skyline = area.skyline ?? 'hills';
+  const ring = Math.max(area.w, area.h) * 0.5 + 34;
+  const cx = area.w / 2;
+  const cz = area.h / 2;
+  const count = skyline === 'towers' ? 64 : 46;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + rng() * 0.05;
+    const dist = ring + rng() * 22;
+    const x = cx + Math.cos(a) * dist;
+    const z = cz + Math.sin(a) * dist;
+    if (skyline === 'towers') {
+      const h = 12 + rng() * 34;
+      geo.box(x, -1, z, 6 + rng() * 8, h, 6 + rng() * 8,
+        { top: MATERIAL.building, side: MATERIAL.windowGlass }, { ao: 0.85, rot: rng() });
+    } else {
+      const h = 6 + rng() * 14;
+      geo.sphere(x, -h * 0.35, z, 16 + rng() * 16, h, 14 + rng() * 14,
+        MATERIAL[skyline === 'forest' ? 'foliage' : 'moss'], { segments: 7, rings: 4, ao: 0.8 });
+    }
+  }
 }

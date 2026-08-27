@@ -15,6 +15,8 @@ const PAL = {
 /* ---------------------------------------------------------- paddy road -- */
 
 export const paddyroad = makeArea('paddyroad', {
+  apron: 'meadow',
+  skyline: 'hills',
   wind: 'gusty',
   name: 'Kaminohara — Paddy Road',
   region: 'country',
@@ -79,6 +81,9 @@ export const paddyroad = makeArea('paddyroad', {
     d.fill(43, 43, 2, 7, T.tunnel);
     d.fill(42, 42, 4, 1, T.stone);
 
+    // The lane east to her own gate.
+    d.fill(44, 26, 20, 3, T.dirt);
+
     // Keep the road walkable no matter what the scatter did.
     d.vline(7, 21, 9, T.dirt, 2);
     d.hline(9, 45, 20, T.dirt, 2);
@@ -87,8 +92,9 @@ export const paddyroad = makeArea('paddyroad', {
     return d;
   },
   npcs: [
-    { id: 'roadmom', name: 'Mom', ...tp(43, 26), dir: 'down', palette: PAL.mom, script: 'roadMom', hideIf: { atLeast: 'forbiddenFeast' } },
-    { id: 'roaddad', name: 'Dad', ...tp(44, 29), dir: 'down', palette: PAL.dad, script: 'roadDad', hideIf: { atLeast: 'forbiddenFeast' } },
+    { id: 'roadmom', name: 'A Neighbour', ...tp(43, 26), dir: 'down', palette: PAL.mom, script: 'roadMom', life: 'patrol',
+      route: [[43, 22], [43, 40], [50, 28]] },
+    { id: 'roaddad', name: 'A Neighbour', ...tp(44, 29), dir: 'down', palette: PAL.dad, script: 'roadDad', life: 'idle' },
     { id: 'tsuda', name: 'Old Man Tsuda', ...tp(50, 16), dir: 'down', palette: PAL.farmer, script: 'tsuda' },
     { id: 'cyclist', name: 'Girl on a Bicycle', ...tp(20, 22), dir: 'right', palette: PAL.cyclist, script: 'cyclist', wander: 4 },
     { id: 'redfox', name: 'Red Fox', ...tp(33, 14), dir: 'left', palette: PAL.fox, kind: 'cat', script: 'redFox', wander: 3 }
@@ -107,6 +113,11 @@ export const paddyroad = makeArea('paddyroad', {
   ],
   portals: [
     {
+      tx: 63, ty: 26, tw: 1, th: 3,
+      to: { area: 'farm', x: tp(1, 34).x, y: tp(1, 34).y, dir: 'right' },
+      label: 'The lane to your farm'
+    },
+    {
       tx: 43, ty: 49, tw: 2, th: 1,
       to: { area: 'tunnel', x: tp(2, 6).x, y: tp(2, 6).y, dir: 'right' },
       label: 'The mouth in the hill'
@@ -118,15 +129,15 @@ export const paddyroad = makeArea('paddyroad', {
       tx: 8, ty: 7, tw: 4, th: 3,
       once: true,
       fx: [
-        { type: 'toast', text: 'Kaminohara. Population: fewer every year.' },
-        { type: 'journal', text: 'The halt has no gate, no staff, and one bench.' }
+        { type: 'chapter', id: 'arrive' },
+        { type: 'toast', text: 'Kaminohara. No gate, no staff, one bench, and your farm two kilometres east.' },
+        { type: 'journal', text: 'Arrived. The lane east leads to the gate.' }
       ]
     },
     {
       id: 'mouthseen',
       tx: 40, ty: 40, tw: 8, th: 3,
       once: true,
-      cond: { before: 'throughTunnel' },
       fx: [
         { type: 'toast', text: 'Cold air comes out of the tunnel. In August.' },
         { type: 'sfx', id: 'wind' }
@@ -165,9 +176,7 @@ export const tunnel = makeArea('tunnel', {
     {
       tx: 1, ty: 5, tw: 1, th: 3,
       to: { area: 'paddyroad', x: tp(43, 47).x, y: tp(43, 47).y, dir: 'up' },
-      label: 'Back to the valley',
-      cond: { before: 'forbiddenFeast' },
-      denyText: 'Where the road was, there is water now — wide, black, and moving. You cannot go back that way.'
+      label: 'Back to the valley'
     },
     {
       tx: 46, ty: 5, tw: 1, th: 3,
@@ -188,8 +197,7 @@ export const tunnel = makeArea('tunnel', {
       tx: 3, ty: 5, tw: 4, th: 3,
       once: true,
       fx: [
-        { type: 'chapter', id: 'throughTunnel' },
-        { type: 'toast', text: 'Dad\'s footsteps echo ahead. Mom laughs at something. You do not.' },
+        { type: 'toast', text: 'Four hundred metres, and the village on the other side.' },
         { type: 'sfx', id: 'wind' }
       ]
     }

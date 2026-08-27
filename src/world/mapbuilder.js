@@ -100,6 +100,8 @@ export function makeArea(id, cfg) {
     music: cfg.music ?? 'town',
     weather: cfg.weather ?? null,
     wind: cfg.wind ?? null,
+    apron: cfg.apron ?? null,
+    skyline: cfg.skyline ?? null,
     npcs: cfg.npcs ?? [],
     props: cfg.props ?? [],
     portals: cfg.portals ?? [],

@@ -51,9 +51,9 @@ export class Sound {
 
     // A short reverb, shared by everything, so rooms have a size.
     this.reverb = this.ctx.createConvolver();
-    this.reverb.buffer = this.impulse(1.6, 2.4);
+    this.reverb.buffer = this.impulse(2.6, 2.0);
     this.reverbSend = this.ctx.createGain();
-    this.reverbSend.gain.value = 0.22;
+    this.reverbSend.gain.value = 0.32;
     this.reverbSend.connect(this.reverb).connect(this.master);
 
     if (this.trackId) this.play(this.trackId, true);
@@ -146,13 +146,14 @@ export class Sound {
   pad({ freq, dur, gain, wave, detune = 6 }, when) {
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(420, when);
-    filter.frequency.linearRampToValueAtTime(900, when + dur * 0.5);
+    filter.frequency.setValueAtTime(320, when);
+    filter.frequency.linearRampToValueAtTime(640, when + dur * 0.6);
     const g = this.chain(when, dur, gain, 0.5);
     filter.connect(g);
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(gain, when + dur * 0.35);
-    g.gain.linearRampToValueAtTime(0.0001, when + dur);
+    // Slow in, slow out: a pad should arrive without anyone noticing.
+    g.gain.linearRampToValueAtTime(gain, when + dur * 0.45);
+    g.gain.linearRampToValueAtTime(0.0001, when + dur * 1.15);
     for (const cents of [-detune, detune]) {
       const osc = this.ctx.createOscillator();
       osc.type = wave;
@@ -160,7 +161,7 @@ export class Sound {
       osc.detune.value = cents;
       osc.connect(filter);
       osc.start(when);
-      osc.stop(when + dur + 0.1);
+      osc.stop(when + dur * 1.2 + 0.1);
     }
   }
 
@@ -188,11 +189,11 @@ export class Sound {
     osc.frequency.exponentialRampToValueAtTime(freq, when + 0.04);
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(freq * 6, when);
-    filter.frequency.exponentialRampToValueAtTime(freq * 1.6, when + dur);
+    filter.frequency.setValueAtTime(freq * 4, when);
+    filter.frequency.exponentialRampToValueAtTime(freq * 1.3, when + dur);
     const g = this.chain(when, dur, gain, 0.3);
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(gain, when + 0.006);
+    g.gain.linearRampToValueAtTime(gain, when + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
     osc.connect(filter).connect(g);
     osc.start(when);

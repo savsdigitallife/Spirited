@@ -1,126 +1,128 @@
-// The main story is a straight line of chapters; the world around it is not.
-// Each chapter knows where it wants you and what the journal should say.
+// The story, one chapter at a time. Each chapter states exactly one thing to
+// do and exactly where to do it — the journal and the top-right banner both
+// read straight from here, so if it is unclear here it is unclear in game.
 
 export const CHAPTERS = [
   {
     id: 'packUp',
-    title: 'Chapter 1 — Moving Day',
-    objective: 'Find your satchel in the empty flat, then tell Mom you are ready.',
-    where: 'Tokyo — Nakazato Flat 4C'
+    title: 'Chapter 1 — Last Night in Tokyo',
+    objective: 'Find your canvas bag in the flat, then take the lift down to the crossing.',
+    where: 'Tokyo — Nakazato Flat 4C',
+    hint: 'The bag is in the bedroom, under the window.'
   },
   {
     id: 'farewell',
-    title: 'Chapter 2 — Goodbye, Then',
-    objective: 'Say goodbye to Mei at the crossing shrine before the family leaves.',
-    where: 'Tokyo — Sakuragaoka Crossing'
+    title: 'Chapter 2 — One Last Bowl',
+    objective: 'Say goodbye to Mei at the ramen counter on the crossing.',
+    where: 'Tokyo — Sakuragaoka Crossing',
+    hint: 'Follow the neon. The counter is the one with six stools and no name.'
   },
   {
     id: 'catchTrain',
-    title: 'Chapter 3 — Northbound',
-    objective: 'Buy a ticket from the machine and board the northbound train.',
-    where: 'Tokyo — Kitano Station'
+    title: 'Chapter 3 — The Night Train North',
+    objective: 'Buy a ticket from the machine, then board the northbound train.',
+    where: 'Tokyo — Kitano Station',
+    hint: 'The station entrance is down the alley south of the crossing.'
   },
   {
-    id: 'wrongTurn',
-    title: 'Chapter 4 — The Wrong Turn',
-    objective: 'Follow the paddy road toward the new house. Find out where the road stops.',
-    where: 'Kaminohara — Paddy Road'
+    id: 'arrive',
+    title: 'Chapter 4 — Kaminohara',
+    objective: 'Step down at the halt and follow the paddy road east to your farm gate.',
+    where: 'Kaminohara — Paddy Road',
+    hint: 'Talk to the conductor first; he will tell you when to get off.'
   },
   {
-    id: 'throughTunnel',
-    title: 'Chapter 5 — The Mouth in the Hill',
-    objective: 'Walk the tunnel to the other side. Dad will not be talked out of it.',
-    where: 'Kaminohara — Old Tunnel'
+    id: 'theKeys',
+    title: 'Chapter 5 — The Keys',
+    objective: 'The gate is padlocked. Find Yuzuki, who holds the lease, in the village.',
+    where: 'Kaminohara — Village',
+    hint: 'The village is through the tunnel at the end of the paddy road.'
   },
   {
-    id: 'forbiddenFeast',
-    title: 'Chapter 6 — Do Not Eat',
-    objective: 'Stop your parents before they finish the food at the empty stalls.',
-    where: 'Beyond — Hollow Market'
+    id: 'clearGround',
+    title: 'Chapter 6 — Clear the Ground',
+    objective: 'Three jobs in the garden: pull the brambles, lift the stones, mend the fence.',
+    where: 'Your farm',
+    hint: 'They are all in the walled garden behind the house.'
   },
   {
-    id: 'findWork',
-    title: 'Chapter 7 — Ask for Work',
-    objective: 'Cross the bridge and ask Lady Yuzuki of the bathhouse for a job. Nobody idle is allowed to stay.',
-    where: 'Beyond — Bridge of Nine Lamps'
+    id: 'firstSeeds',
+    title: 'Chapter 7 — First Seeds',
+    objective: 'Buy seed from Kanae at the village market, then sow the first bed.',
+    where: 'Village market, then your farm',
+    hint: 'Kanae keeps the stall with the seed drawers, halfway down the market.'
   },
   {
-    id: 'loseName',
-    title: 'Chapter 8 — Sign Here',
-    objective: 'Sign the contract in the high office. Try to remember what you signed away.',
-    where: 'Beyond — Yuzuki\'s Office'
+    id: 'water',
+    title: 'Chapter 8 — Water',
+    objective: 'The channel is dry. Ask Ren at the bridge, then open the sluice at your farm.',
+    where: 'The old bridge, then your farm',
+    hint: 'Ren is usually leaning on the bridge rail, watching the water.'
   },
   {
-    id: 'firstShift',
-    title: 'Chapter 9 — The Boiler Floor',
-    objective: 'Earn your place: bring Kamashiro coal and three herb tokens.',
-    where: 'Beyond — Boiler Room'
+    id: 'animals',
+    title: 'Chapter 9 — Six Hens and a Goat',
+    objective: 'Collect the hens from Old Man Tsuda, then build them a coop at the farm.',
+    where: 'Tsuda\'s farmhouse, then your farm',
+    hint: 'Tsuda\'s place is the walled yard at the east end of the paddy road.'
   },
   {
-    id: 'riverGuest',
-    title: 'Chapter 10 — The Stink Guest',
-    objective: 'Draw a herb bath and pull the filth out of the guest in the great tub.',
-    where: 'Beyond — Great Bath'
+    id: 'storm',
+    title: 'Chapter 10 — The Storm',
+    objective: 'A typhoon is coming. Get the animals in and cover the beds before it lands.',
+    where: 'Your farm',
+    hint: 'The coop first, then the seed beds. Ren will help if you ask him.'
   },
   {
-    id: 'hollowGuest',
-    title: 'Chapter 11 — The Hollow One',
-    objective: 'The masked guest is swallowing the staff. Get it out of the bathhouse.',
-    where: 'Beyond — Great Bath'
+    id: 'harvest',
+    title: 'Chapter 11 — First Harvest',
+    objective: 'Pick what survived, then carry a basket down to the village market.',
+    where: 'Your farm, then the village market',
+    hint: 'The beds are behind the house. Kanae will know what it is worth.'
   },
   {
-    id: 'sixthStation',
-    title: 'Chapter 12 — Sixth Station',
-    objective: 'Ride the water rail to the marsh house and give back the gold seal.',
-    where: 'Beyond — Water Rail'
-  },
-  {
-    id: 'remember',
-    title: 'Chapter 13 — What You Were Called',
-    objective: 'Give Ren back his name in the grove, and take back your own.',
-    where: 'Beyond — Grove of Folded Names'
-  },
-  {
-    id: 'homeward',
-    title: 'Chapter 14 — The Long Way Home',
-    objective: 'Pick your parents out of the herd, then walk back through the tunnel without looking behind you.',
-    where: 'Beyond — Hollow Market'
+    id: 'home',
+    title: 'Chapter 12 — Home',
+    objective: 'Eat with the village at the bathhouse. Somebody has saved you a seat.',
+    where: 'The village bathhouse',
+    hint: 'Across the bridge, the big wooden building with steam coming off it.'
   },
   {
     id: 'done',
     title: 'Epilogue',
-    objective: 'Go home.',
-    where: 'Kaminohara'
+    objective: 'Live here.',
+    where: 'Kaminohara',
+    hint: ''
   }
 ];
 
 export const CHAPTER_INDEX = Object.fromEntries(CHAPTERS.map((c, i) => [c.id, i]));
 
-// Optional threads. None of them gate the ending; all of them change it a little.
+// Optional threads. None of them gate the ending; all of them change it.
 export const SIDE_QUESTS = {
   lampLighter: {
     name: 'Nine Lamps',
-    hint: 'Light every lamp on the bridge. The old lamplighter has given up on three of them.',
+    hint: 'Three lamps on the old bridge have been dark for years. The lamplighter has given up on them.',
     steps: 3
   },
-  cinderPay: {
-    name: 'Cinder Wages',
-    hint: 'The cinder mites work for nothing. Somebody should fix that.',
-    steps: 1
-  },
-  riverMemory: {
-    name: 'A River\'s Memory',
-    hint: 'Ren cannot remember his river. Find three stones that do.',
+  strayCat: {
+    name: 'The Barn Cat',
+    hint: 'Something has been sleeping in your woodshed. Feed it three times and it might stay.',
     steps: 3
   },
   frogLedger: {
     name: 'The Crooked Ledger',
-    hint: 'Frog-clerk Gansuke is skimming the bath fees. Prove it, or don\'t.',
+    hint: 'Gansuke has been skimming the bathhouse takings for sixty years. Prove it, or don\'t.',
     steps: 1
   },
-  stallKeeper: {
-    name: 'The Empty Stalls',
-    hint: 'Somebody cooked all that food. Find out who, and why they left.',
+  riverStones: {
+    name: 'A River\'s Memory',
+    hint: 'Ren is looking for three stones from the river his grandmother used to fish.',
+    steps: 3
+  },
+  teaGarden: {
+    name: 'Yumeno\'s Cuttings',
+    hint: 'The weaver across the lake has cuttings to spare, if somebody would only come and take them.',
     steps: 1
   }
 };

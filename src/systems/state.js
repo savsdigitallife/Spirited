@@ -4,7 +4,7 @@
 import { ITEMS } from '../data/items.js';
 import { CHAPTERS, CHAPTER_INDEX, SIDE_QUESTS } from '../data/quests.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const MAX_HEART = 5;
 
 export function createState() {
@@ -14,7 +14,6 @@ export function createState() {
     trueName: 'Aiko',
     calledName: 'Aiko',
     heart: MAX_HEART,
-    fade: 0,
     flags: {},
     side: {},
     items: {},
@@ -166,9 +165,6 @@ export function applyEffect(state, fx) {
       state.heart = Math.max(0, Math.min(MAX_HEART, state.heart + fx.by));
       if (fx.by > 0) out.push({ type: 'sfx', id: 'chime' });
       break;
-    case 'fade':
-      state.fade = Math.max(0, Math.min(1, fx.value));
-      break;
     case 'teleport':
       out.push({ type: 'teleport', to: fx.to });
       break;
@@ -190,7 +186,6 @@ export function applyEffect(state, fx) {
       if (item?.heals && hasItem(state, fx.id)) {
         removeItem(state, fx.id);
         state.heart = Math.min(MAX_HEART, state.heart + item.heals);
-        state.fade = 0;
         out.push({ type: 'toast', text: `Ate ${item.name}` });
         out.push({ type: 'sfx', id: 'chime' });
       }
@@ -222,22 +217,4 @@ export function test(state, cond) {
   if (cond.before) return !atLeast(state, cond.before);
   if (cond.sideDone) return sideDone(state, cond.sideDone);
   return true;
-}
-
-/* -------------------------------------------------------------- rescale -- */
-// In the spirit world Aiko thins out if she never eats. She does not die;
-// she wakes up on the boiler floor with Kamashiro grumbling over her.
-
-export function tickFade(state, dt, inSpirit) {
-  if (!inSpirit || !atLeast(state, 'forbiddenFeast')) {
-    state.fade = Math.max(0, state.fade - dt * 0.05);
-    return null;
-  }
-  state.fade = Math.min(1, state.fade + dt * 0.006);
-  if (state.fade >= 1 && state.heart > 0) {
-    state.heart -= 1;
-    state.fade = 0.35;
-    return state.heart <= 0 ? 'collapse' : 'thin';
-  }
-  return null;
 }
