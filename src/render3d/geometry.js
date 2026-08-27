@@ -1,13 +1,14 @@
 // A tiny geometry buffer. Everything the world is made of gets pushed through
 // these four calls: quad, box, sphere and crossed billboards.
 //
-// Vertex layout (11 floats): position, normal, uv, texture layer, AO, flags.
+// Vertex layout (13 floats): position, normal, uv, texture layer, AO, flags,
+// sway weight and sway phase. The last two are what the wind pushes on.
 
 export const FLAG_WATER = 1;
 export const FLAG_EMISSIVE = 2;
 export const FLAG_SHORT = 8;      // low geometry, never hidden by the cutaway
 
-export const VERTEX_FLOATS = 11;
+export const VERTEX_FLOATS = 13;
 
 export class Geo {
   constructor() {
@@ -16,16 +17,17 @@ export class Geo {
     this.count = 0;
   }
 
-  vertex(x, y, z, nx, ny, nz, u, vv, layer, ao, flags) {
-    this.v.push(x, y, z, nx, ny, nz, u, vv, layer, ao, flags);
+  vertex(x, y, z, nx, ny, nz, u, vv, layer, ao, flags, sway = 0, phase = 0) {
+    this.v.push(x, y, z, nx, ny, nz, u, vv, layer, ao, flags, sway, phase);
     return this.count++;
   }
 
   /** Four corners in counter-clockwise order, with per-corner AO. */
-  quad(p, n, uv, layer, ao = [1, 1, 1, 1], flags = 0) {
+  quad(p, n, uv, layer, ao = [1, 1, 1, 1], flags = 0, sway = 0, phase = 0) {
     const base = this.count;
     for (let k = 0; k < 4; k++) {
-      this.vertex(p[k][0], p[k][1], p[k][2], n[0], n[1], n[2], uv[k][0], uv[k][1], layer, ao[k], flags);
+      this.vertex(p[k][0], p[k][1], p[k][2], n[0], n[1], n[2], uv[k][0], uv[k][1],
+        layer, ao[k], flags, Array.isArray(sway) ? sway[k] : sway, phase);
     }
     // Flip the split so the AO gradient doesn't crease the wrong way.
     if (ao[0] + ao[2] > ao[1] + ao[3]) {
@@ -40,7 +42,9 @@ export class Geo {
    * `faces` lets the caller skip sides that are buried in neighbours.
    */
   box(x, y, z, sx, sy, sz, layers, opts = {}) {
-    const { faces = 0b111111, ao = 1, flags = 0, uvScale = 1, rot = 0 } = opts;
+    const { faces = 0b111111, ao = 1, flags = 0, uvScale = 1, rot = 0, sway = 0, phase = 0 } = opts;
+    const S0 = 0;             // rooted at the base
+    const S1 = sway;          // free at the top
     const top = layers.top ?? layers.side;
     const side = layers.side ?? layers.top;
     const hx = sx / 2;
@@ -61,37 +65,69 @@ export class Geo {
 
     if (faces & 0b000001) { // top
       this.quad([P(-hx, y1, -hz), P(-hx, y1, hz), P(hx, y1, hz), P(hx, y1, -hz)],
-        [0, 1, 0], [[0, 0], [0, d], [w, d], [w, 0]], top, aos, flags);
+        [0, 1, 0], [[0, 0], [0, d], [w, d], [w, 0]], top, aos, flags, S1, phase);
     }
     if (faces & 0b000010) { // bottom
       this.quad([P(-hx, y0, -hz), P(hx, y0, -hz), P(hx, y0, hz), P(-hx, y0, hz)],
-        [0, -1, 0], [[0, 0], [w, 0], [w, d], [0, d]], top, aos, flags);
+        [0, -1, 0], [[0, 0], [w, 0], [w, d], [0, d]], top, aos, flags, S0, phase);
     }
+    const wall = [S0, S0, S1, S1];        // base, base, top, top
     if (faces & 0b000100) { // +z (south, toward camera)
       const n = A(0, 1);
       this.quad([P(-hx, y0, hz), P(hx, y0, hz), P(hx, y1, hz), P(-hx, y1, hz)],
-        [n[0], 0, n[2]], [[0, h], [w, h], [w, 0], [0, 0]], side, aos, flags);
+        [n[0], 0, n[2]], [[0, h], [w, h], [w, 0], [0, 0]], side, aos, flags, wall, phase);
     }
     if (faces & 0b001000) { // -z (north)
       const n = A(0, -1);
       this.quad([P(hx, y0, -hz), P(-hx, y0, -hz), P(-hx, y1, -hz), P(hx, y1, -hz)],
-        [n[0], 0, n[2]], [[0, h], [w, h], [w, 0], [0, 0]], side, aos, flags);
+        [n[0], 0, n[2]], [[0, h], [w, h], [w, 0], [0, 0]], side, aos, flags, wall, phase);
     }
     if (faces & 0b010000) { // +x (east)
       const n = A(1, 0);
       this.quad([P(hx, y0, hz), P(hx, y0, -hz), P(hx, y1, -hz), P(hx, y1, hz)],
-        [n[0], 0, n[2]], [[0, h], [d, h], [d, 0], [0, 0]], side, aos, flags);
+        [n[0], 0, n[2]], [[0, h], [d, h], [d, 0], [0, 0]], side, aos, flags, wall, phase);
     }
     if (faces & 0b100000) { // -x (west)
       const n = A(-1, 0);
       this.quad([P(-hx, y0, -hz), P(-hx, y0, hz), P(-hx, y1, hz), P(-hx, y1, -hz)],
-        [n[0], 0, n[2]], [[0, h], [d, h], [d, 0], [0, 0]], side, aos, flags);
+        [n[0], 0, n[2]], [[0, h], [d, h], [d, 0], [0, 0]], side, aos, flags, wall, phase);
     }
+  }
+
+  /**
+   * One leaf: a small quad tilted in space. Leaves are opaque so they never
+   * need alpha testing, and they carry the wind's full sway.
+   */
+  leaf(x, y, z, size, normal, tilt, layer, ao, sway, phase) {
+    // Build a frame around the leaf's normal.
+    const n = normal;
+    let ux = -n[2];
+    let uz = n[0];
+    const ul = Math.hypot(ux, uz) || 1;
+    ux /= ul; uz /= ul;
+    const vx = n[1] * uz - n[2] * 0;
+    const vy = n[2] * ux - n[0] * uz;
+    const vz = n[0] * 0 - n[1] * ux;
+    const c = Math.cos(tilt);
+    const s = Math.sin(tilt);
+    const ax = (ux * c + vx * s) * size;
+    const ay = (vy * s) * size;
+    const az = (uz * c + vz * s) * size;
+    const bx = (-ux * s + vx * c) * size;
+    const by = (vy * c) * size;
+    const bz = (-uz * s + vz * c) * size;
+    this.quad(
+      [[x - ax - bx, y - ay - by, z - az - bz],
+       [x + ax - bx, y + ay - by, z + az - bz],
+       [x + ax + bx, y + ay + by, z + az + bz],
+       [x - ax + bx, y - ay + by, z - az + bz]],
+      n, [[0, 0], [1, 0], [1, 1], [0, 1]], layer, [ao, ao, ao, ao], 0, sway, phase
+    );
   }
 
   /** Low-poly sphere, for foliage and boulders. */
   sphere(x, y, z, rx, ry, rz, layer, opts = {}) {
-    const { segments = 9, rings = 6, ao = 1, flags = 0, uvScale = 0.7 } = opts;
+    const { segments = 9, rings = 6, ao = 1, flags = 0, uvScale = 0.7, sway = 0, phase = 0 } = opts;
     const base = this.count;
     for (let r = 0; r <= rings; r++) {
       const phi = (r / rings) * Math.PI;
@@ -104,7 +140,7 @@ export class Geo {
           x + nx * rx, y + ny * ry, z + nz * rz,
           nx, ny, nz,
           (s / segments) * Math.PI * 2 * rx * uvScale, (r / rings) * Math.PI * ry * uvScale,
-          layer, ao, flags
+          layer, ao, flags, sway, phase
         );
       }
     }

@@ -7,9 +7,23 @@ import { WORLD_VS, WORLD_FS, DEPTH_VS, DEPTH_FS, SKY_VS, SKY_FS } from './shader
 import { buildTextureLayers, TEXTURE_SIZE } from './textures.js';
 import { buildAreaMesh } from './areamesh.js';
 import { Geo } from './geometry.js';
+import { Rain } from './rain.js';
 
 const SHADOW_SIZE = 2048;
-const LAYOUT = [['aPos', 3], ['aNrm', 3], ['aUv', 2], ['aLayer', 1], ['aAo', 1], ['aFlags', 1]];
+const LAYOUT = [['aPos', 3], ['aNrm', 3], ['aUv', 2], ['aLayer', 1], ['aAo', 1],
+                ['aFlags', 1], ['aSway', 1], ['aPhase', 1]];
+
+// Fixed attribute slots, shared by the world and shadow programs.
+const SLOTS = Object.fromEntries(LAYOUT.map(([name], i) => [name, i]));
+
+// How hard the wind blows in each kind of place, and from where.
+const WIND = {
+  calm: { dir: [0.7, 0.7], strength: 0.02, speed: 0.5 },
+  breeze: { dir: [0.82, 0.57], strength: 0.1, speed: 1 },
+  gusty: { dir: [0.9, -0.44], strength: 0.19, speed: 1.4 },
+  storm: { dir: [0.96, -0.28], strength: 0.3, speed: 2.1 },
+  spirit: { dir: [-0.6, 0.8], strength: 0.07, speed: 0.7 }
+};
 
 // Per-area mood: sun, sky, fog, and how far Aiko's own light reaches.
 const LIGHTING = {
@@ -73,6 +87,23 @@ const LIGHTING = {
     horizon: [0.35, 0.42, 0.55], zenith: [0.1, 0.16, 0.34],
     fog: [0.3, 0.36, 0.48], fogDensity: 0.014, lamp: 0.5
   },
+  // The city, after the move went wrong: sodium and neon on a wet street.
+  neon: {
+    sun: [0.34, 0.44, 0.82], sunPower: 0.42, elevation: 0.68, azimuth: 3.9,
+    sky: [0.16, 0.17, 0.3], ground: [0.09, 0.07, 0.12],
+    horizon: [0.24, 0.13, 0.3], zenith: [0.03, 0.03, 0.09],
+    fog: [0.14, 0.1, 0.22], fogDensity: 0.03, lamp: 0.85,
+    wetness: 1, rain: { color: [0.78, 0.86, 1.0], streak: 0.42 },
+    neon: [0.5, 0.16, 0.55]
+  },
+  // Inside, on the same night.
+  neonroom: {
+    sun: [0.5, 0.55, 0.9], sunPower: 0.5, elevation: 0.7, azimuth: 3.9,
+    sky: [0.24, 0.22, 0.32], ground: [0.13, 0.11, 0.14],
+    horizon: [0.1, 0.08, 0.14], zenith: [0.04, 0.04, 0.08],
+    fog: [0.09, 0.08, 0.14], fogDensity: 0.02, lamp: 1.1,
+    neon: [0.35, 0.12, 0.4]
+  },
   dawn: {
     sun: [1.0, 0.82, 0.78], sunPower: 0.95, elevation: 0.3, azimuth: 2.8,
     sky: [0.45, 0.42, 0.5], ground: [0.22, 0.2, 0.2],
@@ -90,15 +121,17 @@ export class Renderer3D {
     this.gl = gl;
     this.canvas = canvas;
 
-    this.world = program(gl, WORLD_VS, WORLD_FS);
-    this.depth = program(gl, DEPTH_VS, DEPTH_FS);
-    this.sky = program(gl, SKY_VS, SKY_FS);
+    this.world = program(gl, WORLD_VS, WORLD_FS, SLOTS);
+    this.depth = program(gl, DEPTH_VS, DEPTH_FS, SLOTS);
+    this.sky = program(gl, SKY_VS, SKY_FS, { aPos: 0 });
 
     this.atlas = arrayTexture(gl, TEXTURE_SIZE, buildTextureLayers());
     this.shadow = shadowTarget(gl, SHADOW_SIZE);
 
+    this.rain = new Rain(gl);
     this.cube = this.uploadUnit(makeCube());
     this.ball = this.uploadUnit(makeSphere());
+    this.tube = this.uploadUnit(makeCylinder());
     this.skyQuad = this.makeSkyQuad();
 
     this.areaMeshes = new Map();
@@ -171,6 +204,15 @@ export class Renderer3D {
     this.queue.push({ mesh: this.ball, x, y, z, sx, sy, sz, color, ...opts });
   }
 
+  /**
+   * A limb: a capped cylinder hanging from its top end, so a joint hinges
+   * where you would expect. `radius` is a real radius — the unit mesh is
+   * half a unit across, so it is doubled here.
+   */
+  drawLimb(x, y, z, radius, length, color, opts = {}) {
+    this.queue.push({ mesh: this.tube, x, y, z, sx: radius * 2, sy: length, sz: radius * 2, color, ...opts });
+  }
+
   /* ---------------------------------------------------------- camera -- */
 
   cameraFor(target, area) {
@@ -223,6 +265,11 @@ export class Renderer3D {
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.useProgram(this.depth.prog);
     gl.uniformMatrix4fv(this.depth.uniforms.uLightViewProj, false, this.lightViewProj);
+    const wind = WIND[area.wind ?? (area.indoors ? 'calm' : 'breeze')] ?? WIND.breeze;
+    const windTime = time * wind.speed;
+    gl.uniform2fv(this.depth.uniforms.uWindDir, wind.dir);
+    gl.uniform1f(this.depth.uniforms.uWindStrength, wind.strength);
+    gl.uniform1f(this.depth.uniforms.uWindTime, windTime);
     gl.cullFace(gl.FRONT);                       // front-face culling kills acne
     M.identity(this.model);
     gl.uniformMatrix4fv(this.depth.uniforms.uModel, false, this.model);
@@ -230,7 +277,7 @@ export class Renderer3D {
     gl.drawElements(gl.TRIANGLES, mesh.solid.count, gl.UNSIGNED_INT, 0);
     for (const item of this.queue) {
       if (item.noShadow) continue;
-      M.trs(this.model, item.x, item.y, item.z, item.sx, item.sy, item.sz, item.rot ?? 0);
+      this.modelFor(item);
       gl.uniformMatrix4fv(this.depth.uniforms.uModel, false, this.model);
       gl.bindVertexArray(item.mesh.vao);
       gl.drawElements(gl.TRIANGLES, item.mesh.count, gl.UNSIGNED_INT, 0);
@@ -276,10 +323,15 @@ export class Renderer3D {
     gl.uniform3fv(P.uniforms.uFogColor, L.fog);
     gl.uniform1f(P.uniforms.uFogDensity, L.fogDensity);
     gl.uniform1f(P.uniforms.uTime, time);
+    gl.uniform2fv(P.uniforms.uWindDir, wind.dir);
+    gl.uniform1f(P.uniforms.uWindStrength, wind.strength);
+    gl.uniform1f(P.uniforms.uWindTime, windTime);
     gl.uniform3f(P.uniforms.uLampPos, focus.x, focus.y + 1.0, focus.z);
     const lamp = (L.lamp ?? 0) * (opts.lampBoost ?? 1);
     gl.uniform3f(P.uniforms.uLampColor, lamp * 0.55, lamp * 0.42, lamp * 0.26);
     gl.uniform1f(P.uniforms.uLampRange, 11);
+    gl.uniform1f(P.uniforms.uWetness, L.wetness ?? 0);
+    gl.uniform3fv(P.uniforms.uNeon, L.neon ?? [0, 0, 0]);
     gl.uniform3f(P.uniforms.uCutFrom, focus.x, focus.y, focus.z);
     gl.uniform1f(P.uniforms.uCutEnabled, opts.cutaway === false ? 0 : 1);
     gl.uniform1f(P.uniforms.uAlpha, 1);
@@ -300,7 +352,7 @@ export class Renderer3D {
       const useTex = item.layer !== undefined;
       gl.uniform1f(P.uniforms.uUseTexture, useTex ? 1 : 0);
       gl.uniform1f(P.uniforms.uLayerOverride, useTex ? item.layer : -1);
-      M.trs(this.model, item.x, item.y, item.z, item.sx, item.sy, item.sz, item.rot ?? 0);
+      this.modelFor(item);
       gl.uniformMatrix4fv(P.uniforms.uModel, false, this.model);
       gl.uniform3fv(P.uniforms.uTint, item.color);
       gl.uniform1f(P.uniforms.uEmissive, item.emissive ?? 0);
@@ -318,7 +370,26 @@ export class Renderer3D {
         gl.depthMask(true);
       }
     }
+
+    /* ---- rain, last, over everything ---- */
+    if (L.rain) {
+      const right = [
+        this.view[0], this.view[4], this.view[8]      // camera right, from the view matrix
+      ];
+      this.rain.draw(this.viewProj, [target[0], target[1], target[2]], right, wind, time,
+        L.rain.color, L.rain.streak);
+    }
     gl.bindVertexArray(null);
+  }
+
+  modelFor(item) {
+    if (item.rx || item.rz) {
+      M.trsEuler(this.model, item.x, item.y, item.z, item.sx, item.sy, item.sz,
+        item.rx ?? 0, item.rot ?? 0, item.rz ?? 0);
+    } else {
+      M.trs(this.model, item.x, item.y, item.z, item.sx, item.sy, item.sz, item.rot ?? 0);
+    }
+    return this.model;
   }
 
   /** Where a world direction lands on screen, for the sun glow. */
@@ -359,6 +430,31 @@ function makeCube() {
 
 function makeSphere() {
   const g = new Geo();
-  g.sphere(0, 0, 0, 0.5, 0.5, 0.5, 0, { segments: 12, rings: 8, uvScale: 1 });
+  g.sphere(0, 0, 0, 0.5, 0.5, 0.5, 0, { segments: 14, rings: 10, uvScale: 1 });
+  return g.finish();
+}
+
+/**
+ * A unit cylinder hanging from the origin: it runs from y = 0 down to y = -1,
+ * so scaling it by a limb's length swings that limb about its joint.
+ */
+function makeCylinder(segments = 12) {
+  const g = new Geo();
+  const r = 0.5;
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * Math.PI * 2;
+    const a1 = ((i + 1) / segments) * Math.PI * 2;
+    const c0 = Math.cos(a0), s0 = Math.sin(a0);
+    const c1 = Math.cos(a1), s1 = Math.sin(a1);
+    g.quad(
+      [[c0 * r, -1, s0 * r], [c1 * r, -1, s1 * r], [c1 * r, 0, s1 * r], [c0 * r, 0, s0 * r]],
+      [(c0 + c1) / 2, 0, (s0 + s1) / 2],
+      [[i / segments, 1], [(i + 1) / segments, 1], [(i + 1) / segments, 0], [i / segments, 0]],
+      0
+    );
+  }
+  // Rounded ends, so elbows and knees read as joints rather than as pipe cuts.
+  g.sphere(0, 0, 0, r, r * 0.9, r, 0, { segments, rings: 5 });
+  g.sphere(0, -1, 0, r, r * 0.9, r, 0, { segments, rings: 5 });
   return g.finish();
 }

@@ -104,6 +104,30 @@ export function normalMatrixFromTrs(out, sx, sy, sz, ry = 0) {
   return out;
 }
 
+/** Full euler transform, for limbs that have to bend at a joint. */
+export function trsEuler(out, tx, ty, tz, sx, sy, sz, rx = 0, ry = 0, rz = 0) {
+  const cx = Math.cos(rx), sx1 = Math.sin(rx);
+  const cy = Math.cos(ry), sy1 = Math.sin(ry);
+  const cz = Math.cos(rz), sz1 = Math.sin(rz);
+  // R = Ry * Rx * Rz — yaw, then pitch, then roll.
+  const m00 = cy * cz + sy1 * sx1 * sz1;
+  const m01 = cx * sz1;
+  const m02 = -sy1 * cz + cy * sx1 * sz1;
+  const m10 = -cy * sz1 + sy1 * sx1 * cz;
+  const m11 = cx * cz;
+  const m12 = sy1 * sz1 + cy * sx1 * cz;
+  const m20 = sy1 * cx;
+  const m21 = -sx1;
+  const m22 = cy * cx;
+  out.set([
+    m00 * sx, m01 * sx, m02 * sx, 0,
+    m10 * sy, m11 * sy, m12 * sy, 0,
+    m20 * sz, m21 * sz, m22 * sz, 0,
+    tx, ty, tz, 1
+  ]);
+  return out;
+}
+
 export function lerp(a, b, t) {
   return a + (b - a) * t;
 }

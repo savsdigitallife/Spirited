@@ -12,12 +12,21 @@ export function compile(gl, type, source) {
   return shader;
 }
 
-export function program(gl, vsSource, fsSource) {
+/**
+ * `slots` pins attribute names to fixed locations before linking. Every
+ * program that draws the same VAO must agree on those numbers — a VAO stores
+ * its bindings by location index, not by name, so letting the linker choose
+ * means the shadow pass silently reads the wrong attribute.
+ */
+export function program(gl, vsSource, fsSource, slots = null) {
   const vs = compile(gl, gl.VERTEX_SHADER, vsSource);
   const fs = compile(gl, gl.FRAGMENT_SHADER, fsSource);
   const prog = gl.createProgram();
   gl.attachShader(prog, vs);
   gl.attachShader(prog, fs);
+  if (slots) {
+    for (const [name, index] of Object.entries(slots)) gl.bindAttribLocation(prog, index, name);
+  }
   gl.linkProgram(prog);
   gl.deleteShader(vs);
   gl.deleteShader(fs);

@@ -13,6 +13,7 @@ import { getArea } from './world/index.js';
 import { TILE_SIZE } from './world/tiles.js';
 import { tileAt } from './world/mapbuilder.js';
 import { groundAt } from './render3d/materials3d.js';
+import { stepSurface } from './systems/surfaces.js';
 import { Dialogue } from './systems/dialogue.js';
 import { SCRIPTS } from './data/script.js';
 import {
@@ -184,7 +185,10 @@ export class Game {
 
     this.player.update(dt, this.input.axis(), this.area, blockers, () => {
       this.state.stats.steps++;
-      if (this.state.stats.steps % 3 === 0) this.sound.sfx('step');
+      // Footsteps take their sound from whatever she is standing on.
+      const surface = stepSurface(tileAt(this.area,
+        Math.floor(this.player.x / TILE_SIZE), Math.floor(this.player.y / TILE_SIZE)));
+      this.sound.footstep(surface, this.area.tint === 'neon');
     });
     this.state.player = { area: this.area.id, x: this.player.x, y: this.player.y, dir: this.player.dir };
 
@@ -631,9 +635,10 @@ export class Game {
         y: this.groundUnder(npc.x, npc.y),
         dir: npc.dir,
         walk: npc.walk,
+        moving: Boolean(npc.vx || npc.vy),
         kind: npc.kind,
         palette: npc.palette,
-        scale: npc.kind ? 1 : 1.14          // adults stand taller than Aiko
+        scale: npc.kind ? 1 : 1.16          // adults stand taller than Aiko
       }, this.time);
     }
 
@@ -643,6 +648,7 @@ export class Game {
       y: this.groundUnder(this.player.x, this.player.y),
       dir: this.player.dir,
       walk: this.player.walk,
+      moving: this.player.moving,
       kind: 'human',
       palette: { skin: '#e9bd95', hair: '#241c18', cloth: '#c84a5e', trim: '#f2e8d6' },
       alpha: 1 - this.state.fade * 0.5

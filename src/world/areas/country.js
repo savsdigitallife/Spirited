@@ -15,6 +15,7 @@ const PAL = {
 /* ---------------------------------------------------------- paddy road -- */
 
 export const paddyroad = makeArea('paddyroad', {
+  wind: 'gusty',
   name: 'Kaminohara — Paddy Road',
   region: 'country',
   w: 64, h: 50,

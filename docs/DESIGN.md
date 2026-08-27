@@ -67,6 +67,61 @@ rail, market awnings, plants, and a cliff (outdoors) or plaster shell (indoors)
 around the edge so the horizon is never a hole. One mesh per area, uploaded once and
 cached; six areas stay resident.
 
+### Wind
+
+Two extra vertex attributes carry it: `sway` (0 at a plant's root, 1 at its tip)
+and `phase` (a per-plant random). `windOffset()` in the shader combines a fast
+per-plant wave with a slow gust travelling across the map, so a field ripples
+instead of pulsing. The shadow pass includes the same function and the same wind
+clock — miss that and the shadows tear away from the plants that cast them. Both
+programs also pin their attribute locations (`SLOTS` in `renderer3d.js`), because
+a VAO binds by location index, not by name: without it the shadow pass silently
+reads whichever attribute the linker happened to put in slot 6.
+
+### Trees
+
+Trunk, a couple of branches, a dark inner canopy so there is nothing to see
+through, and ~250 leaf quads scattered over a Fibonacci sphere. Each leaf gets its
+own size, its own AO (which is what varies the colour), one of two leaf textures,
+and its own wind phase, so a canopy shimmers rather than wobbling as one lump.
+Leaves face outward and are single-sided: the far side of the canopy is
+backface-culled and nobody misses it.
+
+### Characters
+
+A jointed rig. `bone()` draws a capped cylinder hanging from a joint, swings it,
+and returns its far end so the next bone can hang off that — hip to knee to ankle,
+shoulder to elbow to wrist. Knees and elbows only ever bend one way. Objects can
+take a full euler transform (`trsEuler`), which is what makes the joints possible;
+before that everything could only spin about Y.
+
+Both the unit sphere and the unit cylinder are **half a unit across**, so `ball()`
+and `drawLimb()` double the radii they are given. The first version of the rig
+skipped that and every head came out at half size.
+
+### The city
+
+Tokyo runs on the `neon` lighting profile: no real sun, heavy fog, a wet street and
+a strong lamp on Aiko. Wetness is one uniform — it darkens albedo, sharpens the
+specular lobe, adds a fresnel term tinted with the scene's neon colour, and
+perturbs the normal with ripple rings. Puddles come from a cheap two-octave sine
+field, so they pool in some places and not others.
+
+Rain is one draw call: a static mesh of 2,000 streak quads living in a 30m cell
+that follows the camera, scrolled downward and wrapped in the vertex shader,
+slanted by the wind and faded near the lens. The 2D weather layer adds a few
+strokes close to the camera for depth.
+
+### Sound
+
+`src/data/music.js` is the score and is pure data plus one pure function:
+`planStep(track, step)` returns everything that should sound on a given sixteenth
+note. That is what makes the music testable — the tests check pitch ranges, that
+swing does not change the length of a bar, and that progressions actually move.
+`src/core/audio.js` owns the WebAudio side: a lookahead scheduler, the voices
+(pad, bass, pluck, bell, kick, snare, hat, clank), a shared convolution reverb, and
+footsteps synthesised per surface from `src/systems/surfaces.js`.
+
 Decisions worth knowing about:
 
 - **Plants are geometry, not billboards.** Alpha-tested crossed quads were tried
@@ -83,6 +138,9 @@ Decisions worth knowing about:
   boxes and spheres override it with a uniform, or skip texturing and take a flat
   tint. A glow shell is the same shader with emissive above 2, which short-circuits
   lighting and fog entirely.
+- **Tiling is broken up in the shader**, not in the textures: a slow sine swell
+  across world space plus a second read of the same texture at a much smaller
+  scale. Cheaper than more texture memory and it hides the grid better.
 
 ## Things deliberately left simple
 

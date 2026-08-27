@@ -34,6 +34,30 @@ function blob(r, o, lx, y, lz, sx, sy, sz, color, opts = {}) {
   r.drawSphere(x, o.y + y + sy / 2, z, sx, sy, sz, color, opts);
 }
 
+/**
+ * A sphere centred on a local point, taking real radii — the unit sphere is
+ * half a unit across, so they are doubled on the way through.
+ */
+function ball(r, o, lx, y, lz, rx, ry, rz, color, opts = {}) {
+  const c = Math.cos(o.yaw);
+  const s = Math.sin(o.yaw);
+  r.drawSphere(o.x + lx * c + lz * s, o.y + y, o.z - lx * s + lz * c,
+    rx * 2, ry * 2, rz * 2, color, opts);
+}
+
+/**
+ * One bone. Hangs from the joint at (lx, ly, lz) and swings `pitch` radians
+ * about it — positive swings the far end backwards. Returns the far end in
+ * local coordinates so the next bone in the chain can hang off it.
+ */
+function bone(r, o, lx, ly, lz, radius, length, pitch, color, opts = {}) {
+  const c = Math.cos(o.yaw);
+  const s = Math.sin(o.yaw);
+  r.drawLimb(o.x + lx * c + lz * s, o.y + ly, o.z - lx * s + lz * c,
+    radius, length, color, { rot: o.yaw, rx: pitch, ...opts });
+  return [lx, ly - length * Math.cos(pitch), lz - length * Math.sin(pitch)];
+}
+
 /* --------------------------------------------------------------- actors -- */
 
 export function drawActor3D(r, a, time) {
@@ -168,21 +192,67 @@ export function drawActor3D(r, a, time) {
       break;
     }
     default: {
-      // People. Aiko is a child; adults get the same build, scaled up.
-      const s = a.scale ?? 1;
-      part(r, o, -0.11 * s, 0, swing * s, 0.14 * s, 0.42 * s, 0.16 * s, rgb('#3a3038'), opts);
-      part(r, o, 0.11 * s, 0, -swing * s, 0.14 * s, 0.42 * s, 0.16 * s, rgb('#3a3038'), opts);
-      part(r, o, 0, 0.42 * s, 0, 0.42 * s, 0.44 * s, 0.26 * s, cloth, opts);
-      part(r, o, 0, 0.72 * s, 0, 0.44 * s, 0.06 * s, 0.28 * s, trim, opts);
-      part(r, o, -0.27 * s, 0.46 * s, -swing * s, 0.1 * s, 0.36 * s, 0.12 * s, cloth, opts);
-      part(r, o, 0.27 * s, 0.46 * s, swing * s, 0.1 * s, 0.36 * s, 0.12 * s, cloth, opts);
-      part(r, o, -0.27 * s, 0.4 * s, -swing * s, 0.1 * s, 0.08 * s, 0.12 * s, skin, opts);
-      part(r, o, 0.27 * s, 0.4 * s, swing * s, 0.1 * s, 0.08 * s, 0.12 * s, skin, opts);
-      part(r, o, 0, 0.86 * s, 0, 0.3 * s, 0.3 * s, 0.3 * s, skin, opts);
-      part(r, o, 0, 1.1 * s, 0, 0.34 * s, 0.09 * s, 0.34 * s, hair, opts);
-      part(r, o, 0, 0.88 * s, -0.13 * s, 0.32 * s, 0.24 * s, 0.1 * s, hair, opts);
-      part(r, o, -0.07 * s, 1.0 * s, 0.15 * s, 0.05 * s, 0.05 * s, 0.03 * s, [0.13, 0.1, 0.09], opts);
-      part(r, o, 0.07 * s, 1.0 * s, 0.15 * s, 0.05 * s, 0.05 * s, 0.03 * s, [0.13, 0.1, 0.09], opts);
+      // People: a jointed rig rather than a stack of boxes. Hips and shoulders
+      // swing, knees and elbows bend behind them, and the whole body rises and
+      // falls on each step.
+      const S = a.scale ?? 1;
+      const walk = a.walk ?? 0;
+      const speed = Math.min(1, Math.abs(a.walk ?? 0) > 0 ? (a.moving ? 1 : 0.15) : 0.15);
+      const gait = Math.sin(walk) * speed;
+      const gaitB = Math.sin(walk + Math.PI) * speed;
+      const breathe = Math.sin(time * 1.6 + o.x) * 0.004;
+      const bob = (Math.abs(Math.sin(walk)) * 0.022 - 0.011) * speed;
+
+      const hipY = (0.52 + bob + breathe) * S;
+      const shoulderY = (0.9 + bob + breathe) * S;
+      const legR = 0.055 * S;
+      const armR = 0.042 * S;
+      const thigh = 0.27 * S;
+      const shin = 0.26 * S;
+      const upperArm = 0.21 * S;
+      const foreArm = 0.2 * S;
+      const trouser = [0.16, 0.15, 0.19];
+
+      // Legs, each a thigh that swings and a shin that only ever bends back.
+      for (const side of [-1, 1]) {
+        const swing = side < 0 ? gait : gaitB;
+        const hipX = side * 0.072 * S;
+        const knee = bone(r, o, hipX, hipY, 0, legR, thigh, swing * 0.62, trouser, opts);
+        const bend = Math.max(0, -Math.sin(walk + (side < 0 ? 0.9 : 0.9 + Math.PI))) * 0.95 * speed;
+        const ankle = bone(r, o, knee[0], knee[1], knee[2], legR * 0.88, shin,
+          swing * 0.62 + bend, trouser, opts);
+        part(r, o, ankle[0], ankle[1] - 0.03 * S, ankle[2] + 0.03 * S,
+          0.095 * S, 0.05 * S, 0.18 * S, rgb('#2f2823'), { ...opts, rot: o.yaw });
+      }
+
+      // Torso: hips, a tapered waist and a chest, so the silhouette narrows.
+      part(r, o, 0, hipY - 0.085 * S, 0, 0.225 * S, 0.1 * S, 0.155 * S, cloth, opts);
+      part(r, o, 0, hipY - 0.01 * S, 0, 0.205 * S, 0.19 * S, 0.145 * S, cloth, opts);
+      part(r, o, 0, hipY + 0.16 * S, 0, 0.255 * S, 0.23 * S, 0.165 * S, cloth, opts);
+      part(r, o, 0, shoulderY - 0.035 * S, 0, 0.2 * S, 0.035 * S, 0.15 * S, trim, opts);
+      part(r, o, 0, hipY - 0.095 * S, 0, 0.235 * S, 0.03 * S, 0.165 * S, trim, opts);
+
+      // Arms, swinging opposite the legs, elbows always bending forward.
+      for (const side of [-1, 1]) {
+        const swing = side < 0 ? gaitB : gait;
+        const shoulderX = side * 0.135 * S;
+        ball(r, o, shoulderX, shoulderY, 0, 0.048 * S, 0.048 * S, 0.048 * S, cloth, opts);
+        const elbow = bone(r, o, shoulderX, shoulderY, 0, armR, upperArm, swing * 0.5, cloth, opts);
+        const elbowBend = 0.22 + Math.max(0, swing) * 0.45;
+        const wrist = bone(r, o, elbow[0], elbow[1], elbow[2], armR * 0.85, foreArm,
+          swing * 0.5 - elbowBend, skin, opts);
+        ball(r, o, wrist[0], wrist[1], wrist[2], 0.042 * S, 0.05 * S, 0.038 * S, skin, opts);
+      }
+
+      // Head: neck, skull, hair and a face that is mostly two dark eyes.
+      const headY = shoulderY + 0.15 * S;
+      part(r, o, 0, shoulderY - 0.02 * S, 0, 0.07 * S, 0.07 * S, 0.07 * S, skin, opts);
+      ball(r, o, 0, headY, 0, 0.098 * S, 0.115 * S, 0.102 * S, skin, opts);
+      ball(r, o, 0, headY + 0.03 * S, -0.012 * S, 0.108 * S, 0.108 * S, 0.112 * S, hair, opts);
+      part(r, o, 0, headY - 0.1 * S, -0.085 * S, 0.17 * S, 0.2 * S, 0.06 * S, hair, opts);
+      ball(r, o, -0.04 * S, headY + 0.012 * S, 0.086 * S, 0.017 * S, 0.022 * S, 0.012 * S, [0.1, 0.08, 0.07], opts);
+      ball(r, o, 0.04 * S, headY + 0.012 * S, 0.086 * S, 0.017 * S, 0.022 * S, 0.012 * S, [0.1, 0.08, 0.07], opts);
+      ball(r, o, 0, headY - 0.012 * S, 0.095 * S, 0.014 * S, 0.017 * S, 0.014 * S, skin, opts);
       break;
     }
   }
@@ -368,6 +438,18 @@ const PROPS = {
     ['box', 0, 0.7, 0, 0.9, 0.06, 0.06, C.wood],
     ['box', 0, 0.7, 0, 0.06, 0.9, 0.06, C.wood]
   ],
+  // A projecting shop sign: bracket, tube, and a face that glows.
+  neon: [
+    ['box', 0, 3.3, -0.3, 0.08, 0.08, 0.6, C.metal],
+    ['box', 0, 1.4, 0, 0.09, 2.0, 0.09, C.metal],
+    ['box', 0, 1.5, 0, 0.4, 1.9, 0.11, 'NEON', { emissive: 1.6 }],
+    ['box', 0.13, 1.62, 0.07, 0.09, 1.65, 0.05, '#f4f0ff', { emissive: 1.3 }],
+    ['box', -0.13, 1.85, 0.07, 0.07, 1.2, 0.05, '#f4f0ff', { emissive: 1.1 }]
+  ],
+  neonBar: [
+    ['box', 0, 2.3, 0, 2.6, 0.3, 0.12, 'NEON', { emissive: 1.7 }],
+    ['box', 0, 2.16, 0.05, 2.4, 0.06, 0.06, '#ffffff', { emissive: 1.4 }]
+  ],
   slips: [],
   default: [['box', 0, 0, 0, 0.6, 0.6, 0.6, '#8a7550']]
 };
@@ -375,10 +457,23 @@ const PROPS = {
 export function drawProp3D(r, prop, time) {
   const parts = PROPS[prop.type] ?? PROPS.default;
   const o = { x: prop.x, y: prop.y3d ?? 0, z: prop.z, yaw: prop.yaw ?? 0 };
+  // 'NEON' in a part's colour slot means "whatever colour this sign is".
+  const tint = prop.color ? rgb(prop.color) : rgb('#ff2fa0');
 
   for (const [shape, lx, by, lz, sx, sy, sz, color, opts] of parts) {
     const draw = shape === 'sphere' ? blob : part;
-    draw(r, o, lx, by, lz, sx, sy, sz, rgb(color), opts ?? {});
+    draw(r, o, lx, by, lz, sx, sy, sz, color === 'NEON' ? tint : rgb(color), opts ?? {});
+  }
+
+  // Signs bleed light into the rain around them.
+  if (prop.type === 'neon' || prop.type === 'neonBar') {
+    const flicker = prop.steady ? 1 : (Math.sin(time * 13.3 + o.x * 7) > -0.92 ? 1 : 0.25);
+    const tall = prop.type === 'neon';
+    for (let i = 0; i < 2; i++) {
+      const rad = (tall ? 0.9 : 0.8) * (1.3 + i);
+      r.drawSphere(o.x, o.y + (tall ? 2.4 : 2.4), o.z, rad, rad * (tall ? 1.5 : 0.8), rad,
+        tint, { alpha: (0.2 - i * 0.09) * flicker, additive: true, emissive: 2.5, noShadow: true });
+    }
   }
 
   // Lamps get a soft halo, so lantern light reads as light and not as paint.

@@ -99,6 +99,7 @@ export function makeArea(id, cfg) {
     tint: cfg.tint ?? null,
     music: cfg.music ?? 'town',
     weather: cfg.weather ?? null,
+    wind: cfg.wind ?? null,
     npcs: cfg.npcs ?? [],
     props: cfg.props ?? [],
     portals: cfg.portals ?? [],

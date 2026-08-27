@@ -21,6 +21,7 @@ const PAL = {
 /* ------------------------------------------------------- hollow market -- */
 
 export const market = makeArea('market', {
+  wind: 'spirit',
   name: 'The Hollow Market',
   region: 'spirit',
   w: 60, h: 46,
@@ -138,6 +139,7 @@ export const market = makeArea('market', {
 /* ----------------------------------------------------- bridge of lamps -- */
 
 export const bridge = makeArea('bridge', {
+  wind: 'spirit',
   name: 'Bridge of Nine Lamps',
   region: 'spirit',
   w: 40, h: 30,
@@ -377,6 +379,7 @@ export const office = makeArea('office', {
 /* ----------------------------------------------------------- water rail -- */
 
 export const railstop = makeArea('railstop', {
+  wind: 'spirit',
   name: 'The Water Rail',
   region: 'spirit',
   w: 34, h: 18,
@@ -412,6 +415,7 @@ export const railstop = makeArea('railstop', {
 /* ---------------------------------------------------------- marsh house -- */
 
 export const marshhouse = makeArea('marshhouse', {
+  wind: 'breeze',
   name: 'Sixth Station — The Marsh House',
   region: 'spirit',
   w: 34, h: 24,
@@ -446,6 +450,7 @@ export const marshhouse = makeArea('marshhouse', {
 /* ------------------------------------------------- grove of folded names -- */
 
 export const grove = makeArea('grove', {
+  wind: 'breeze',
   name: 'The Grove of Folded Names',
   region: 'spirit',
   w: 40, h: 30,

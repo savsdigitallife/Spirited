@@ -3,7 +3,7 @@
 
 import { makeRng } from '../core/rng.js';
 
-const SIZE = 128;
+const SIZE = 256;
 
 function surface() {
   const c = document.createElement('canvas');
@@ -53,11 +53,20 @@ function planks(g, rng, base, dark, light, rows = 4) {
     g.globalAlpha = 0.25;
     g.fillRect(0, y, SIZE, h);
     g.globalAlpha = 1;
-    for (let i = 0; i < 26; i++) {                 // grain lines
-      g.globalAlpha = 0.05 + rng() * 0.1;
+    for (let i = 0; i < 60; i++) {                 // grain lines
+      g.globalAlpha = 0.05 + rng() * 0.12;
       g.fillStyle = rng() > 0.5 ? dark : light;
       const gy = y + rng() * h;
-      g.fillRect(rng() * SIZE, gy, 12 + rng() * 40, 1);
+      g.fillRect(rng() * SIZE, gy, 16 + rng() * 70, 1 + (rng() < 0.2 ? 1 : 0));
+    }
+    for (let i = 0; i < 3; i++) {                  // knots
+      g.globalAlpha = 0.2;
+      g.fillStyle = dark;
+      const kx = rng() * SIZE;
+      const ky = y + rng() * h;
+      g.beginPath();
+      g.ellipse(kx, ky, 3 + rng() * 4, 2 + rng() * 2, 0, 0, Math.PI * 2);
+      g.fill();
     }
     g.globalAlpha = 1;
     g.fillStyle = dark;
@@ -70,11 +79,23 @@ function slabs(g, rng, base, grout, cols = 4, rows = 4, jitter = 0.12) {
   fill(g, grout);
   const w = SIZE / cols;
   const h = SIZE / rows;
+  const gap = SIZE / 96;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const shade = 1 + (rng() - 0.5) * jitter * 2;
       g.fillStyle = shift(base, shade);
-      g.fillRect(c * w + 1, r * h + 1, w - 2, h - 2);
+      g.fillRect(c * w + gap, r * h + gap, w - gap * 2, h - gap * 2);
+      // Wear along the edges, and grime settling into the joints.
+      g.globalAlpha = 0.16;
+      g.fillStyle = grout;
+      g.fillRect(c * w + gap, r * h + gap, w - gap * 2, gap * 1.6);
+      g.fillRect(c * w + gap, (r + 1) * h - gap * 2.6, w - gap * 2, gap * 1.6);
+      g.globalAlpha = 0.1;
+      for (let k = 0; k < 5; k++) {
+        g.fillRect(c * w + gap + rng() * (w - gap * 2), r * h + gap + rng() * (h - gap * 2),
+          rng() * 12, rng() * 8);
+      }
+      g.globalAlpha = 1;
     }
   }
 }
@@ -96,28 +117,28 @@ const RECIPES = {
     fill(g, '#4a6b39');
     blotches(g, rng, 26, '#5c8046', 22, 0.5);
     blotches(g, rng, 18, '#3d5c30', 18, 0.4);
-    grain(g, rng, 2600, ['#5f8a49', '#41632f', '#6d9550', '#37522a'], 1, 3);
+    grain(g, rng, 6760, ['#5f8a49', '#41632f', '#6d9550', '#37522a'], 1, 3);
   },
   meadow(g, rng) {
     fill(g, '#57783f');
     blotches(g, rng, 22, '#6c9450', 24, 0.45);
-    grain(g, rng, 2400, ['#78a05a', '#4a6a36', '#87ad63'], 1, 3);
+    grain(g, rng, 6240, ['#78a05a', '#4a6a36', '#87ad63'], 1, 3);
   },
   moss(g, rng) {
     fill(g, '#3d5b3c');
     blotches(g, rng, 30, '#4e7148', 20, 0.5);
-    grain(g, rng, 2600, ['#547a4c', '#334c33', '#5f8656'], 1, 2);
+    grain(g, rng, 6760, ['#547a4c', '#334c33', '#5f8656'], 1, 2);
   },
   dirt(g, rng) {
     fill(g, '#7a6146');
     blotches(g, rng, 22, '#8a7052', 20, 0.4);
     blotches(g, rng, 16, '#634d38', 16, 0.4);
-    grain(g, rng, 3000, ['#8d7454', '#6a543c', '#9a8060'], 1, 3);
+    grain(g, rng, 7800, ['#8d7454', '#6a543c', '#9a8060'], 1, 3);
   },
   mud(g, rng) {
     fill(g, '#4f4034');
     blotches(g, rng, 20, '#5e4c3c', 22, 0.45);
-    grain(g, rng, 2000, ['#5a4839', '#42352b'], 1, 3);
+    grain(g, rng, 5200, ['#5a4839', '#42352b'], 1, 3);
   },
   gravel(g, rng) {
     fill(g, '#7d786c');
@@ -132,32 +153,40 @@ const RECIPES = {
   ash(g, rng) {
     fill(g, '#3f3a34');
     blotches(g, rng, 24, '#4c463e', 18, 0.4);
-    grain(g, rng, 2200, ['#4a443c', '#332f2a', '#575046'], 1, 3);
+    grain(g, rng, 5720, ['#4a443c', '#332f2a', '#575046'], 1, 3);
   },
   asphalt(g, rng) {
     fill(g, '#2f3036');
-    grain(g, rng, 4000, ['#3a3b42', '#26272c', '#43444b'], 1, 2);
+    // Aggregate: the chips of stone in the tarmac.
+    for (let i = 0; i < 700; i++) {
+      g.fillStyle = ['#4a4b53', '#3c3d44', '#565761'][(rng() * 3) | 0];
+      const r = 1 + rng() * 3;
+      g.beginPath();
+      g.ellipse(rng() * SIZE, rng() * SIZE, r, r * 0.8, rng() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    grain(g, rng, 10400, ['#3a3b42', '#26272c', '#43444b'], 1, 2);
     blotches(g, rng, 8, '#1f2025', 26, 0.25);
   },
   crosswalk(g, rng) {
     fill(g, '#2f3036');
-    grain(g, rng, 2000, ['#3a3b42', '#26272c'], 1, 2);
+    grain(g, rng, 5200, ['#3a3b42', '#26272c'], 1, 2);
     g.fillStyle = '#d8d4c6';
     g.fillRect(10, 0, 34, SIZE);
     g.fillRect(74, 0, 34, SIZE);
     g.globalAlpha = 0.18;                          // worn paint
     g.fillStyle = '#2f3036';
-    grain(g, rng, 900, ['#2f3036'], 1, 4);
+    grain(g, rng, 2340, ['#2f3036'], 1, 4);
     g.globalAlpha = 1;
   },
   concrete(g, rng) {
     slabs(g, rng, '#8b877f', '#6e6a63', 2, 2, 0.08);
-    grain(g, rng, 2200, ['#949088', '#7e7a72'], 1, 2);
+    grain(g, rng, 5720, ['#949088', '#7e7a72'], 1, 2);
     blotches(g, rng, 10, '#6f6b64', 18, 0.16);
   },
   stone(g, rng) {
     slabs(g, rng, '#6c6862', '#4c4944', 3, 3, 0.14);
-    grain(g, rng, 2400, ['#787369', '#5d5a54'], 1, 2);
+    grain(g, rng, 6240, ['#787369', '#5d5a54'], 1, 2);
   },
   cliff(g, rng) {
     fill(g, '#4b453d');
@@ -165,22 +194,22 @@ const RECIPES = {
       g.fillStyle = ['#565046', '#3e3931', '#605949'][(rng() * 3) | 0];
       g.fillRect(rng() * SIZE, rng() * SIZE, 8 + rng() * 30, 4 + rng() * 14);
     }
-    grain(g, rng, 1800, ['#5b5449', '#38332c'], 1, 3);
+    grain(g, rng, 4680, ['#5b5449', '#38332c'], 1, 3);
   },
   rock(g, rng) {
     fill(g, '#615d57');
     blotches(g, rng, 18, '#6f6a63', 20, 0.4);
-    grain(g, rng, 1600, ['#726d65', '#4f4b46'], 1, 3);
+    grain(g, rng, 4160, ['#726d65', '#4f4b46'], 1, 3);
   },
   plaster(g, rng) {
     fill(g, '#b9b0a0');
     blotches(g, rng, 16, '#c6bdac', 22, 0.3);
-    grain(g, rng, 1800, ['#c2b9a8', '#aaa192'], 1, 2);
+    grain(g, rng, 4680, ['#c2b9a8', '#aaa192'], 1, 2);
   },
   building(g, rng) {
     fill(g, '#8d8b86');
     slabs(g, rng, '#8d8b86', '#74726d', 2, 4, 0.06);
-    grain(g, rng, 1400, ['#96948e', '#807e79'], 1, 2);
+    grain(g, rng, 3640, ['#96948e', '#807e79'], 1, 2);
   },
   windowGlass(g, rng) {
     fill(g, '#2b3440');
@@ -196,7 +225,7 @@ const RECIPES = {
     g.fillRect(6, 70, 50, 22);
     g.fillRect(70, 70, 50, 22);
     g.globalAlpha = 1;
-    grain(g, rng, 300, ['#33404e'], 1, 2);
+    grain(g, rng, 780, ['#33404e'], 1, 2);
   },
   plank(g, rng) { planks(g, rng, '#7a5533', '#4f3720', '#96693f', 4); },
   deck(g, rng) { planks(g, rng, '#8a5b3c', '#573726', '#a46f49', 5); },
@@ -211,7 +240,30 @@ const RECIPES = {
     fill(g, '#39602f');
     blotches(g, rng, 40, '#47763a', 16, 0.55);
     blotches(g, rng, 26, '#2c4a25', 14, 0.5);
-    grain(g, rng, 2600, ['#4e8040', '#2f5228', '#5b9049'], 2, 4);
+    grain(g, rng, 6760, ['#4e8040', '#2f5228', '#5b9049'], 2, 4);
+  },
+  leafA(g, rng) {
+    fill(g, '#42702f');
+    blotches(g, rng, 16, '#4f8438', 30, 0.5);
+    // A midrib and a few veins, so a leaf is a leaf up close.
+    g.strokeStyle = '#5d9445';
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(SIZE / 2, 0); g.lineTo(SIZE / 2, SIZE); g.stroke();
+    g.lineWidth = 2;
+    for (let i = 1; i < 6; i++) {
+      const y = (i / 6) * SIZE;
+      g.beginPath(); g.moveTo(SIZE / 2, y); g.lineTo(4, y + 14); g.stroke();
+      g.beginPath(); g.moveTo(SIZE / 2, y); g.lineTo(SIZE - 4, y + 14); g.stroke();
+    }
+    grain(g, rng, 1560, ['#396527', '#548a3c'], 1, 3);
+  },
+  leafB(g, rng) {
+    fill(g, '#6d8f35');
+    blotches(g, rng, 18, '#7fa040', 26, 0.5);
+    g.strokeStyle = '#8cae4d';
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(SIZE / 2, 0); g.lineTo(SIZE / 2, SIZE); g.stroke();
+    grain(g, rng, 1820, ['#5f7f2c', '#87a84a'], 1, 3);
   },
   tatami(g, rng) {
     fill(g, '#cbb173');
@@ -221,7 +273,7 @@ const RECIPES = {
       g.fillRect(0, i, SIZE, 1);
       g.globalAlpha = 1;
     }
-    grain(g, rng, 1200, ['#cdbb84', '#b3a06c'], 1, 2);
+    grain(g, rng, 3120, ['#cdbb84', '#b3a06c'], 1, 2);
     g.fillStyle = '#3f4636';                        // cloth binding
     g.fillRect(0, 0, SIZE, 5);
     g.fillRect(0, SIZE - 5, SIZE, 5);
@@ -229,12 +281,12 @@ const RECIPES = {
   carpet(g, rng) {
     fill(g, '#7c2733');
     blotches(g, rng, 22, '#8d2f3d', 20, 0.4);
-    grain(g, rng, 3000, ['#8a2c39', '#6b1f2a', '#98343f'], 1, 2);
+    grain(g, rng, 7800, ['#8a2c39', '#6b1f2a', '#98343f'], 1, 2);
   },
   lacquer(g, rng) {
     fill(g, '#43202a');
     blotches(g, rng, 10, '#4f2833', 24, 0.3);
-    grain(g, rng, 700, ['#4c2530', '#391a23'], 1, 2);
+    grain(g, rng, 1820, ['#4c2530', '#391a23'], 1, 2);
   },
   bathTile(g, rng) {
     slabs(g, rng, '#6d7f84', '#4d5b60', 4, 4, 0.1);
@@ -242,7 +294,7 @@ const RECIPES = {
   },
   shoji(g, rng) {
     fill(g, '#ded3ba');
-    grain(g, rng, 900, ['#e5dcc6', '#d2c7ae'], 1, 2);
+    grain(g, rng, 2340, ['#e5dcc6', '#d2c7ae'], 1, 2);
     g.fillStyle = '#6f5f45';                        // lattice
     for (let i = 0; i <= 3; i++) {
       g.fillRect((i * SIZE) / 3 - 2, 0, 4, SIZE);
@@ -258,11 +310,11 @@ const RECIPES = {
       g.fillStyle = '#511b1a';
       g.fillRect(0, y + SIZE / 5 - 3, SIZE, 3);
     }
-    grain(g, rng, 800, ['#9a3a34', '#6b2422'], 1, 2);
+    grain(g, rng, 2080, ['#9a3a34', '#6b2422'], 1, 2);
   },
   metal(g, rng) {
     fill(g, '#4a4640');
-    grain(g, rng, 2200, ['#585349', '#3c3833', '#655f53'], 1, 3);
+    grain(g, rng, 5720, ['#585349', '#3c3833', '#655f53'], 1, 3);
     blotches(g, rng, 12, '#7a4a2a', 12, 0.28);      // rust
   },
   grate(g, rng) {
@@ -271,28 +323,28 @@ const RECIPES = {
     for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 4, 0, 18, SIZE);
     g.fillStyle = '#191310';
     for (let i = 0; i < 5; i++) g.fillRect(i * 32 - 4, 0, 10, SIZE);
-    grain(g, rng, 600, ['#3a2d22'], 1, 2);
+    grain(g, rng, 1560, ['#3a2d22'], 1, 2);
   },
   water(g, rng) {
     fill(g, '#24506e');
     blotches(g, rng, 30, '#2f6489', 20, 0.4);
     blotches(g, rng, 20, '#1b3f5a', 16, 0.4);
-    grain(g, rng, 1200, ['#356e94', '#1f4763'], 2, 4);
+    grain(g, rng, 3120, ['#356e94', '#1f4763'], 2, 4);
   },
   greenWater(g, rng) {
     fill(g, '#2f6b68');
     blotches(g, rng, 26, '#3d8480', 20, 0.4);
-    grain(g, rng, 1000, ['#43918c', '#265854'], 2, 4);
+    grain(g, rng, 2600, ['#43918c', '#265854'], 2, 4);
   },
   marshWater(g, rng) {
     fill(g, '#3f5a4e');
     blotches(g, rng, 26, '#4c6b5c', 18, 0.4);
-    grain(g, rng, 1200, ['#547a68', '#33493f'], 2, 4);
+    grain(g, rng, 3120, ['#547a68', '#33493f'], 2, 4);
   },
   paddyWater(g, rng) {
     fill(g, '#48604a');
     blotches(g, rng, 22, '#57724f', 18, 0.4);
-    grain(g, rng, 1400, ['#5f7c53', '#3c5040'], 2, 4);
+    grain(g, rng, 3640, ['#5f7c53', '#3c5040'], 2, 4);
   }
 };
 

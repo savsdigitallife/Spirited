@@ -12,6 +12,19 @@ const float FLAG_SHORT = 8.0;
 bool hasFlag(float flags, float bit) {
   return mod(floor(flags / bit), 2.0) >= 0.5;
 }
+
+// Wind. 'sway' is how free a vertex is to move (0 at a plant's root, 1 at its
+// tip); 'phase' scatters neighbouring plants so a field ripples rather than
+// pulsing in unison. Gusts roll across the map as a slow travelling wave.
+vec3 windOffset(vec3 world, float sway, float phase, vec2 dir, float strength, float time) {
+  if (sway <= 0.0 || strength <= 0.0) return vec3(0.0);
+  float travel = time * 0.6 - (world.x * dir.x + world.z * dir.y) * 0.09;
+  float gust = 0.55 + 0.45 * sin(travel) * sin(travel * 0.37 + 1.7);
+  float t = time * 2.3 + phase;
+  float wave = sin(t) * 0.6 + sin(t * 2.7 + phase) * 0.25;
+  float push = (wave * 0.5 + 0.65) * strength * gust * sway;
+  return vec3(dir.x * push, -abs(wave) * sway * strength * 0.16, dir.y * push);
+}
 `;
 
 export const WORLD_VS = `#version 300 es
@@ -22,7 +35,12 @@ in vec2 aUv;
 in float aLayer;
 in float aAo;
 in float aFlags;
+in float aSway;
+in float aPhase;
 
+uniform vec2 uWindDir;
+uniform float uWindStrength;
+uniform float uWindTime;
 uniform mat4 uViewProj;
 uniform mat4 uLightViewProj;
 uniform mat4 uModel;
@@ -38,11 +56,15 @@ out vec4 vLightPos;
 
 void main() {
   vec4 world = uModel * vec4(aPos, 1.0);
-  // Water breathes rather than sits still.
+  // Water breathes rather than sits still: two crossing swells, with the wind
+  // stretching them along its own direction.
   if (hasFlag(aFlags, FLAG_WATER)) {
-    world.y += sin(world.x * 1.7 + uTime * 1.6) * 0.035
-             + sin(world.z * 2.3 - uTime * 1.1) * 0.03;
+    float w = dot(world.xz, uWindDir);
+    world.y += sin(w * 1.9 + uTime * 1.9) * 0.045
+             + sin(world.z * 2.3 - uTime * 1.1) * 0.03
+             + sin(world.x * 3.7 + uTime * 2.6) * 0.018;
   }
+  world.xyz += windOffset(world.xyz, aSway, aPhase, uWindDir, uWindStrength, uWindTime);
   vWorld = world.xyz;
   vNrm = mat3(uModel) * aNrm;
   vUv = aUv;
@@ -86,6 +108,8 @@ uniform float uEmissive;
 uniform vec3 uCutFrom;        // player position, for the wall cutaway
 uniform float uCutEnabled;
 uniform float uAlpha;
+uniform float uWetness;       // 0 dry, 1 streaming with rain
+uniform vec3 uNeon;           // colour the wet ground throws back
 
 out vec4 fragColor;
 
@@ -137,8 +161,8 @@ void main() {
     float along = dot(vWorld - uCamera, dir);
     if (along > 0.3 && along < span - 0.8) {
       float radial = length((vWorld - uCamera) - dir * along);
-      float radius = mix(0.3, 2.3, along / span);
-      float fade = 1.0 - smoothstep(radius * 0.55, radius, radial);
+      float radius = mix(0.22, 1.55, along / span);
+      float fade = 1.0 - smoothstep(radius * 0.72, radius, radial);
       if (fade > dither(gl_FragCoord.xy)) discard;
     }
   }
@@ -160,7 +184,32 @@ void main() {
   }
   vec3 albedo = texel.rgb * uTint;
 
+  // Break the tiling: a slow swell of light and shade across the ground, plus
+  // a fine grain from the same texture read at a much smaller scale.
+  if (uUseTexture > 0.5) {
+    float macro = 0.86 + 0.28 * (sin(vWorld.x * 0.21 + 1.3) * sin(vWorld.z * 0.17) * 0.5 + 0.5);
+    float grain = texture(uAtlas, vec3(vUv * 5.7, vLayer)).g;
+    albedo *= mix(1.0, macro, 0.7) * mix(1.0, 0.78 + grain * 0.5, 0.35);
+  }
+
   vec3 n = normalize(vNrm);
+
+  // Wet ground: darker, sharper, and busy with rings where the rain lands.
+  float wet = 0.0;
+  if (uWetness > 0.01 && !water) {
+    wet = uWetness * clamp(n.y, 0.0, 1.0);
+    if (wet > 0.01) {
+      // Puddles gather in some places and not others.
+      float pool = sin(vWorld.x * 0.7) * sin(vWorld.z * 0.6 + 1.3)
+                 + 0.5 * sin(vWorld.x * 1.9 + 2.1) * sin(vWorld.z * 1.7);
+      wet *= clamp(0.45 + pool * 0.55, 0.15, 1.0);
+      // Ripple rings: fast, small, and only where it is actually wet.
+      float ring = sin((vWorld.x * 9.0 + vWorld.z * 7.0) - uTime * 9.0)
+                 + sin((vWorld.x * 6.3 - vWorld.z * 8.1) + uTime * 11.0);
+      n = normalize(n + vec3(ring * 0.05 * wet, 0.0, ring * 0.045 * wet));
+    }
+  }
+
   if (water) {
     // Two crossing wave sets, faked as a normal perturbation.
     float w1 = sin(vWorld.x * 3.1 + uTime * 1.9);
@@ -178,12 +227,21 @@ void main() {
   float hemi = n.y * 0.5 + 0.5;
   vec3 ambient = mix(uGroundColor, uSkyColor, hemi) * vAo;
 
-  vec3 color = albedo * (direct + ambient);
+  vec3 color = albedo * mix(vec3(1.0), vec3(0.62), wet) * (direct + ambient);
 
-  // Specular: strong on water, a sheen on everything else.
+  // Specular: strong on water, a sheen on everything else, and a hard
+  // highlight anywhere the rain has left a film.
   vec3 h = normalize(l + v);
-  float spec = pow(max(dot(n, h), 0.0), water ? 90.0 : 28.0) * (water ? 0.85 : 0.06);
+  float gloss = mix(28.0, 120.0, wet);
+  float spec = pow(max(dot(n, h), 0.0), water ? 90.0 : gloss) * (water ? 0.85 : 0.06 + wet * 0.7);
   color += uSunColor * spec * shade;
+
+  if (wet > 0.01) {
+    // A wet street mirrors the signs above it.
+    float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+    color += uNeon * fres * wet * 1.6;
+    color += uNeon * wet * 0.1;
+  }
 
   if (water) {
     float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
@@ -208,11 +266,20 @@ void main() {
 `;
 
 export const DEPTH_VS = `#version 300 es
+${COMMON}
 in vec3 aPos;
+in float aSway;
+in float aPhase;
 uniform mat4 uLightViewProj;
 uniform mat4 uModel;
+uniform vec2 uWindDir;
+uniform float uWindStrength;
+uniform float uWindTime;
 void main() {
-  gl_Position = uLightViewProj * uModel * vec4(aPos, 1.0);
+  vec4 world = uModel * vec4(aPos, 1.0);
+  // Shadows have to bend with the same wind, or they tear off the plants.
+  world.xyz += windOffset(world.xyz, aSway, aPhase, uWindDir, uWindStrength, uWindTime);
+  gl_Position = uLightViewProj * world;
 }
 `;
 

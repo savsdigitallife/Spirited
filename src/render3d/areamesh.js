@@ -93,7 +93,8 @@ export function buildAreaMesh(area) {
       }
       if (def.tree) emitTree(solid, cx, cz, tileRng);
       if (def.bush) {
-        solid.sphere(cx, 0.34, cz, 0.42 + tileRng() * 0.1, 0.34, 0.42, MATERIAL.foliage, { ao: 0.85, flags: FLAG_SHORT });
+        solid.sphere(cx, 0.34, cz, 0.42 + tileRng() * 0.1, 0.34, 0.42, MATERIAL.foliage,
+          { ao: 0.85, flags: FLAG_SHORT, sway: 0.22, phase: tileRng() * 6.283 });
       }
       if (def.rock) {
         solid.sphere(cx, 0.16, cz, 0.42, 0.3 + tileRng() * 0.15, 0.4, MATERIAL.rock, { segments: 6, rings: 4, ao: 0.85, flags: FLAG_SHORT });
@@ -154,9 +155,9 @@ function emitSkirt(geo, area, tx, tz, y, at, layer) {
 }
 
 const PLANTS = {
-  blade: { blades: 3, h: [0.22, 0.42], w: 0.055, layer: 'foliage', spread: 0.16 },
-  rice: { blades: 3, h: [0.42, 0.68], w: 0.06, layer: 'meadow', spread: 0.13 },
-  flowerTuft: { blades: 2, h: [0.3, 0.46], w: 0.05, layer: 'foliage', spread: 0.14, flower: true }
+  blade: { blades: 3, h: [0.22, 0.42], w: 0.055, layer: 'foliage', spread: 0.16, sway: 0.5 },
+  rice: { blades: 3, h: [0.42, 0.68], w: 0.06, layer: 'meadow', spread: 0.13, sway: 0.8 },
+  flowerTuft: { blades: 2, h: [0.3, 0.46], w: 0.05, layer: 'foliage', spread: 0.14, flower: true, sway: 0.6 }
 };
 
 function emitPlant(geo, kind, x, y, z, rng, ao) {
@@ -167,25 +168,68 @@ function emitPlant(geo, kind, x, y, z, rng, ao) {
     const bx = x + (rng() - 0.5) * cfg.spread * 2;
     const bz = z + (rng() - 0.5) * cfg.spread * 2;
     const h = cfg.h[0] + rng() * (cfg.h[1] - cfg.h[0]);
+    const phase = rng() * 6.283;
     geo.box(bx, y - 0.04, bz, cfg.w, h, cfg.w, layers,
-      { ao, flags: FLAG_SHORT, rot: rng() * Math.PI, faces: 0b111101 });
+      { ao, flags: FLAG_SHORT, rot: rng() * Math.PI, faces: 0b111101,
+        sway: cfg.sway, phase });
     if (cfg.flower) {
       const petal = rng() < 0.5 ? MATERIAL.plaster : MATERIAL.carpet;
       geo.box(bx, y - 0.04 + h, bz, 0.1, 0.09, 0.1, { top: petal, side: petal },
-        { ao: 1, flags: FLAG_SHORT, rot: rng() });
+        { ao: 1, flags: FLAG_SHORT, rot: rng(), sway: cfg.sway * 1.1, phase });
     }
   }
 }
 
+/**
+ * A tree: tapered trunk, a few branches, a dark inner canopy so there are no
+ * holes to see through, and a few hundred individual leaves scattered over the
+ * shell. Every leaf carries its own wind phase, which is what makes a canopy
+ * shimmer instead of wobbling as one lump.
+ */
 function emitTree(geo, cx, cz, rng) {
-  const lean = (rng() - 0.5) * 0.18;
-  const h = 2.2 + rng() * 1.6;
-  const r = 0.85 + rng() * 0.45;
-  geo.box(cx, 0, cz, 0.26, h, 0.26, { top: MATERIAL.bark, side: MATERIAL.bark }, { ao: 0.8, rot: rng() });
-  const canopy = { segments: 7, rings: 5 };
-  geo.sphere(cx + lean, h + r * 0.35, cz + lean, r, r * 0.82, r, MATERIAL.foliage, { ...canopy, ao: 1 });
-  geo.sphere(cx - lean * 1.6, h + r * 0.1, cz + lean, r * 0.72, r * 0.6, r * 0.72, MATERIAL.foliage, { ...canopy, ao: 0.9 });
-  geo.sphere(cx + lean, h + r * 0.95, cz - lean * 1.4, r * 0.6, r * 0.5, r * 0.6, MATERIAL.foliage, { ...canopy, ao: 1 });
+  const lean = (rng() - 0.5) * 0.2;
+  const h = 2.3 + rng() * 1.7;
+  const r = 0.95 + rng() * 0.5;
+  const bark = { top: MATERIAL.bark, side: MATERIAL.bark };
+  const trunkPhase = rng() * 6.283;
+
+  geo.box(cx, -0.1, cz, 0.34, h * 0.55, 0.34, bark, { ao: 0.75, rot: rng() });
+  geo.box(cx + lean * 0.4, h * 0.5, cz + lean * 0.3, 0.24, h * 0.55, 0.24, bark,
+    { ao: 0.8, rot: rng(), sway: 0.1, phase: trunkPhase });
+
+  const cy = h + r * 0.3;
+  const ccx = cx + lean;
+  const ccz = cz + lean;
+  for (let b = 0; b < 3; b++) {
+    const a = rng() * Math.PI * 2;
+    geo.box(ccx + Math.cos(a) * r * 0.35, h * 0.82, ccz + Math.sin(a) * r * 0.35,
+      r * 0.75, 0.12, 0.12, bark, { ao: 0.8, rot: a, sway: 0.14, phase: trunkPhase });
+  }
+
+  geo.sphere(ccx, cy, ccz, r * 0.74, r * 0.62, r * 0.74, MATERIAL.foliage,
+    { segments: 8, rings: 6, ao: 0.7, sway: 0.16, phase: trunkPhase });
+
+  const count = 230 + Math.floor(rng() * 70);
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < count; i++) {
+    const t = (i + 0.5) / count;
+    const y = 1 - t * 1.75;                       // fuller on top than underneath
+    const rad = Math.sqrt(Math.max(0, 1 - y * y));
+    const a = i * golden + rng() * 0.4;
+    const dir = [Math.cos(a) * rad, y, Math.sin(a) * rad];
+    const spread = 0.82 + rng() * 0.28;
+    geo.leaf(
+      ccx + dir[0] * r * spread,
+      cy + dir[1] * r * 0.82 * spread,
+      ccz + dir[2] * r * spread,
+      0.095 + rng() * 0.075,
+      dir, rng() * Math.PI,
+      rng() < 0.68 ? MATERIAL.leafA : MATERIAL.leafB,
+      0.62 + rng() * 0.38 + y * 0.06,        // shading varies leaf to leaf
+      0.5 + rng() * 0.4,
+      rng() * 6.283
+    );
+  }
 }
 
 function emitFence(geo, area, tx, tz, at) {

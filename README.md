@@ -6,9 +6,10 @@ flat above the Sakuragaoka crossing, follows her north to a rice valley called
 Kaminohara, and — once her father walks into a tunnel he should have left alone —
 into somewhere older than maps, where she has to work for her name back.
 
-Runs in any modern browser. No engine, no build step, no asset files: the world
-is real 3D — extruded geometry, a sun that casts shadows, textures painted at
-load time and a procedural score — all generated at runtime from code.
+Runs in any modern browser. No engine, no build step, no asset files — not one
+image, not one sound. The world is real 3D: extruded geometry, a sun that casts
+shadows, wind that moves every leaf, rain, textures painted at load time, and a
+score composed on the fly, all generated at runtime from code.
 
 ## Play it
 
@@ -66,11 +67,39 @@ death screen.
 **Rendered in 3D**: the tile grid is extruded into solid geometry — buildings six
 storeys tall, rice standing in flooded paddies, awnings on posts, a cliff around the
 whole valley. A directional sun casts real shadows through a 2048px shadow map;
-ambient occlusion is baked into the mesh; water has waves, specular and fresnel;
-lanterns carry glow shells and Aiko carries her own light into dark places. Each
-area has its own sun angle, sky gradient and fog, so morning in Tokyo and dusk past
-the tunnel are lit by different suns. Anything that comes between the camera and
-Aiko dissolves through a dither cone, so a wall never hides her.
+ambient occlusion is baked into the mesh; water rolls in two crossing swells with
+specular and fresnel on top; lanterns carry glow shells and Aiko carries her own
+light into dark places. Each area has its own sun angle, sky gradient and fog.
+Anything that comes between the camera and Aiko dissolves through a dither cone, so
+a wall never hides her.
+
+**Wind moves the world.** Every vertex carries how freely it can move and its own
+phase, so a gust travels across a field as a wave rather than shoving everything at
+once. Grass bends from the root, rice bows, bushes shiver, branches lean — and each
+of the ~250 leaves on a tree flutters on its own clock. Shadows bend with it,
+because the shadow pass runs the same wind. Each region has its own weather: a
+gusty valley, a storm over the city, a slow strange drift beyond the tunnel.
+
+**Tokyo is a wet neon night.** The move happens under a downpour: two thousand rain
+streaks slanting with the wind in a single draw call, shop signs in magenta, cyan
+and amber — some of them flickering — and a road that goes glossy and throws their
+colour back at you. Puddles pool where the ground dips, ripple rings spread where
+the rain lands, and every footstep out there picks up a splash.
+
+**People look like people.** Characters are a jointed rig, not a stack of boxes:
+hips and shoulders swing in opposition, knees and elbows bend the way joints
+actually bend, the body rises and falls on each step, and idle characters breathe.
+Heads, hands and shoulders are spheres; limbs are capped cylinders that hinge at
+the joint.
+
+**Sound is synthesised end to end.** Every scene has a composed track — key, chord
+progression, bass line, arpeggio, melody and drum pattern — played by a
+sixteenth-note scheduler through pads, plucks, bells and a drum kit built from
+oscillators and filtered noise, with a shared convolution reverb. The city gets a
+dark synth four-on-the-floor; the bathhouse a plucked pentatonic over taiko; the
+tunnel a drone and the occasional bell. Footsteps are synthesised per surface —
+grass, gravel, wet stone, tatami, wood, water, metal — alternating feet, detuned
+each step so a walk never turns into a metronome.
 
 ## How it's built
 
@@ -80,13 +109,13 @@ server.js             zero-dependency static server
 src/
   main.js             entry point, canvas sizing
   game.js             modes, the loop, the glue
-  core/               input, frame loop, audio, RNG
-  render3d/           the renderer: shaders, materials, mesh building, models
+  core/               input, frame loop, audio engine, RNG
+  render3d/           the renderer: shaders, materials, mesh building, models, rain
   render/             HUD and weather, drawn on the 2D overlay
   entities/actors.js  player and NPC movement, collision
   systems/            state (the whole save), dialogue runner, save slots
   world/              tiles, map builder, and the areas themselves
-  data/               items, chapters, and every line of dialogue
+  data/               items, chapters, the score, and every line of dialogue
 tests/                node:test suites, no browser needed
 ```
 
@@ -105,7 +134,7 @@ into vertices without touching WebGL, so the geometry has its own tests too.
 npm test
 ```
 
-Twenty-six tests, no browser required. The three that matter most:
+Thirty-four tests, no browser required. The four that matter most:
 
 - `tests/world.test.js` validates every map — no NPC standing inside a wall, no
   portal landing in solid rock, no unreachable area, no dialogue script referenced
@@ -117,6 +146,10 @@ Twenty-six tests, no browser required. The three that matter most:
 - `tests/render3d.test.js` builds the geometry for every area and checks it is
   finite, non-empty, correctly indexed, inside the map, and deterministic — the
   things that would otherwise show up as a hole in the world.
+- `tests/audio.test.js` checks the score: note names resolve to the right
+  pitches, every area asks for a track that exists, every track plays something in
+  an audible range, swing does not change the length of a bar, progressions
+  actually move, and every tile in the game has a footstep sound.
 
 ## On the inspiration
 

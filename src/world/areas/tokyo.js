@@ -22,7 +22,7 @@ export const flat = makeArea('flat', {
   fill: T.wood,
   indoors: true,
   music: 'home',
-  tint: 'morning',
+  tint: 'neonroom',
   build(d) {
     d.border(T.wall, 1);
     // Aiko's room: tatami, walled off by a paper screen with a gap at y=6.
@@ -73,13 +73,14 @@ export const flat = makeArea('flat', {
 /* --------------------------------------------------------- the crossing -- */
 
 export const street = makeArea('street', {
+  wind: 'storm',
   name: 'Sakuragaoka Crossing',
   region: 'tokyo',
   w: 56, h: 40,
   fill: T.facade,
   music: 'town',
-  tint: 'morning',
-  weather: 'city',
+  tint: 'neon',
+  weather: 'rain',
   build(d, rng) {
     // The block is solid to start with; the streets are cut out of it.
     d.fill(0, 15, 56, 2, T.sidewalk);
@@ -145,7 +146,27 @@ export const street = makeArea('street', {
     { id: 'bench', type: 'bench', ...tp(36, 15), solid: true, script: 'bench' },
     { id: 'lamp1', type: 'streetlamp', ...tp(23, 15), solid: true },
     { id: 'lamp2', type: 'streetlamp', ...tp(31, 25), solid: true },
-    { id: 'lamp3', type: 'streetlamp', ...tp(23, 30), solid: true }
+    { id: 'lamp3', type: 'streetlamp', ...tp(23, 30), solid: true },
+    { id: 'neon0', type: 'neon', ...tp(3, 15), color: '#ff2fa0' },
+    { id: 'neon1', type: 'neon', ...tp(7, 15), color: '#22e8ff', steady: true },
+    { id: 'neon2', type: 'neon', ...tp(11, 15), color: '#ff8a1e', steady: true },
+    { id: 'neon3', type: 'neon', ...tp(16, 15), color: '#a24bff' },
+    { id: 'neon4', type: 'neon', ...tp(19, 15), color: '#3dff88', steady: true },
+    { id: 'neon5', type: 'neon', ...tp(4, 24), color: '#22e8ff', steady: true },
+    { id: 'neon6', type: 'neon', ...tp(9, 24), color: '#ff2fa0' },
+    { id: 'neon7', type: 'neon', ...tp(14, 24), color: '#ffd21e', steady: true },
+    { id: 'neon8', type: 'neon', ...tp(19, 24), color: '#a24bff', steady: true },
+    { id: 'neon9', type: 'neon', ...tp(31, 5), color: '#ff2fa0' },
+    { id: 'neon10', type: 'neon', ...tp(31, 10), color: '#3dff88', steady: true },
+    { id: 'neon11', type: 'neon', ...tp(31, 28), color: '#22e8ff', steady: true },
+    { id: 'neon12', type: 'neon', ...tp(31, 33), color: '#ff8a1e' },
+    { id: 'neon13', type: 'neon', ...tp(22, 4), color: '#ffd21e', steady: true },
+    { id: 'neon14', type: 'neon', ...tp(22, 9), color: '#a24bff', steady: true },
+    { id: 'neon15', type: 'neon', ...tp(22, 27), color: '#ff2fa0' },
+    { id: 'neon16', type: 'neon', ...tp(22, 33), color: '#22e8ff', steady: true },
+    { id: 'bar0', type: 'neonBar', ...tp(36, 24), color: '#ff2fa0', steady: true },
+    { id: 'bar1', type: 'neonBar', ...tp(44, 24), color: '#22e8ff', steady: true },
+    { id: 'bar2', type: 'neonBar', ...tp(40, 15), color: '#ffd21e', steady: true },
   ],
   portals: [
     {
@@ -174,12 +195,14 @@ export const street = makeArea('street', {
 /* ---------------------------------------------------------- the station -- */
 
 export const station = makeArea('station', {
+  wind: 'calm',
   name: 'Kitano Station',
   region: 'tokyo',
   w: 40, h: 28,
   fill: T.platform,
   indoors: true,
   music: 'station',
+  tint: 'neonroom',
   build(d) {
     d.border(T.wall, 1);
     // Concourse below, platform above, ticket gates between.
