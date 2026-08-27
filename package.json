@@ -1,13 +1,28 @@
 {
-  "name": "spirited",
-  "version": "1.0.0",
-  "description": "An open-world adventure game inspired by Spirited Away. Aiko, age 12, is uprooted from Tokyo and finds herself somewhere older than maps.",
+  "name": "nagori",
+  "version": "0.1.0",
+  "description": "Nagori \u2014 a Japanese fantasy action RPG and rural life sim. Babylon.js + TypeScript, WebGPU with WebGL2 fallback.",
   "type": "module",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test tests/*.test.js"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 8080",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && npm run test:sandbox",
+    "test:browser": "npm run build && node tools/smoke.mjs",
+    "test:sandbox": "npm --prefix sandbox/spirited test"
   },
-  "keywords": ["game", "adventure", "canvas", "open-world"],
   "license": "MIT",
-  "private": true
+  "dependencies": {
+    "@babylonjs/core": "^9.23.0",
+    "@babylonjs/loaders": "^9.23.0",
+    "@babylonjs/materials": "^9.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "playwright": "^1.62.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  }
 }

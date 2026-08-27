@@ -1,0 +1,12 @@
+{
+  "name": "spirited-sandbox",
+  "version": "1.0.0",
+  "description": "Headless design sandbox: the original Spirited prototype, kept for its data-driven systems tests. Not part of the Nagori build.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "license": "MIT"
+}
