@@ -1,0 +1,13 @@
+{
+  "name": "spirited",
+  "version": "1.0.0",
+  "description": "An open-world adventure game inspired by Spirited Away. Aiko, age 12, is uprooted from Tokyo and finds herself somewhere older than maps.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/"
+  },
+  "keywords": ["game", "adventure", "canvas", "open-world"],
+  "license": "MIT",
+  "private": true
+}

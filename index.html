@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spirited — The Long Way Home</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#127982;</text></svg>">
+</head>
+<body>
+  <div id="frame">
+    <canvas id="screen" width="960" height="540"></canvas>
+    <div id="touch" aria-hidden="true">
+      <div class="pad">
+        <button data-key="ArrowUp" class="p-up">▲</button>
+        <button data-key="ArrowLeft" class="p-left">◀</button>
+        <button data-key="ArrowRight" class="p-right">▶</button>
+        <button data-key="ArrowDown" class="p-down">▼</button>
+      </div>
+      <div class="acts">
+        <button data-key="KeyJ" class="a-j">J</button>
+        <button data-key="KeyI" class="a-i">I</button>
+        <button data-key="Enter" class="a-a">A</button>
+      </div>
+    </div>
+  </div>
+  <noscript>Spirited needs JavaScript enabled.</noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
