@@ -1,0 +1,930 @@
+<title>Nagori Design Bible</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;700;900&family=Zen+Kaku+Gothic+New:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ============================================================ tokens ==
+   Dark-first: the game's most characteristic images are night ones, so the
+   bare :root carries the dark palette and the light theme is the override. */
+:root {
+  --ground:   #131720;
+  --surface:  #1A1F29;
+  --raised:   #232936;
+  --sunken:   #0E1218;
+  --line:     #2C3444;
+  --line-soft:#222937;
+  --text:     #DEE3E0;
+  --text-dim: #96A0A0;
+  --text-faint:#68737A;
+  --indigo:   #7BA6D0;
+  --indigo-deep: #4B7099;
+  --gold:     #D6B368;
+  --gold-deep:#A8873F;
+  --moss:     #86A26F;
+  --clay:     #C4735A;
+  --shadow: 0 1px 0 rgba(255,255,255,.03), 0 18px 40px -24px rgba(0,0,0,.8);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground:   #E7E9E3;
+    --surface:  #F0F1EC;
+    --raised:   #FAFAF6;
+    --sunken:   #DCDFD8;
+    --line:     #C6CAC0;
+    --line-soft:#D6D9D0;
+    --text:     #191E26;
+    --text-dim: #566068;
+    --text-faint:#7C858A;
+    --indigo:   #2E5A87;
+    --indigo-deep: #1E3F62;
+    --gold:     #806112;
+    --gold-deep:#5E4708;
+    --moss:     #4C6839;
+    --clay:     #9C4A31;
+    --shadow: 0 1px 0 rgba(255,255,255,.7), 0 14px 34px -26px rgba(20,30,40,.5);
+  }
+}
+:root[data-theme="light"] {
+  --ground:   #E7E9E3;
+  --surface:  #F0F1EC;
+  --raised:   #FAFAF6;
+  --sunken:   #DCDFD8;
+  --line:     #C6CAC0;
+  --line-soft:#D6D9D0;
+  --text:     #191E26;
+  --text-dim: #566068;
+  --text-faint:#7C858A;
+  --indigo:   #2E5A87;
+  --indigo-deep: #1E3F62;
+  --gold:     #806112;
+  --gold-deep:#5E4708;
+  --moss:     #4C6839;
+  --clay:     #9C4A31;
+  --shadow: 0 1px 0 rgba(255,255,255,.7), 0 14px 34px -26px rgba(20,30,40,.5);
+}
+
+/* ============================================================= base == */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 16.5px;
+  line-height: 1.72;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 {
+  font-family: "Zen Old Mincho", "Hiragino Mincho ProN", Georgia, serif;
+  text-wrap: balance;
+  margin: 0;
+  line-height: 1.25;
+}
+p { margin: 0; }
+a { color: var(--indigo); }
+strong { color: var(--text); font-weight: 700; }
+em { font-style: italic; }
+
+/* ========================================================== shell == */
+.shell {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; padding: 0 20px; } }
+
+/* rail */
+.rail { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto;
+        padding: 40px 24px 40px 0; border-right: 1px solid var(--line-soft); }
+@media (max-width: 900px) { .rail { position: static; max-height: none; border-right: 0;
+        border-bottom: 1px solid var(--line-soft); padding: 20px 0; } }
+.rail-mark { font-family: "Zen Old Mincho", serif; font-size: 20px; letter-spacing: .1em;
+        color: var(--text); margin-bottom: 4px; }
+.rail-sub { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .14em;
+        text-transform: uppercase; color: var(--text-faint); margin-bottom: 26px; }
+.rail nav { display: flex; flex-direction: column; gap: 1px; }
+.rail a { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: baseline;
+        text-decoration: none; color: var(--text-dim); font-size: 13.5px; line-height: 1.45;
+        padding: 5px 8px 5px 0; border-radius: 3px; }
+.rail a:hover { color: var(--text); background: var(--surface); }
+.rail a span { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--text-faint);
+        font-variant-numeric: tabular-nums; }
+.rail a:focus-visible, .theme-btn:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+.theme-btn { margin-top: 26px; font: 500 11px/1 "IBM Plex Mono", monospace; letter-spacing: .1em;
+        text-transform: uppercase; color: var(--text-dim); background: none;
+        border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; cursor: pointer; }
+.theme-btn:hover { color: var(--text); border-color: var(--indigo); }
+
+/* main column */
+main { padding: 40px 0 120px 44px; min-width: 0; }
+@media (max-width: 900px) { main { padding: 32px 0 80px; } }
+.col { max-width: 68ch; }
+
+/* ============================================================ hero == */
+.hero { padding: 32px 0 52px; border-bottom: 1px solid var(--line-soft); margin-bottom: 56px; }
+.eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .2em;
+        text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
+.title { font-size: clamp(52px, 9vw, 82px); font-weight: 900; letter-spacing: .04em; line-height: 1; }
+.title-jp { font-size: clamp(18px, 3vw, 24px); font-weight: 400; color: var(--text-dim);
+        letter-spacing: .3em; margin-top: 14px; }
+.thesis { font-family: "Zen Old Mincho", serif; font-size: clamp(20px, 3vw, 26px); line-height: 1.55;
+        color: var(--text); margin: 30px 0 0; max-width: 30ch; }
+.thesis b { color: var(--gold); font-weight: 400; }
+.hero-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 18px 32px; margin: 40px 0 0; font-size: 13.5px; color: var(--text-dim); }
+.hero-meta div { display: flex; flex-direction: column; gap: 3px; }
+.hero-meta dd { margin: 0; }
+.hero-meta dt { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .14em;
+        text-transform: uppercase; color: var(--text-faint); }
+
+/* ========================================================= sections == */
+section { padding-top: 18px; margin-bottom: 72px; scroll-margin-top: 24px; }
+.sec-head { display: grid; grid-template-columns: 46px 1fr; gap: 14px; align-items: baseline;
+        margin-bottom: 26px; }
+.sec-num { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--gold);
+        font-variant-numeric: tabular-nums; padding-top: 8px; }
+.sec-title { font-size: clamp(27px, 4vw, 35px); font-weight: 700; }
+.sec-kicker { grid-column: 2; font-size: 14px; color: var(--text-dim); margin-top: 6px; }
+/* the worn rule: a groove, deeper at one end */
+.groove { height: 2px; border: 0; margin: 0 0 30px; grid-column: 1 / -1;
+        background: linear-gradient(90deg, var(--gold) 0%, var(--line) 26%, var(--line-soft) 62%, transparent 100%); }
+
+.col > * + * { margin-top: 18px; }
+h3 { font-size: 19px; font-weight: 700; margin-top: 38px; color: var(--text); }
+h3 + p { margin-top: 10px; }
+h4 { font-family: "Zen Kaku Gothic New", sans-serif; font-size: 13px; font-weight: 700;
+     letter-spacing: .06em; text-transform: uppercase; color: var(--indigo); margin-top: 30px; }
+ul, ol { margin: 0; padding-left: 20px; }
+li + li { margin-top: 7px; }
+li::marker { color: var(--text-faint); }
+
+/* ========================================================= devices == */
+.pull { border-left: 2px solid var(--gold); padding: 4px 0 4px 20px; margin: 26px 0;
+        font-family: "Zen Old Mincho", serif; font-size: 19px; line-height: 1.6; color: var(--text); }
+
+.card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 4px;
+        padding: 20px 22px; box-shadow: var(--shadow); }
+.card h4 { margin-top: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin: 24px 0; }
+.wide { max-width: 100%; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line-soft); border-radius: 4px; }
+th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .12em;
+     text-transform: uppercase; color: var(--text-faint); font-weight: 500;
+     padding: 12px 16px; background: var(--sunken); border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 12px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: top; line-height: 1.6; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { color: var(--text); font-weight: 500; white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+       color: var(--text-dim); }
+
+.name { font-family: "Zen Old Mincho", serif; color: var(--gold); font-style: normal; }
+.term { color: var(--indigo); font-weight: 500; }
+
+pre { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.75; margin: 0;
+      color: var(--text-dim); }
+.tree { background: var(--sunken); border: 1px solid var(--line-soft); border-radius: 4px;
+        padding: 20px 22px; overflow-x: auto; margin: 24px 0; }
+.tree b { color: var(--indigo); font-weight: 500; }
+.tree i { color: var(--text-faint); font-style: normal; }
+
+/* beat sheet */
+.beats { margin: 26px 0; border-top: 1px solid var(--line-soft); }
+.beat { display: grid; grid-template-columns: 76px 1fr; gap: 18px; padding: 16px 0;
+        border-bottom: 1px solid var(--line-soft); }
+.beat-h { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--gold);
+        font-variant-numeric: tabular-nums; padding-top: 3px; }
+.beat h4 { margin: 0 0 5px; color: var(--text); text-transform: none; letter-spacing: 0;
+        font-size: 15px; font-family: "Zen Old Mincho", serif; font-weight: 700; }
+.beat p { font-size: 14.5px; color: var(--text-dim); }
+@media (max-width: 620px) { .beat { grid-template-columns: 1fr; gap: 4px; } }
+
+/* phase bars */
+.phase { display: grid; grid-template-columns: 116px 1fr; gap: 18px; padding: 18px 0;
+         border-bottom: 1px solid var(--line-soft); }
+.phase-tag { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em;
+         text-transform: uppercase; color: var(--indigo); padding-top: 4px; }
+.phase h4 { margin: 0 0 6px; color: var(--text); text-transform: none; letter-spacing: 0;
+         font-size: 16px; font-family: "Zen Old Mincho", serif; font-weight: 700; }
+.phase p { font-size: 14.5px; color: var(--text-dim); }
+.phase .dur { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--text-faint); display: block; margin-top: 6px; }
+@media (max-width: 620px) { .phase { grid-template-columns: 1fr; gap: 4px; } }
+
+/* the one flag colour: decisions the user has to make */
+.decision { border: 1px solid var(--clay); border-left-width: 3px; border-radius: 4px;
+        padding: 18px 22px; margin: 26px 0; background: var(--surface); }
+.decision h4 { color: var(--clay); margin-top: 0; }
+
+.note { font-size: 13.5px; color: var(--text-faint); border-top: 1px solid var(--line-soft);
+        padding-top: 14px; margin-top: 26px; }
+
+footer { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 30px;
+         font-size: 13.5px; color: var(--text-faint); }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="shell">
+<aside class="rail">
+  <div class="rail-mark">NAGORI</div>
+  <div class="rail-sub">Design Bible v1</div>
+  <nav>
+    <a href="#concept"><span>01</span>Concept</a>
+    <a href="#protagonist"><span>02</span>Protagonist</a>
+    <a href="#tokyo"><span>03</span>Tokyo</a>
+    <a href="#region"><span>04</span>Hazama Valley</a>
+    <a href="#farm"><span>05</span>The Farm</a>
+    <a href="#village"><span>06</span>Ozasa Village</a>
+    <a href="#mythology"><span>07</span>The Orime</a>
+    <a href="#story"><span>08</span>Main Story</a>
+    <a href="#companions"><span>09</span>Companions</a>
+    <a href="#combat"><span>10</span>Combat</a>
+    <a href="#magic"><span>11</span>Cadences</a>
+    <a href="#tenhours"><span>12</span>First 10 Hours</a>
+    <a href="#slice"><span>13</span>Vertical Slice</a>
+    <a href="#tech"><span>14</span>Architecture</a>
+    <a href="#roadmap"><span>15</span>Roadmap</a>
+    <a href="#originality"><span>—</span>Originality</a>
+    <a href="#decisions"><span>—</span>Your Call</a>
+  </nav>
+  <button class="theme-btn" id="themeBtn" type="button">Theme</button>
+</aside>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Original IP · Design Bible · Pre-production</div>
+  <h1 class="title">NAGORI</h1>
+  <div class="title-jp">名残 — what a thing leaves behind</div>
+  <p class="thesis">The land remembers what you do <b>twice</b>. Everything alive out here is made of somebody's repeated work — and the work is stopping.</p>
+  <dl class="hero-meta">
+    <div><dt>Genre</dt><dd>Action RPG × rural life sim</dd></div>
+    <div><dt>Camera</dt><dd>Third person, cinematic</dd></div>
+    <div><dt>Length</dt><dd>35h main, 80h+ complete</dd></div>
+    <div><dt>Rating</dt><dd>Teen — peril, no gore</dd></div>
+  </dl>
+</header>
+
+<section id="concept">
+  <div class="sec-head"><div class="sec-num">01</div><h2 class="sec-title">Final Game Concept</h2>
+  <p class="sec-kicker">Title, pitch, genre, tone, audience, pillars</p><hr class="groove"></div>
+  <div class="col">
+    <p><strong>NAGORI</strong> (名残) is a Japanese word for the trace a thing leaves after it has gone — the warmth in a chair, the smell of rain after rain. Cooks also use it for the last produce of a season, picked as it ends. Both meanings are the game.</p>
+
+    <h4>Elevator pitch</h4>
+    <p>A twenty-four-year-old logistics clerk inherits a collapsing farm in a valley that is quietly emptying out. As she clears the ground and learns the work, she starts to see what the work wakes up: beings made of four hundred years of repeated human labour, who exist only as long as somebody keeps doing the thing that made them. The valley is losing its people. Which means it is losing them. She is the first new pair of hands in forty years, and everything down there knows it.</p>
+
+    <h4>Genre</h4>
+    <p>Third-person action RPG and rural life simulation, fully interleaved rather than bolted together. The farming <em>is</em> the ability tree — see <a href="#magic">§11</a>. There is no point in the game where the cosy half and the combat half are separate progressions.</p>
+
+    <h4>Tone</h4>
+    <p>Warm and uncanny at the same time. Cosy with teeth. The register to hold is a summer evening where something is standing at the edge of the field and you cannot tell yet whether it needs help or is about to do something terrible. Melancholy but not miserable: the valley is dying and the game is about the fact that this is not the same as being dead.</p>
+    <p>Nothing is <em>cute</em> by default. Some Orime are funny; several are frightening; one of them is both, which is the most useful register in the game.</p>
+
+    <h4>Target audience</h4>
+    <ul>
+      <li><strong>Primary</strong> — 18–40, plays both halves of Persona-likes, bounced off pure-cosy games for lack of stakes and off pure-ARPGs for lack of warmth. Owns Stardew and Rune Factory and wanted them to be more beautiful and more frightening.</li>
+      <li><strong>Secondary</strong> — the audience for Japanese fantasy cinema who do not usually buy games, reached through art and atmosphere rather than combat footage.</li>
+      <li><strong>Tertiary</strong> — photo-mode and decoration players, who are a real and underserved market and who do the marketing for you.</li>
+    </ul>
+
+    <h4>The four pillars</h4>
+    <p>Every feature must serve one of these. Anything that serves none gets cut.</p>
+  </div>
+
+  <div class="grid2 wide">
+    <div class="card"><h4>1 · Work is power</h4><p>Combat abilities are learned by doing farm and craft labour. Hoeing teaches an earth strike. Drawing water teaches a pull. There is no separate skill tree and no XP bar.</p></div>
+    <div class="card"><h4>2 · The world is over-inscribed</h4><p>Tokyo is unreadable because too much has happened in it. The countryside is legible because one thing happened, over and over. Perception is the core sense of the game.</p></div>
+    <div class="card"><h4>3 · Everything here is leaving</h4><p>Depopulation is the antagonist. Not a dark lord — a bus timetable. This gives the cosy loop real stakes without importing a war.</p></div>
+    <div class="card"><h4>4 · Two speeds, one world</h4><p>The player must always be able to stop. No timers on the story. A day spent cooking is never a day wasted, because cooking is progression.</p></div>
+  </div>
+</section>
+
+<section id="protagonist">
+  <div class="sec-head"><div class="sec-num">02</div><h2 class="sec-title">Protagonist</h2>
+  <p class="sec-kicker">Sae Minagawa, 24</p><hr class="groove"></div>
+  <div class="col">
+    <p><span class="name">Sae Minagawa</span> (皆川 冴). <em>Sae</em> is the clarity of very cold air — the sharpness you get when the noise stops. She has never once thought about her own name.</p>
+
+    <h4>Appearance</h4>
+    <p>Small, with heavy dark hair she cuts herself every few months and regrets each time. Wears a grey city coat far too thin for a mountain valley, which she does not replace for the whole of Act I because replacing it would be admitting she lives here.</p>
+    <p><strong>Her silhouette is the progress bar.</strong> City coat → her great-aunt's borrowed work jacket, too big at the shoulder → the same jacket, taken in, mended at the elbow in a colour she chose. Sun-marked forearms by summer. Players should be able to date a screenshot by looking at her.</p>
+
+    <h4>Background</h4>
+    <p>Suburban childhood, unremarkable and fine. Moved into the city at eighteen. Four years at a mid-size logistics firm optimising delivery routes — a job about making things move efficiently past each other without touching, which is quietly the exact opposite of what she needs and which she has never noticed.</p>
+    <p>Her great-aunt <span class="name">Kotori Minagawa</span> dies in the spring, leaving her a house and eleven hundred square metres of terraced hillside she has visited twice. The family assumption is that she will sell it. Nobody, including Sae, expects her to go.</p>
+
+    <h4>Personality</h4>
+    <p>Observant and dry. Notices everything, says a third of it. Apologises as punctuation rather than as apology. Genuinely good company once she is about ninety minutes into knowing you, which almost nobody in Tokyo has ever waited for.</p>
+
+    <h4>Flaw</h4>
+    <p>She believes that wanting something is a kind of arrogance. She waits to be given permission — for the job, the flat, the friendship, the life. When the game opens she is not unhappy. She has simply stopped being able to picture next year, and she has not told anyone, because it does not feel like the sort of thing you are allowed to raise.</p>
+
+    <div class="pull">Her arc is one word wide: <b>permission → intention</b>. In Chapter 1 she does what is asked of her. In the finale she is the one asking.</div>
+
+    <h4>Motivation</h4>
+    <p><strong>Stated:</strong> the house needs dealing with, and she has leave saved up. <strong>Actual:</strong> she wants to find out whether she is a person who can want things. She would never say this and the script must never let her.</p>
+
+    <h4>Arc beats</h4>
+    <ol>
+      <li><strong>Ch.1–2</strong> — Does the correct thing. Leaves because the property demands it, not because she chose it.</li>
+      <li><strong>Ch.3</strong> — Discovers she is good at work she was never told she could want. First time she does something with no one to report it to.</li>
+      <li><strong>Ch.4–5</strong> — Discovers the valley needs her specifically, and mistakes being needed for being wanted. This is the dangerous middle of her arc, and the game should let her over-give until it costs her something.</li>
+      <li><strong>Ch.6</strong> — Learns the difference. Refuses something for the first time.</li>
+      <li><strong>Ch.7</strong> — Chooses. Not between city and country — between a life she was handed and a life she is going to have to keep choosing every single season.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="tokyo">
+  <div class="sec-head"><div class="sec-num">03</div><h2 class="sec-title">Tokyo</h2>
+  <p class="sec-kicker">Sumizaka Ward — the opening chapter, roughly 2.5 hours</p><hr class="groove"></div>
+  <div class="col">
+    <p>A fictional ward, <span class="name">Sumizaka</span>, on a fictional private line, the <span class="name">Ōka Line</span>. Fictional throughout, deliberately: real-place liability is a needless risk and an invented ward lets us build the density we want rather than the density that exists.</p>
+
+    <p><strong>Small footprint, extreme density.</strong> Six blocks, one station, one covered shopping street, a river path, a park, and four enterable interiors. Roughly the walkable area of a fifteen-minute stroll. The design goal is not scale — it is that the player learns the streets well enough to have a favourite route, so that leaving costs something.</p>
+
+    <h4>What you actually do</h4>
+    <p>No combat in Tokyo at all. The verbs are: <strong>walk, look, photograph, buy, talk, ride, wait.</strong> Learning to look is the tutorial for the entire game, and it is taught without a single tooltip about spirits.</p>
+
+    <h4>The Compression meter — the game's real tutorial</h4>
+    <p>Tokyo's overwhelm is mechanical, not scripted. A meter called <span class="term">Compression</span> rises near crowds, screens, announcements, turnstiles and construction, and falls on the river path, on an empty early train, on a park bench, in the bath.</p>
+    <p>At high Compression, <strong>interaction prompts stop appearing.</strong> Not greyed out — absent. The world visibly holds things Sae cannot pick out. Players work out within twenty minutes that they must go somewhere quiet to notice anything, and by doing so they have learned the perception rule the entire supernatural layer runs on, three chapters before any supernatural thing appears.</p>
+
+    <h4>Three days, three shapes</h4>
+    <ul>
+      <li><strong>Day 1 — a work day.</strong> Commute, office, konbini dinner, home. Deliberately frictionless and slightly airless. Ends with the phone call about the house.</li>
+      <li><strong>Day 2 — a day off.</strong> Fully open. Shopping street, café, park, the river. Side quests, photography, the neighbours. This is where the player decides whether they like her.</li>
+      <li><strong>Day 3 — the last day.</strong> Same streets, everything re-lit and rescored. Goodbyes are optional and the game never marks them as objectives; players who skip them get a measurably colder Chapter 2 opening.</li>
+    </ul>
+
+    <h4>The seed</h4>
+    <p>On the station's east stair there is a dip worn into the stone by ninety years of feet. Sae can photograph it. Nothing happens. There is no prompt, no chime, no journal entry.</p>
+    <p>Eleven hours of play later, standing at a well in Hazama, she will see the same shape in the stone lip, and <em>that</em> photograph is the first hard evidence in the game. Players who took the Tokyo photo get a quiet extra line and a journal spread comparing the two. This is the single most important five seconds of Chapter 1 and it must never be signposted.</p>
+
+    <div class="pull">Tokyo is not the villain. It is over-inscribed. Too many people have done too many different things in the same square metre, so nothing coherent can wake up in it — <b>it is not haunted because it is too busy</b>. Sae's exhaustion and the world's illegibility are the same fact.</div>
+  </div>
+</section>
+
+<section id="region">
+  <div class="sec-head"><div class="sec-num">04</div><h2 class="sec-title">Hazama Valley</h2>
+  <p class="sec-kicker">The rural region — eight zones, one continuous space</p><hr class="groove"></div>
+  <div class="col">
+    <p><span class="name">Hazama</span> means the gap between two things. It is a valley three hours north by local line, then forty minutes by a bus that runs twice a day. Population 340 and falling. It has one shop, one bathhouse, one bridge, and a school that closed nine years ago and has not been demolished because nobody can agree who should pay.</p>
+    <p><strong>No loading between zones.</strong> One continuous walkable region, roughly 2.2 km end to end, densely packed rather than large. Verticality carries the sense of scale: the valley floor to the pass is 400 m of climb, and you can see your own farm from most of it.</p>
+  </div>
+
+  <div class="scroll wide">
+    <table>
+      <thead><tr><th>Zone</th><th>Role</th><th>What changes it</th></tr></thead>
+      <tbody>
+        <tr><td>Ozasa Village</td><td>Social hub, shops, festivals, quest-giving</td><td>Season, festival calendar, NPC schedules</td></tr>
+        <tr><td>The Minagawa Place</td><td>Player home and farm</td><td>Player construction, season, weather</td></tr>
+        <tr><td>The Tanada</td><td>Abandoned terraced paddies climbing the east slope</td><td>Flooded in spring; the deepest Orime in the valley lives under them</td></tr>
+        <tr><td>Kirime Forest</td><td>Primary exploration and combat zone</td><td>Completely different layout at night — see below</td></tr>
+        <tr><td>Ashiga River &amp; shallows</td><td>Fishing, traversal, the shallows crossing</td><td>Water level: rain opens and closes routes within the hour</td></tr>
+        <tr><td>The Sunken Road</td><td>The old cart road, worn 3 m below the fields</td><td>The most worn surface in the valley; Orime density is highest here</td></tr>
+        <tr><td>Mt. Obane &amp; the pass</td><td>Late traversal, vistas, the mine</td><td>Snowed out in winter until you build the shelter</td></tr>
+        <tr><td>Hakoyama School</td><td>Closed school — story dungeon, then community centre</td><td>Reopened by the player in Ch.6; changes the whole village</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h4>The supernatural layer is not a dimension</h4>
+    <p>Explicitly rejected: a mirror world you portal into. Instead the same space is <strong>re-authored under four conditions</strong>, which the player learns to read like weather:</p>
+    <ul>
+      <li><strong>Night.</strong> Kirime Forest at night is not the day forest darkened. Paths that were choked are open, three new clearings exist, and the trees stand differently, because the forest's paths are themselves a groove and at night the groove is what is real. The day map and the night map are two authored layouts sharing one footprint.</li>
+      <li><strong>Weather.</strong> Heavy rain raises the Ashiga and closes the shallows, but opens the culvert under the Sunken Road. Fog on the pass makes the cairn line walkable. Weather is a key, not a filter.</li>
+      <li><strong>Season.</strong> The Tanada only floods in spring, and only when flooded can you cross to the shrine on the far terrace.</li>
+      <li><strong>Festival.</strong> Twice a year the whole village performs a thing it has performed for centuries, and for those hours places are open that are never otherwise open. Miss the festival, wait six months.</li>
+    </ul>
+    <p>The intended feeling: <em>the map you have is a map of one of the valley's several states</em>, and you are slowly learning the others.</p>
+  </div>
+</section>
+
+<section id="farm">
+  <div class="sec-head"><div class="sec-num">05</div><h2 class="sec-title">The Farm</h2>
+  <p class="sec-kicker">The Minagawa place — home, workshop, and ability tree</p><hr class="groove"></div>
+  <div class="col">
+    <p>Eleven hundred square metres on a south-facing terrace, a farmhouse built in 1908 and re-roofed badly in 1974, a stone-lipped well, a collapsed woodshed, and a water channel that has not run since the year Sae was born.</p>
+    <p>At the start it is genuinely hostile: bramble to the waist, a floor you can put a foot through, no running water, and a rat problem the game does not soften. <strong>The first two hours on the farm should be hard work with visible results</strong>, because the whole emotional payload of the game is the comparison shot at the end.</p>
+
+    <h4>Land</h4>
+    <ul>
+      <li><strong>Clearing</strong> — bramble, stumps, stones, and eleven years of fallen roof tile. Cleared land stays cleared but re-seeds if neglected across a season, so the farm is a thing you keep, not a thing you finish.</li>
+      <li><strong>Soil</strong> — three properties (structure, moisture, mineral) rather than a single quality number. You improve them with specific work: forking improves structure, ash improves mineral, the channel handles moisture. Each of those actions teaches a Cadence.</li>
+      <li><strong>Water</strong> — the channel is the farm's spine and its restoration is a Chapter 3 story beat. Once running, it feeds paddies, the pond, and the bath.</li>
+      <li><strong>Terraces</strong> — you can rebuild collapsed terracing to gain new plantable area. Expensive, slow, and the single most satisfying construction in the game.</li>
+    </ul>
+
+    <h4>Crops and seasons</h4>
+    <p>Around 40 crops across four seasons, with a hard rule: <strong>every crop has at least two uses beyond selling.</strong> Selling is the least interesting thing you can do with food, and the economy should reflect that.</p>
+  </div>
+
+  <div class="scroll wide">
+    <table>
+      <thead><tr><th>Use</th><th>Example</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td>Cooking</td><td>Barley &amp; river trout stew</td><td>Meals grant timed buffs and are the main combat consumable</td></tr>
+        <tr><td>Cadence practice</td><td>A field of daikon</td><td>Repeated harvest gestures level the <span class="term">Drawing</span> cadence</td></tr>
+        <tr><td>Gifts</td><td>First tomatoes of summer</td><td>Villager relationships; seasonality makes a gift mean something</td></tr>
+        <tr><td>Offerings</td><td>Rice, salt, unhulled millet</td><td>The only currency Orime recognise — money is meaningless to them</td></tr>
+        <tr><td>Craft input</td><td>Hemp, indigo, straw</td><td>Rope for the Yui, dye, thatch, tatami</td></tr>
+        <tr><td>Trade</td><td>Surplus anything</td><td>The village co-op; unlocks village-wide upgrades, not personal ones</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h4>Animals</h4>
+    <p>Original breeds with real husbandry needs, not decoration. Six <strong>Ozasa bantams</strong> (bad-tempered, superb layers, will absolutely escape), a <strong>Hazama goat</strong> called whatever the player calls her, <strong>river ducks</strong> that must be walked to water daily and which will follow you into a dungeon if you are careless, and — from Chapter 5 — the option to keep <strong>a hive</strong>, which quietly changes the yield of every fruiting plant on the terrace.</p>
+
+    <h4>The house</h4>
+    <p>Six rooms, each independently upgradable: kitchen, hearth room, sleeping room, bath, workroom, and the closed room upstairs that does not open until Chapter 5. Customisation is grid-free placement with snapping, seasonal decoration sets, wall and floor materials, lighting (this matters enormously at night), and shelving that <em>displays what you actually own</em> — your tools, your photographs, your jars.</p>
+
+    <div class="pull">The house should be readable as a diary. A player who has cooked a lot has a different kitchen from a player who has fished a lot, <b>without either of them ever opening a customisation menu.</b></div>
+  </div>
+</section>
+
+<section id="village">
+  <div class="sec-head"><div class="sec-num">06</div><h2 class="sec-title">Ozasa Village</h2>
+  <p class="sec-kicker">Locations and the twelve people who matter</p><hr class="groove"></div>
+  <div class="col">
+    <p>One street, a bridge, and a bathhouse. Everyone knows within a day that you have arrived, and roughly nobody expects you to last the winter, which they are all far too polite to say and all completely transparent about.</p>
+    <h4>Locations</h4>
+    <ul>
+      <li><strong>Tomari's</strong> — general store, post office, bus tickets, and the noticeboard that carries most of the game's side quests</li>
+      <li><strong>The Kettle</strong> — a café in a converted garage, open the hours its owner feels like</li>
+      <li><strong>Ide Ironworks</strong> — smith; upgrades the Yui's hook and all farm tools</li>
+      <li><strong>Toi Carpentry</strong> — every building and house upgrade goes through here</li>
+      <li><strong>Sasanami Bathhouse</strong> — the social heart; relationship scenes happen here more than anywhere</li>
+      <li><strong>Hakoyama School</strong> — closed. Reopens as the community centre in Ch.6</li>
+      <li><strong>The clinic</strong> — open two days a week; the doctor drives in over the pass</li>
+      <li><strong>Obane Shrine</strong> — the valley's oldest continuously repeated action, and therefore its most important location</li>
+      <li><strong>The halt</strong>, <strong>the co-op market</strong>, <strong>the river weir</strong>, <strong>the mountain trailhead</strong></li>
+    </ul>
+    <h4>Rules for every NPC</h4>
+    <p>Nobody stands still waiting for the player. Everyone has a home, a workplace, a route, a day off, weather behaviour, and a seasonal variation. If you want to talk to the carpenter on a Thursday afternoon you go to where a carpenter would be on a Thursday afternoon. NPCs reference what you have actually done — your crops, your buildings, your absences.</p>
+  </div>
+
+  <div class="scroll wide">
+    <table>
+      <thead><tr><th>Name</th><th>Age</th><th>Who they are</th><th>What they want</th></tr></thead>
+      <tbody>
+        <tr><td>Chika Tomari</td><td>58</td><td>Runs the shop. Knows everything, repeats almost none of it.</td><td>To hand the shop to somebody. Anybody.</td></tr>
+        <tr><td>Rokusuke Ide</td><td>67</td><td>Retired land surveyor. Walks the valley daily with a notebook.</td><td>To be believed about what he has been recording for thirty years. <em>Companion.</em></td></tr>
+        <tr><td>Kanna Toi</td><td>19</td><td>Carpenter's apprentice, her father's fourth-generation shop.</td><td>Out. She wants out, and the game respects that. <em>Companion.</em></td></tr>
+        <tr><td>Nao Toi</td><td>46</td><td>Kanna's father. Master carpenter, terrible at conversation.</td><td>For his daughter to stay, and to never once say so.</td></tr>
+        <tr><td>Shino Amagai</td><td>34</td><td>Runs the bathhouse alone since her mother's stroke.</td><td>One day off. Just one.</td></tr>
+        <tr><td>Yoshiharu Kudo</td><td>71</td><td>Rice farmer, the last on the east terraces.</td><td>To finish this season standing up.</td></tr>
+        <tr><td>Mei Sasanami</td><td>28</td><td>Runs The Kettle. Came back from Osaka four years ago; nobody asks why.</td><td>To stop being asked why. <em>Romance option.</em></td></tr>
+        <tr><td>Dr Ayame Horiuchi</td><td>52</td><td>Drives in over the pass twice a week.</td><td>A second doctor, so she can be ill once.</td></tr>
+        <tr><td>Riku Kudo</td><td>12</td><td>The only child left in the valley. Bussed 50 min to school.</td><td>Someone his own age. Anyone.</td></tr>
+        <tr><td>Setsu Amagai</td><td>81</td><td>Shino's mother. Speech affected; memory intact and merciless.</td><td>To pass on what she knows before it goes. Key lore character.</td></tr>
+        <tr><td>Genji Wada</td><td>44</td><td>Beekeeper and part-time everything. Cheerful, evasive.</td><td>To keep a secret that is not his. <em>Ch.5 turn.</em></td></tr>
+        <tr><td>Assessor Fuyuki</td><td>49</td><td>Prefectural officer managing the valley's "consolidation".</td><td>To do his job well. He is not a villain and must never be written as one.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h4>Relationships</h4>
+    <p>Friendship rises through conversation, quests, gifts, shared activity, festivals and cooking — but it also <strong>decays with absence</strong>, gently, which is the mechanical statement of the game's whole theme. Eight villagers have full arcs across four stages. Romance exists with four characters of mixed genders, is entirely optional, never blocks content, and cannot be started before the second season. Rejection is possible and is written kindly.</p>
+    <p>Every companion and romance character has an opinion about the Chapter 7 choice, and they do not all agree with each other or with you.</p>
+  </div>
+</section>
+
+<section id="mythology">
+  <div class="sec-head"><div class="sec-num">07</div><h2 class="sec-title">The Orime</h2>
+  <p class="sec-kicker">Original supernatural ecosystem — this is the centre of the game</p><hr class="groove"></div>
+  <div class="col">
+    <p><span class="name">Orime</span> (折り目) — a crease, a fold, the line left in cloth that has been folded the same way for years. The valley's word for what lives in it.</p>
+
+    <div class="pull">An Orime is not a ghost and not a god. It is <b>the shape a repeated action wore into a place</b>. Four centuries of one family drawing water from one well wears a groove into the world the same way it wears one into the stone lip. Deep enough, something wakes up in the groove — and what wakes up is <b>the drawing</b>, not the drawer.</div>
+
+    <h4>The six rules</h4>
+    <p>These are fixed. Every creature, quest and boss in the game obeys them, and the player can reason from them.</p>
+    <ol>
+      <li><strong>An Orime is a groove, not a person.</strong> It has no memory of any individual who wore it. It is habit that became aware of itself. Asking one about the family who dug its well is like asking a footpath about feet — a real question that it cannot parse.</li>
+      <li><strong>It must keep being worn.</strong> While humans keep doing the thing, the groove deepens and the Orime is stable, articulate and safe. When the work stops, the groove starts filling in.</li>
+      <li><strong>Shallowing is the disease.</strong> A shallowing Orime loses coherence in a fixed order: first its speech, then its shape, then its rule. Shallowed far enough it will grab at <em>any</em> rhythm to stay deep — a river's, an animal's, a person's heartbeat. This is where the monsters come from. Every enemy in the game is a casualty, not a species.</li>
+      <li><strong>Perception is earned by repetition.</strong> You cannot see the Orime of a field until you have worked that field. Not "unlocked" — you have to have done the thing, with your hands, enough times. Farming is literally how you tune yourself to the supernatural layer.</li>
+      <li><strong>Depth is their only measure.</strong> They rank, greet, insult and grieve in depth. Money is meaningless. Offerings that matter are the materials of the work itself — rice, salt, water, rope, ash.</li>
+      <li><strong>A groove can be taught, but never quickly.</strong> A new repeated action can deepen a fading Orime, or turn one into something else — but it takes seasons, not scenes. There is no spell that fixes an Orime. There is only doing the thing again, and again, until it holds.</li>
+    </ol>
+
+    <h4>Visual language</h4>
+    <p>Orime look like <strong>long-exposure photographs of a single gesture</strong> — a smear of one motion repeated until it became solid. A water-drawer is a standing column of the arc a bucket makes. A treader is fifty overlapping footfalls occupying the same place at once. They do not have faces unless the work had one.</p>
+    <p>Their architecture is <strong>wear</strong>: steps hollowed into bowls, rope grooves cut deep into stone, thresholds sanded to a dip, a doorframe polished black at hand height. Where the Orime live, the world looks used rather than built. Their colour is the colour of the material they wore — stone grey, rope gold, wet indigo, ash.</p>
+    <p>Explicitly not: cute mascots, translucent blue ghosts, glowing runes, floating torii, anything with a mask.</p>
+
+    <h4>Society</h4>
+    <p>They are not a court and they have no king. They organise like a <strong>trade guild with a grievance</strong>: by craft, by depth, and by who is owed. The deepest Orime in Hazama, <span class="name">Shirokaki</span>, is four hundred years of paddy-treading under the Tanada and speaks perhaps twice a season. The shallowest are days old — the game lets the player <em>make one</em>, accidentally, around Chapter 4, and then be responsible for it.</p>
+    <p>Their central social fact is a debt ledger of favours between grooves, and their central taboo is <strong>taking rhythm from something that did not offer it</strong>. Enemies are, in their own terms, criminals — which is exactly why the game lets you save several of them instead of killing them.</p>
+  </div>
+
+  <div class="scroll wide">
+    <table>
+      <thead><tr><th>Being</th><th>Born from</th><th>Behaviour</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>Tsurube</td><td>400 yrs of well-drawing</td><td>Speaks in the down-up rhythm of a bucket. Literal to a fault.</td><td>First contact, companion</td></tr>
+        <tr><td>Shirokaki</td><td>Paddy-treading beneath the Tanada</td><td>Vast, slow, barely articulate. The valley's deepest groove.</td><td>Act III pivot</td></tr>
+        <tr><td>The Mender</td><td>Generations of net and roof repair</td><td>Compulsively repairs things — including things that should not be repaired.</td><td>Quest-giver, dark comedy</td></tr>
+        <tr><td>Hakaribito</td><td>Sixty years of a shopkeeper weighing goods</td><td>Cannot let an unfair exchange stand. Will settle debts you did not ask it to.</td><td>Economy ally</td></tr>
+        <tr><td>Shallows</td><td>Any Orime whose work has stopped</td><td>Repeats a fragment of a lost gesture; lashes at anything rhythmic.</td><td>Common enemy</td></tr>
+        <tr><td>Cribbers</td><td>A Shallow that has started stealing</td><td>Locks onto your footfalls or heartbeat and drains them.</td><td>Dangerous enemy — drains stamina regen</td></tr>
+        <tr><td>Snags</td><td>Two grooves that crossed and tangled</td><td>Static, barbed, performs two incompatible actions at once.</td><td>Hazard / mini-boss</td></tr>
+        <tr><td>Kaerazu</td><td>40 yrs of people walking to the halt and not coming back</td><td>Performs departure. Everything near it wants to leave.</td><td>The antagonist</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h4>The antagonist</h4>
+    <p><span class="name">Kaerazu</span> (帰らず — "does not return") is not evil and has no plan. Leaving is also a repeated action, and forty years of people carrying suitcases down to the halt on the 6:40 bus wore a groove as deep as any paddy. What woke up in it performs departure, and near it, everything living finds a reason to go.</p>
+    <p>It is the most sympathetic thing in the game. It is also going to empty the valley, and it cannot be reasoned with, because it is not a mind — it is a habit that four hundred people made together and none of them meant.</p>
+  </div>
+</section>
+
+<section id="story">
+  <div class="sec-head"><div class="sec-num">08</div><h2 class="sec-title">Main Story</h2>
+  <p class="sec-kicker">Seven chapters and a finale — the complete mystery</p><hr class="groove"></div>
+  <div class="col">
+    <p><strong>The mystery, stated plainly for the writers' room:</strong> the valley is not dying because of Kaerazu. Kaerazu exists because the valley started dying. The supernatural crisis is a symptom that has become large enough to act as a cause, and the game's real question is whether a symptom that has grown that big can be treated as anything other than a cause.</p>
+  </div>
+
+  <div class="beats">
+    <div class="beat"><div class="beat-h">Ch. 1</div><div>
+      <h4>Tokyo</h4>
+      <p>Three days in Sumizaka. Learn to look. The Compression meter teaches perception. The call comes about Kotori's house; Sae takes leave she will not come back from. She photographs a worn stair and does not know why.</p></div></div>
+    <div class="beat"><div class="beat-h">Ch. 2</div><div>
+      <h4>Leaving</h4>
+      <p>Four hours of travel, playable throughout, in four legs — express, local, the last local, the bus. Each leg re-scores and re-lights. NPC density drops leg by leg; on the bus there is one other passenger, asleep. She arrives after dark and cannot see the farm at all. Chapter ends with her sleeping on the floor of a house she owns.</p></div></div>
+    <div class="beat"><div class="beat-h">Ch. 3</div><div>
+      <h4>The Farm</h4>
+      <p>The longest and quietest chapter, and deliberately so — five to seven hours with no supernatural content. Clear ground, meet the village, restore the water channel, plant the first bed, survive the first setback. The player learns the entire life-sim game here and starts to believe that is what they bought.</p></div></div>
+    <div class="beat"><div class="beat-h">Ch. 4</div><div>
+      <h4>Strange Things</h4>
+      <p>Because she has now drawn from the well two hundred times, she can see what is standing at it. First contact with <span class="name">Tsurube</span> is not a battle and not a cutscene — it is a conversation with something that answers every question slightly wrong. First Shallow encounter that night. The Yui comes out of the woodshed. Combat begins, badly, and she loses.</p></div></div>
+    <div class="beat"><div class="beat-h">Ch. 5</div><div>
+      <h4>Beneath the Countryside</h4>
+      <p>Rokusuke's thirty years of notebooks turn out to be a depth survey. Setsu, whose speech is failing, is the last person who was taught the festival properly. The upstairs room opens: Kotori knew, kept records, and was doing this work alone for fifty years. Sae inherits a job, not a house. The Tanada floods and <span class="name">Shirokaki</span> speaks.</p></div></div>
+    <div class="beat"><div class="beat-h">Ch. 6</div><div>
+      <h4>The Hidden Conflict</h4>
+      <p>Kaerazu is identified, and so is the truth: it is being fed, unknowingly, by the consolidation programme. Assessor Fuyuki closing the halt, the clinic and the bus route is deepening the groove of leaving with every stroke of his pen. He is right on every individual point. The chapter is a fight on two fronts — a genuine dungeon under the school, and a genuine planning consultation, and the second one matters more.</p></div></div>
+    <div class="beat"><div class="beat-h">Ch. 7</div><div>
+      <h4>The Choice</h4>
+      <p>Kaerazu cannot be killed; killing a groove that deep would take the valley's whole history with it. Three answers, all valid, all costly: <strong>fill it in</strong> (slow, requires the village to commit to work it may not sustain), <strong>redirect it</strong> (turn departure into return — a festival of coming back — which asks Kanna to stay when she should go), or <strong>take it on</strong> (Sae becomes the thing that leaves, so the valley does not). The game does not tell you which is right, and the epilogue is different in tone rather than in quality.</p></div></div>
+    <div class="beat"><div class="beat-h">Finale</div><div>
+      <h4>Nagori</h4>
+      <p>Sae goes back to Sumizaka. Same six blocks, same station, and she is now the only person in Tokyo who can see the grooves — because she has learned to look, and because Tokyo is over-inscribed rather than empty. The last playable sequence is the walk from the station to her old flat, past everything from Chapter 1, and it takes as long as the player wants. Then the bus home. Whatever "home" now resolves to in her save file.</p></div></div>
+  </div>
+
+  <div class="col">
+    <p class="note">Structural note: Chapters 3 and 4 are the whole pitch. If a player does not fall in love with the farm in Ch.3, the supernatural turn in Ch.4 has nothing to threaten. Any schedule pressure should be taken out of Ch.6 rather than Ch.3.</p>
+  </div>
+</section>
+
+<section id="companions">
+  <div class="sec-head"><div class="sec-num">09</div><h2 class="sec-title">Companions</h2>
+  <p class="sec-kicker">Four, and they do not all like each other</p><hr class="groove"></div>
+
+  <div class="grid2 wide">
+    <div class="card">
+      <h4>Tsurube · joins Ch.4</h4>
+      <p><strong>What it is</strong> — four hundred years of well-drawing. A standing column of the arc a bucket makes, with no face. Speaks in a down-up rhythm and takes every question literally, which is funny for about six hours and then stops being funny.</p>
+      <p><strong>Combat</strong> — draws: pulls enemies out of position, hauls Sae to high ground, floods an area to slow everything in it.</p>
+      <p><strong>Arc</strong> — the family that dug it is gone. Its personal quest is whether a groove can accept a new drawer, or whether accepting one is a kind of death. It has never had to want anything before and finds the experience obscene.</p>
+    </div>
+    <div class="card">
+      <h4>Kanna Toi · 19 · joins Ch.5</h4>
+      <p><strong>Who</strong> — carpenter's apprentice, fourth generation, extremely good at it, and desperate to leave. Blunt to the point of rudeness. The only person who talks to Sae as an equal from day one, because she does not consider "from Tokyo" to be a status.</p>
+      <p><strong>Combat</strong> — framing hammer and wedges. Structural: she breaks stance, pins Shallows in place, and builds cover mid-fight.</p>
+      <p><strong>Arc</strong> — she is Sae in reverse, and the game must never punish her for it. <strong>Kanna leaving is a good ending for Kanna.</strong> If the player pressures her into staying, the epilogue is quieter and sadder and nobody says so.</p>
+    </div>
+    <div class="card">
+      <h4>Rokusuke Ide · 67 · joins Ch.5</h4>
+      <p><strong>Who</strong> — retired land surveyor who has walked this valley every day for thirty years with a notebook, recording changes nobody asked him to record. Gentle, precise, and quietly furious.</p>
+      <p><strong>Combat</strong> — survey staff and chain. Defensive: marks ground, holds a line, reveals Orime rhythm patterns so the player can read a boss's loop.</p>
+      <p><strong>Arc</strong> — he worked out the shallowing in 1998 and told three people, and all three were kind to him about it. His quest is not being proved right. It is being <em>asked</em>.</p>
+    </div>
+    <div class="card">
+      <h4>Yomogi · joins Ch.6</h4>
+      <p><strong>What it is</strong> — a Shallow the player failed to save in Ch.4, that Sae then spent a season teaching a new repeated action instead of killing. Half-formed. Wears the failed work as a visible scar. Nobody else in the party trusts it and they are not being unreasonable.</p>
+      <p><strong>Combat</strong> — mimicry. Copies the last enemy attack it survived, badly and at double cost. High risk, unmatched ceiling.</p>
+      <p><strong>Arc</strong> — the thesis of the whole game in one character: can a groove learn something new, or does teaching it just mean it repeats <em>your</em> habit instead of its own? The game refuses to answer this cleanly.</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <h4>Party dynamics</h4>
+    <p>Two in the field with Sae. They talk to each other unprompted, and the barks are written per-pair — Kanna and Rokusuke argue about whether the valley is worth saving, which is the game's actual thesis argued by two people who both love it. Tsurube does not understand jokes and Kanna will not stop making them. Everyone has an opinion about Yomogi. Everyone has a position on Ch.7 and states it before the choice, not after.</p>
+  </div>
+</section>
+
+<section id="combat">
+  <div class="sec-head"><div class="sec-num">10</div><h2 class="sec-title">Combat</h2>
+  <p class="sec-kicker">The Yui — rope, hook, and breaking a loop</p><hr class="groove"></div>
+  <div class="col">
+    <p>The weapon is the <span class="name">Yui</span>: a length of braided rope with a weighted end and a billhook. <em>Yui</em> is the old word for the cooperative labour exchange between neighbouring farms — the work you do on someone else's land so they will do yours. Naming the weapon after mutual obligation is the entire point, and it is mechanically true: <strong>the Yui's rope is rebraided from hemp you grow, and its reach and durability scale with your village relationships, not with loot.</strong></p>
+
+    <div class="pull">Every enemy is a loop. The combat verb is not "reduce HP" — it is <b>find the loop, break the loop, decide what to do with what is left.</b></div>
+
+    <h4>Core moveset</h4>
+    <ul>
+      <li><strong>Hook (light)</strong> — fast billhook combo, four hits, cancellable into anything. The bread and butter.</li>
+      <li><strong>Swing (heavy)</strong> — the weighted end on a long arc. Wide, slow, staggers, hits everything at mid range.</li>
+      <li><strong>Tether</strong> — throw and hook. On an enemy: yank them to you, or yourself to them. On terrain: swing, vault, reach a ledge. <strong>Traversal and combat are the same button</strong>, which is what keeps exploration and fighting from feeling like separate games.</li>
+      <li><strong>Bind</strong> — hold to wrap. Locks a single enemy, or ties two together so they fight their own movement. The crowd-control and puzzle verb.</li>
+      <li><strong>Slip (dodge)</strong> — a short step with generous i-frames and no roll spam; a perfect slip leaves a rope-line in the air you can immediately tether to.</li>
+      <li><strong>Catch (parry)</strong> — take the blow on the taut rope. Tight window. Does no damage. <strong>Catching is the primary way to build Cadence charge</strong>, so defence powers offence rather than merely permitting it.</li>
+      <li><strong>Air</strong> — tether-to-air, hook combos with hang time, and a downward swing that slams. Aerial play is the spectacle layer and should be where the game looks best in a trailer.</li>
+    </ul>
+
+    <h4>The Loop meter — the stagger system</h4>
+    <p>Every Orime enemy has a visible <span class="term">Loop</span>: a short ring showing where it is in its repeated action. Hitting on the loop's weak phase, catching its telegraph, or Binding it mid-cycle disrupts it. Three disruptions and it <strong>breaks</strong> — collapses out of its gesture, fully open for a punish window.</p>
+    <p>At break, the player chooses: <strong>finish</strong> (fast, gives materials) or <strong>hold</strong> (Bind and sustain a Cadence through the break, which is slower, riskier, and <em>restores</em> the Shallow to a coherent Orime). Held enemies become quest-givers, farm helpers and, in one case, a companion. Killing is always allowed and never scolded, but the valley is measurably emptier if you only ever kill.</p>
+
+    <h4>Enemies and bosses</h4>
+    <p>Around 14 enemy types across four families (Shallows, Cribbers, Snags, and Bound — human-made things gone wrong). Bosses are deep Orime in crisis and every one of them can be talked about afterwards. Boss design rule: <strong>a boss's loop is a job.</strong> The Ch.6 boss is a fire-watch that has been watching for a fire since 1954 and will burn the valley to have something to watch for. Its arena is the tower, its loop is a slow scan, and its tell is the moment it looks away.</p>
+
+    <h4>Progression</h4>
+    <p>No XP. Power comes from: Cadences learned through labour (§11), the Yui's rope and hook upgraded through crafting and relationships, meals cooked from crops, and permanent stamina from habitation — sleeping in your own bed, eating at your own table, bathing at the bathhouse. The player becomes dramatically stronger, and every point of it is traceable to something they built or someone they know.</p>
+  </div>
+</section>
+
+<section id="magic">
+  <div class="sec-head"><div class="sec-num">11</div><h2 class="sec-title">Cadences</h2>
+  <p class="sec-kicker">The magic system — your farm labour is your spell list</p><hr class="groove"></div>
+  <div class="col">
+    <p>Sae does not cast spells. She <strong>keeps time.</strong> When you have performed a piece of work enough times that your body knows it, you can perform the same rhythm without the tool and the world — which is made of grooves — answers it. That is the whole system.</p>
+
+    <div class="pull">Hoe a field two hundred times and you have not levelled up farming. You have learned <b>Turning</b>, and Turning is now a move you can use on a boss.</div>
+  </div>
+
+  <div class="scroll wide">
+    <table>
+      <thead><tr><th>Cadence</th><th>Learned by</th><th>In the field</th><th>In a fight</th></tr></thead>
+      <tbody>
+        <tr><td>Turning</td><td>Hoeing, forking soil</td><td>Tills a wide area at once</td><td>Upheaval along a line; knocks down, exposes buried things</td></tr>
+        <tr><td>Drawing</td><td>Well-drawing, root harvest</td><td>Pulls water uphill; irrigates</td><td>Hauls enemies out of position and into each other</td></tr>
+        <tr><td>Splitting</td><td>Splitting firewood</td><td>Clears stumps and rockfall</td><td>Heavy armour break; the answer to Snags</td></tr>
+        <tr><td>Scattering</td><td>Broadcast sowing</td><td>Sows a whole terrace in one pass</td><td>Wide, weak, staggering AoE; excellent against swarms</td></tr>
+        <tr><td>Winnowing</td><td>Threshing and winnowing grain</td><td>Processes grain; clears fog</td><td>Wind sweep that separates light enemies from heavy</td></tr>
+        <tr><td>Banking</td><td>Banking a hearth fire overnight</td><td>Keeps the house warm; night safety</td><td>Held ember shield that stores damage and releases it</td></tr>
+        <tr><td>Binding</td><td>Tying sheaves, braiding rope</td><td>Repairs fences and structures</td><td>Extends Bind to multiple targets; holds a broken Orime</td></tr>
+        <tr><td>Steeping</td><td>Dyeing, brewing, pickling</td><td>Preserves food; makes indigo</td><td>Damage over time; slows a Loop meter</td></tr>
+        <tr><td>Sounding</td><td>Ringing the shrine bell at festival</td><td>Reveals hidden grooves in an area</td><td>Interrupt; forces a boss to restart its loop</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h4>Rules that keep it honest</h4>
+    <ul>
+      <li><strong>Repetition, not currency.</strong> Cadences deepen with genuine repeated use, tracked per gesture. You cannot buy one, and grinding one out in an afternoon is deliberately not possible — there is a daily ceiling, because a groove is worn by <em>days</em>.</li>
+      <li><strong>Seasonal availability.</strong> Winnowing can only be practised at harvest. Some Cadences are therefore seasonal in power, and the calendar becomes a combat consideration.</li>
+      <li><strong>Cost is stamina, not mana.</strong> The same bar you dig with. A hard fight leaves you unable to work the next morning, and the game means it.</li>
+      <li><strong>Cadences work on the world.</strong> Every one has a non-combat use of equal weight. Sounding reveals grooves; Banking keeps a house warm through a winter night. Anything that is only a weapon has failed the design.</li>
+    </ul>
+    <p class="note">Prior art, honestly: <em>Sakuna: Of Rice and Ruin</em> ties rice cultivation to combat stats. This is adjacent and worth knowing. The difference is category — Sakuna's farming raises numbers, Cadences give you named abilities that are the literal gesture of the work, with a matched non-combat use. Keep that distinction sharp in every design review or the comparison becomes fair.</p>
+  </div>
+</section>
+
+<section id="tenhours">
+  <div class="sec-head"><div class="sec-num">12</div><h2 class="sec-title">The First Ten Hours</h2>
+  <p class="sec-kicker">Beat by beat — this is the demo, the review window, and the refund window</p><hr class="groove"></div>
+  <div class="col">
+    <p>Two hours of city, one of travel, five of farm and village, two of the turn. The supernatural does not appear until hour eight, and that patience is the single riskiest and most important decision in the design. Everything before it is load-bearing.</p>
+  </div>
+
+  <div class="beats">
+    <div class="beat"><div class="beat-h">0:00–0:35</div><div>
+      <h4>A Tuesday</h4>
+      <p>Wake, commute, work, konbini, home. Movement, camera and photography taught inside the commute with no tutorial box. Compression rises all day and the player feels it before it is ever named. Ends on the phone call about Kotori.</p></div></div>
+    <div class="beat"><div class="beat-h">0:35–1:40</div><div>
+      <h4>The day off</h4>
+      <p>Fully open Sumizaka. Shopping street, café, park, river. Four small quests, none marked urgent. The player chooses their own route and, without being told, discovers that quiet places let them notice things. First meaningful choice: sell the house, or go and look at it.</p></div></div>
+    <div class="beat"><div class="beat-h">1:40–2:10</div><div>
+      <h4>Last day</h4>
+      <p>The same streets, re-scored. Goodbyes are available and never listed as objectives. She photographs the worn stair. Nothing happens.</p></div></div>
+    <div class="beat"><div class="beat-h">2:10–3:00</div><div>
+      <h4>Four trains and a bus</h4>
+      <p>Playable throughout; she can move around the carriages, eat, sleep, photograph out of the window. Density and score thin out leg by leg. The last bus has one other passenger and no announcements. She arrives in full dark and cannot see the farm at all — the reveal is held until morning.</p></div></div>
+    <div class="beat"><div class="beat-h">3:00–4:15</div><div>
+      <h4>First morning</h4>
+      <p>The reveal, and it is worse than the photographs. Tools taught: billhook, hoe, bucket. Clear the first ten square metres. Deliberately slow and physical. First Cadence tick registers silently.</p></div></div>
+    <div class="beat"><div class="beat-h">4:15–5:30</div><div>
+      <h4>Into the village</h4>
+      <p>Walk in for a saw blade and come out with four conversations. Shop, carpenter, bathhouse. The player meets nine of the twelve villagers and learns that everyone is somewhere for a reason.</p></div></div>
+    <div class="beat"><div class="beat-h">5:30–7:00</div><div>
+      <h4>Water</h4>
+      <p>The channel restoration: the first multi-day project, requiring the carpenter, Rokusuke's advice and three days of work. The pay-off is water arriving on the terrace, and it should be the best thirty seconds in the game so far. First bed sown. First rain.</p></div></div>
+    <div class="beat"><div class="beat-h">7:00–8:00</div><div>
+      <h4>Something at the well</h4>
+      <p>Around the two-hundredth draw, a shape resolves. First contact with <span class="name">Tsurube</span> is a five-minute conversation with something that answers every question slightly wrong, and no combat whatsoever. The player is allowed to walk away and sleep on it.</p></div></div>
+    <div class="beat"><div class="beat-h">8:00–9:00</div><div>
+      <h4>The first bad night</h4>
+      <p>A Shallow in the Tanada. The Yui comes out of the shed. Combat opens — Hook, Swing, Slip — and it goes badly, because Sae has three Cadences and no idea what she is doing. She is meant to retreat. The game logs it as a story beat, not a death.</p></div></div>
+    <div class="beat"><div class="beat-h">9:00–10:00</div><div>
+      <h4>The shape of the rest of it</h4>
+      <p>Rokusuke shows her a notebook page from 1998 and asks her, for the first time, a real question. Tether unlocks and the map visibly triples. Kirime Forest at night becomes enterable. The hook for the next thirty hours lands here: <em>she is not the first person to see this, and the last one is dead.</em></p></div></div>
+  </div>
+</section>
+
+<section id="slice">
+  <div class="sec-head"><div class="sec-num">13</div><h2 class="sec-title">Vertical Slice</h2>
+  <p class="sec-kicker">Exactly what to build first — 40 to 60 minutes of finished game</p><hr class="groove"></div>
+  <div class="col">
+    <p>The slice must prove the <em>thesis</em>, not the scope. One player, forty-five minutes, and at the end they should be able to describe the game accurately to somebody else. That is the pass condition.</p>
+    <p><strong>The slice is a compressed version of hours 3–9</strong>, plus a two-minute Tokyo prologue for contrast. It deliberately skips Chapter 2's journey, because a travel montage is expensive to build and proves nothing mechanical.</p>
+  </div>
+
+  <div class="scroll wide">
+    <table>
+      <thead><tr><th>#</th><th>Element</th><th>Slice scope</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>Tokyo</td><td>One street, one station platform, ~2 min. Compression meter live. The worn stair, photographable.</td></tr>
+        <tr><td class="num">2</td><td>Protagonist</td><td>Full rig, three outfit states, walk/run/work/combat locomotion.</td></tr>
+        <tr><td class="num">3</td><td>NPCs</td><td>Four villagers with real schedules over one in-game day.</td></tr>
+        <tr><td class="num">4</td><td>Travel transition</td><td>One bus arrival, scripted, ~40 s. Proves the tonal handover only.</td></tr>
+        <tr><td class="num">5</td><td>Village</td><td>Shop, carpenter, bathhouse exterior, bridge. One enterable interior.</td></tr>
+        <tr><td class="num">6</td><td>Farm</td><td>Full plot with clearing, one terrace, well, woodshed, house exterior + two interior rooms.</td></tr>
+        <tr><td class="num">7</td><td>Farming</td><td>Clear → till → sow → water → grow → harvest, on a compressed 3-day clock. Four crops.</td></tr>
+        <tr><td class="num">8</td><td>Exploration area</td><td>Kirime Forest edge, day and night layouts, one tether traversal gate.</td></tr>
+        <tr><td class="num">9</td><td>Supernatural encounter</td><td>Tsurube first contact, fully written and voiced. No combat.</td></tr>
+        <tr><td class="num">10</td><td>Combat</td><td>Hook, Swing, Slip, Catch, Tether, Bind. Loop meter and break.</td></tr>
+        <tr><td class="num">11</td><td>Enemy</td><td>One Shallow, three behaviour states, killable and holdable.</td></tr>
+        <tr><td class="num">12</td><td>Mini-boss</td><td>The Snag in the Tanada. One arena, two phases, a readable loop.</td></tr>
+        <tr><td class="num">13</td><td>Inventory</td><td>Grid, tools, crops, materials, cooking with three recipes.</td></tr>
+        <tr><td class="num">14</td><td>Progression</td><td>Three Cadences learnable in-slice: Turning, Drawing, Splitting.</td></tr>
+        <tr><td class="num">15</td><td>Day/night</td><td>Full 24 h cycle, compressed. Night changes the forest layout.</td></tr>
+        <tr><td class="num">16</td><td>Weather</td><td>Clear, rain, fog. Rain must open one route and close another.</td></tr>
+        <tr><td class="num">17</td><td>Dialogue</td><td>Branching, conditional on flags and items, with the journal.</td></tr>
+        <tr><td class="num">18</td><td>Save/load</td><td>Full serialisation of world, farm, inventory, relationships, calendar.</td></tr>
+        <tr><td class="num">19</td><td>House customisation</td><td>One room, free placement, eight furniture pieces, two floors, two walls.</td></tr>
+        <tr><td class="num">20</td><td>UI</td><td>Ink-and-paper system: HUD, journal, inventory, dialogue, photo mode.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h4>The three things the slice must prove</h4>
+    <ol>
+      <li><strong>That labour feels good.</strong> If clearing bramble is not satisfying at the animation and audio level, the entire game fails and no amount of story rescues it. Test this first, with a grey-box and final audio.</li>
+      <li><strong>That the Cadence link lands.</strong> A playtester must, unprompted, connect "I hoed a lot" to "I have an earth attack." If they do not, the presentation of that link is wrong, and it is cheaper to find out in the slice than in year three.</li>
+      <li><strong>That the tonal handover works.</strong> Two minutes of Tokyo has to make the first morning on the farm land. If testers shrug at the reveal, the problem is in Tokyo, not the farm.</li>
+    </ol>
+    <p class="note">Anti-goals for the slice: no companions, no romance, no festivals, no seasons beyond one, no photo journal meta-progression, no second dungeon. All of those are proven by other games; none of them are what is risky here.</p>
+  </div>
+</section>
+
+<section id="tech">
+  <div class="sec-head"><div class="sec-num">14</div><h2 class="sec-title">Technical Architecture</h2>
+  <p class="sec-kicker">Engine, structure, and an honest word about the existing prototype</p><hr class="groove"></div>
+
+  <div class="col">
+    <h4>What is in this repository today</h4>
+    <p>8,800 lines of dependency-free JavaScript: a WebGL2 renderer with shadow mapping and wind, a tile-grid world builder, a dialogue graph runner, a chapter/quest state machine, NPC schedules, a synthesised score, a save system, and 34 headless tests. It runs, it is tested, and it is genuinely useful.</p>
+    <p><strong>It is not the engine for this game, and I would be doing you a disservice to pretend otherwise.</strong> A commercial third-person ARPG needs skeletal animation, physics, navmesh AI, a material and lighting pipeline, audio middleware, localisation, console certification, and an asset pipeline a team of artists can actually work in. Building those from scratch in JavaScript is a decade of work that has already been done four times over.</p>
+
+    <div class="decision">
+      <h4>Recommendation — Unity 6, URP, C#</h4>
+      <p>Best fit for a stylized 3D ARPG plus a data-heavy life sim at small-team scale. Mature stylized rendering, a real animation stack, Addressables for the asset volume this design implies, the strongest asset-store ecosystem for the boring 40%, and straightforward console ports. Unreal 5 gives better out-of-box visuals but is heavier for the enormous amount of UI and data work a life sim needs. Godot 4 is genuinely close now and free, but the 3D animation tooling and console story are still where the risk is.</p>
+    </div>
+
+    <h4>What the existing prototype is still good for</h4>
+    <p>Keep it as a <strong>systems sandbox</strong>, not a parallel product. It can validate cheap, fast, headlessly: the chapter graph, dialogue conditions, NPC schedule collisions, the farming calendar, Cadence accrual curves, and the economy. All of that is data, and all of that data ports to Unity as JSON without touching a line of the rendering code. That is real value — but only if it stays a sandbox. Two live codebases will kill the project.</p>
+  </div>
+
+  <div class="tree wide"><pre><b>Nagori/</b>
+├── <b>Assets/</b>
+│   ├── <b>_Project/</b>              <i># everything we author lives under one root</i>
+│   │   ├── <b>Art/</b>               <i># characters, environment, VFX, UI atlases</i>
+│   │   ├── <b>Audio/</b>             <i># music stems, SFX, ambience beds</i>
+│   │   ├── <b>Data/</b>              <i># ScriptableObjects — the game's real content</i>
+│   │   │   ├── Crops/            <i># one asset per crop: seasons, yields, uses</i>
+│   │   │   ├── Cadences/         <i># gesture, accrual rate, combat + world effect</i>
+│   │   │   ├── Orime/            <i># depth, loop pattern, dialogue, drops</i>
+│   │   │   ├── Villagers/        <i># schedule, gift table, arc stages</i>
+│   │   │   ├── Recipes/  Items/  Quests/  Dialogue/
+│   │   ├── <b>Scenes/</b>            <i># Sumizaka, Hazama (streamed), interiors</i>
+│   │   ├── <b>Prefabs/</b>
+│   │   └── <b>Scripts/</b>
+│   │       ├── <b>Core/</b>          <i># time, save, event bus, input, pooling</i>
+│   │       ├── <b>World/</b>         <i># streaming, season/weather state, day-night</i>
+│   │       ├── <b>Farming/</b>       <i># soil, growth, water, animals, buildings</i>
+│   │       ├── <b>Combat/</b>        <i># Yui controller, Loop meter, damage, AI</i>
+│   │       ├── <b>Cadence/</b>       <i># accrual tracking, ability resolution</i>
+│   │       ├── <b>Social/</b>        <i># schedules, relationships, festivals</i>
+│   │       ├── <b>Narrative/</b>     <i># chapter graph, dialogue runner, flags</i>
+│   │       ├── <b>UI/</b>            <i># HUD, journal, inventory, photo mode</i>
+│   │       └── <b>Debug/</b>         <i># time skip, flag editor, spawner</i>
+│   └── <b>Plugins/</b>
+├── <b>Tools/</b>                     <i># content validators, build scripts</i>
+├── <b>Sandbox/</b>                   <i># the existing JS prototype, data-only from here</i>
+└── <b>Docs/</b>                      <i># this bible, plus per-system specs</i></pre></div>
+
+  <div class="col">
+    <h4>Architectural principles</h4>
+    <ul>
+      <li><strong>Content is data, not code.</strong> Every crop, Cadence, Orime, villager and quest is a ScriptableObject a designer can edit without a programmer. This is the single decision that determines whether the game can actually be finished.</li>
+      <li><strong>One authority per fact.</strong> <code>WorldClock</code> owns time. <code>SeasonState</code> owns season. Nothing else caches them. Every schedule, growth tick and spawn table reads from those two.</li>
+      <li><strong>Systems talk through an event bus, not references.</strong> Farming raises <code>HarvestCompleted</code>; Cadence, quests, relationships and audio all listen. Farming knows about none of them. This is what lets the life-sim and combat halves stay genuinely interleaved without becoming a knot.</li>
+      <li><strong>Save is a serialised snapshot with a version and a migration path</strong>, written on day one. A life sim that cannot load an old save after a patch is dead on arrival, and this is not something you retrofit.</li>
+      <li><strong>Determinism where it is cheap.</strong> Seeded generation for scatter, weather and loot, so a bug is reproducible from a save file.</li>
+      <li><strong>Test the data, not the pixels.</strong> Headless validators in CI: every crop has ≥2 uses, every quest is reachable, no NPC schedule puts someone in two places, every Cadence has a non-combat use. These are the tests that catch real content bugs.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="sec-head"><div class="sec-num">15</div><h2 class="sec-title">Development Roadmap</h2>
+  <p class="sec-kicker">Realistic phases — and a scoped-down alternative</p><hr class="groove"></div>
+
+  <div class="col">
+    <p><strong>Scope reality first.</strong> The design above, built to commercial quality, is comparable to <em>Rune Factory 5</em> or <em>Fantasy Life</em>: roughly <strong>4–6 years and 40–90 people</strong>, most of it art. Estimating anything else would be lying to you. What follows is the honest full-scope plan, and underneath it a version that a small team can actually ship.</p>
+  </div>
+
+  <div class="phase"><div class="phase-tag">Phase 0</div><div>
+    <h4>Pre-production</h4>
+    <p>Lock this bible. Art direction target renders — one Tokyo street, one farm morning, one Orime. Grey-box the farm and prove that clearing bramble feels good with final audio and no art. Engine spike on streaming and animation. Build the content validators before the content.<span class="dur">3–4 months · 4–6 people</span></p></div></div>
+
+  <div class="phase"><div class="phase-tag">Phase 1</div><div>
+    <h4>Vertical slice</h4>
+    <p>All twenty items in §13, at shipping quality for that content. This is the fundraising and hiring artefact. Do not start it until Phase 0's bramble test passes.<span class="dur">6–9 months · 8–14 people</span></p></div></div>
+
+  <div class="phase"><div class="phase-tag">Phase 2</div><div>
+    <h4>Systems complete</h4>
+    <p>Every system in the game exists and is final in behaviour, with placeholder content volume: all Cadences, all combat verbs, seasons, festivals, relationships, house building, photo mode. Nothing new gets designed after this phase closes.<span class="dur">10–14 months · 20–35 people</span></p></div></div>
+
+  <div class="phase"><div class="phase-tag">Phase 3</div><div>
+    <h4>Content production</h4>
+    <p>The long one. All eight zones, twelve villagers with full arcs, forty crops, fourteen enemies, seven bosses, the full script, the full score. Ruthless change control — the systems are frozen and the pipeline just runs.<span class="dur">18–24 months · 40–90 people</span></p></div></div>
+
+  <div class="phase"><div class="phase-tag">Phase 4</div><div>
+    <h4>Alpha to ship</h4>
+    <p>Content complete, then balance, localisation, accessibility, console certification, performance, and the long tail of save-migration bugs that every life sim ships with anyway.<span class="dur">9–12 months</span></p></div></div>
+
+  <div class="col">
+    <h4>The version a small team can ship</h4>
+    <p>If the team is under ten people, cut to this and it becomes a real 2.5–3 year project rather than a fantasy:</p>
+    <ul>
+      <li><strong>One season, not four.</strong> Autumn only — harvest, changing leaves, the festival. Seasons are a 4× content multiplier on everything visual.</li>
+      <li><strong>Six villagers, not twelve.</strong> Written twice as well.</li>
+      <li><strong>Four zones, not eight.</strong> Farm, village, forest, Tanada. Cut the mountain, the lake, the school and the mine.</li>
+      <li><strong>Twelve hours, not thirty-five.</strong> Chapters 1–5 and a compressed finale. The Ch.6 planning-consultation conflict is the best writing in the design — keep it and cut the dungeon.</li>
+      <li><strong>Five Cadences, three enemies, two bosses.</strong></li>
+      <li><strong>Keep every pillar.</strong> Nothing above touches the four pillars, which is how you know it is the right cut.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="originality">
+  <div class="sec-head"><div class="sec-num">—</div><h2 class="sec-title">Originality</h2>
+  <p class="sec-kicker">What was invented here, and where to be careful</p><hr class="groove"></div>
+  <div class="col">
+    <p>Everything named in this document is invented for it: Sae Minagawa, Hazama, Ozasa, the Orime, Cadences, the Yui, Tsurube, Shirokaki, Kaerazu, Yomogi, and all twelve villagers. No character, place, creature, term, plot beat or visual from any existing franchise appears here, and the references you gave are used only for tone and pacing.</p>
+    <h4>Three places to be deliberate</h4>
+    <ul>
+      <li><strong>Title clearance.</strong> <em>Nagori</em> is a common Japanese noun, which is good for defensibility of the game itself and bad for trademark distinctiveness. Run a proper trademark search in your target territories before any public use, and be ready with a compound fallback.</li>
+      <li><strong>The Sakuna adjacency.</strong> <em>Sakuna: Of Rice and Ruin</em> ties farming to combat power. Ours differs in kind — named abilities that are the gesture of the work, each with a matched non-combat use — but the comparison will be made, so make the difference visible in the first hour of play, not in a design document.</li>
+      <li><strong>Folklore vs. franchise.</strong> Drawing on real Japanese rural life, architecture and Shinto-adjacent practice is legitimate and expected. Do it with a cultural consultant on staff from Phase 0, not as a review at the end. The Orime are invented, and they should not be dressed in borrowed iconography to make them read faster.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="decisions">
+  <div class="sec-head"><div class="sec-num">—</div><h2 class="sec-title">Your Call</h2>
+  <p class="sec-kicker">Four decisions I need before anything gets built</p><hr class="groove"></div>
+  <div class="col">
+    <div class="decision"><h4>1 · Engine</h4><p>Unity, as recommended — or stay in the browser stack and take the scoped-down version as the actual target? These lead to completely different next steps, and I should not start either without you choosing.</p></div>
+    <div class="decision"><h4>2 · Scope</h4><p>Full design, or the small-team cut in §15? This changes the vertical slice's content, not its systems.</p></div>
+    <div class="decision"><h4>3 · What I build next</h4><p>Options: the systems sandbox in this repo to tune the Cadence and farming curves cheaply; a Unity project skeleton with the folder structure and core singletons; or the full written specs for two systems (Cadence and Loop combat) at implementation detail.</p></div>
+    <div class="decision"><h4>4 · Anything in here you want changed first</h4><p>Push back now while it is free. The Orime rules and the Cadence link are the two things everything else hangs off — if either is wrong for you, say so before we build on them.</p></div>
+  </div>
+</section>
+
+<footer>
+  <p>Nagori — Design Bible v1 · Original IP · Nothing in this document is implemented. No code has been written against it.</p>
+</footer>
+</main>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('themeBtn');
+  var root = document.documentElement;
+  btn.addEventListener('click', function () {
+    var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var current = root.getAttribute('data-theme') || (dark ? 'dark' : 'light');
+    root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  });
+}());
+</script>
