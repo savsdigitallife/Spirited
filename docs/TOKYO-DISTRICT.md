@@ -179,6 +179,33 @@ at 0.14, so it returns the street the way the glass does. The four wheels
 merge to one mesh — they never move relative to each other — and the rim
 faces outward on both sides of the car.
 
+## What the signs say
+
+Every sign on the street carries real Japanese, set horizontally, centred,
+and fitted to the board it is painted on: 「麺屋 かなで」 over the ramen shop,
+「ミドリマート」 over the convenience store, 「メイド喫茶 さくら箱」 over the café,
+「地下鉄 羽澄町駅」 over the way underground, 「カラオケ」 and 「深夜営業」 on the
+banners hung off the frontages, 「本日の おすすめ」 on the boards out on the
+pavement. The trade words are the ordinary ones; the shop names, the chain
+and the station are inventions of this street's. Nothing is a real business.
+
+`src/world/Signage.ts` draws them into a canvas at load: the board's own
+proportions decide the canvas shape, so the lettering is never stretched by
+the mesh; the font size is fitted to the longest line; lines are stacked and
+centred on both axes. Neon is three passes — a wide bloom, the tube, then a
+hot core — because a single flat fill reads as a printed sticker. If a
+machine has no Japanese font at all (checked by rendering one kana against a
+character no font defines), the street falls back to the abstract strokes it
+had before rather than drawing a row of empty boxes.
+
+Sign faces are planes, not box faces. Babylon maps each face of a box 0..1
+with its own idea of which way U runs, so the same texture came out a
+quarter turn over on one board and reversed on another; a plane turned to
+look at the street has one unambiguous face. The artwork is drawn upside
+down into the canvas, because a plane's V runs opposite to a canvas's rows —
+everything symmetrical had hidden that until a test board with an "A" on it
+made it obvious.
+
 ## What is next
 
 Modelled characters and props to drop in behind the ids that are already

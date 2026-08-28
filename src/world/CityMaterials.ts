@@ -18,6 +18,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import { makeSurface, type SurfaceRecipe } from "./ProceduralMaterials";
 import { fbm, makeRandom } from "./Noise";
 import { makeGlass, type GlassKind } from "./Glass";
+import { japaneseAvailable, signTexture, type SignStyle } from "./Signage";
 
 const RECIPES = {
   asphalt: {
@@ -552,6 +553,36 @@ export class CityMaterials {
     // Windows are the only part of a facade that should out-reflect the
     // street, and the map has already limited that to the panes.
     material.environmentIntensity = 1.5;
+    this.cache.set(key, material);
+    return material;
+  }
+
+  /**
+   * A sign with words on it.
+   *
+   * `aspect` is the width over the height of the face the material lands on,
+   * so the letters are shaped by the board rather than stretched by it. If
+   * the machine has no Japanese font, this falls back to `signboard`'s
+   * strokes rather than drawing a row of empty boxes.
+   */
+  sign(
+    name: string,
+    lines: readonly string[],
+    colour: Color3,
+    aspect: number,
+    style: SignStyle = "neon",
+  ): PBRMaterial {
+    const key = `words:${name}`;
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    if (!japaneseAvailable()) return this.signboard(name, colour, name.length * 31 + 7);
+
+    const material = new PBRMaterial(`city.sign.${name}`, this.scene);
+    material.unlit = true;
+    material.albedoTexture = signTexture(this.scene, name, { lines, colour, aspect, style });
+    // Over-bright so the tube blows into the bloom pass the way neon does;
+    // ink on a board is lit by the street instead.
+    material.albedoColor = style === "neon" ? new Color3(3, 3, 3) : new Color3(1.1, 1.1, 1.1);
     this.cache.set(key, material);
     return material;
   }

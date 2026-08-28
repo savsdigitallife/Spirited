@@ -20,6 +20,7 @@
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
+import { CreatePlane } from "@babylonjs/core/Meshes/Builders/planeBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
@@ -27,6 +28,7 @@ import type { Material } from "@babylonjs/core/Materials/material";
 import type { Scene } from "@babylonjs/core/scene";
 import { CityMaterials, NEON, type NeonColour } from "./CityMaterials";
 import { makeRandom } from "./Noise";
+import { SIGN_COPY } from "./Signage";
 
 /** What is on the ground floor. Decides the whole frontage's character. */
 export type BusinessKind =
@@ -126,6 +128,38 @@ function slab(
   return mesh;
 }
 
+/**
+ * The face of a sign: a plane carrying the words, hung a centimetre proud of
+ * whatever plate is behind it.
+ *
+ * Boxes will not do for lettering. Babylon maps each of a box's faces 0..1
+ * with its own idea of which way U runs, so text on one comes out a quarter
+ * turn over and on another comes out mirrored. A plane has one unambiguous
+ * face; turned to look at the street, its words read the right way round on
+ * every sign, both sides of the road.
+ *
+ * `facing` is the world direction the words look towards.
+ */
+function signFace(
+  kit: Kit,
+  name: string,
+  size: { width: number; height: number },
+  at: Vector3,
+  facing: Vector3,
+  material: Material,
+): Mesh {
+  const mesh = CreatePlane(name, { width: size.width, height: size.height }, kit.scene);
+  mesh.position.copyFrom(at);
+  // Babylon's plane looks down -Z, so the yaw is measured from that.
+  mesh.rotation.y = Math.atan2(-facing.x, -facing.z);
+  mesh.material = material;
+  mesh.isPickable = false;
+  kit.parts.push(mesh);
+  return mesh;
+}
+
+
+
 /** Signage colour per business, so a street reads at a glance. */
 const SIGN_COLOUR: Record<BusinessKind, NeonColour> = {
   ramen: "gold",
@@ -140,18 +174,6 @@ const SIGN_COLOUR: Record<BusinessKind, NeonColour> = {
   lobby: "ice",
 };
 
-const BUSINESS_NAME: Record<BusinessKind, string> = {
-  ramen: "ramen",
-  konbini: "konbini",
-  cafe: "cafe",
-  maidcafe: "maidcafe",
-  izakaya: "izakaya",
-  laundry: "laundry",
-  bookshop: "books",
-  salon: "salon",
-  shutter: "shutter",
-  lobby: "lobby",
-};
 
 /**
  * The ground floor.
@@ -309,12 +331,26 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
 
   // Sign band over the opening, then the trade's own signage.
   const colour = NEON[SIGN_COLOUR[spec.business]];
+  const bandDepth = w - 0.3;
   slab(
     kit,
     "signBand",
-    { width: 0.1, height: 0.62, depth: w - 0.3 },
+    { width: 0.1, height: 0.62, depth: bandDepth },
     new Vector3(kit.toward(0.06), SHOPFRONT_HEIGHT - 0.42, spec.z),
-    materials.signboard(`${BUSINESS_NAME[spec.business]}${spec.variant}`, colour, spec.seed),
+    materials.painted("signPlate", new Color3(0.03, 0.035, 0.04), 0.6),
+  );
+  signFace(
+    kit,
+    "signBandFace",
+    { width: bandDepth, height: 0.62 },
+    new Vector3(kit.toward(0.12), SHOPFRONT_HEIGHT - 0.42, spec.z),
+    new Vector3(kit.out, 0, 0),
+    materials.sign(
+      `band.${spec.business}.${spec.variant}`,
+      SIGN_COPY[spec.business]?.band ?? [],
+      colour,
+      bandDepth / 0.62,
+    ),
   );
   slab(
     kit,
@@ -378,7 +414,29 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
     spec.business === "izakaya"
   ) {
     // A menu board out on the pavement.
-    slab(kit, "menuBoard", { width: 0.09, height: 1.1, depth: 0.62 }, new Vector3(kit.toward(0.85), 0.72, spec.z + 1.5), materials.signboard(`menu${spec.seed}`, NEON.gold, spec.seed + 3), 0.18);
+    const boardAt = new Vector3(kit.toward(0.85), 0.72, spec.z + 1.5);
+    slab(
+      kit,
+      "menuBoard",
+      { width: 0.09, height: 1.1, depth: 0.62 },
+      boardAt,
+      materials.painted("boardBack", new Color3(0.08, 0.075, 0.07), 0.8),
+      0.18,
+    );
+    signFace(
+      kit,
+      "menuBoardFace",
+      { width: 0.62, height: 1.1 },
+      new Vector3(boardAt.x + kit.out * 0.06, boardAt.y, boardAt.z + 0.011),
+      new Vector3(kit.out, 0, 0),
+      materials.sign(
+        `menu.${spec.business}`,
+        SIGN_COPY[spec.business]?.note ?? ["本日の", "おすすめ"],
+        NEON.gold,
+        0.62 / 1.1,
+        "plate",
+      ),
+    ).rotation.y += 0.18;
     slab(kit, "menuLegs", { width: 0.5, height: 0.16, depth: 0.5 }, new Vector3(kit.toward(0.85), 0.1, spec.z + 1.5), materials.painted("boardLeg", new Color3(0.12, 0.1, 0.09), 0.8));
   }
 
@@ -396,7 +454,23 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
       kit.parts.push(bulb);
     }
     // The standee: a lit board on legs, angled at whoever is walking past.
-    slab(kit, "standee", { width: 0.1, height: 1.35, depth: 0.7 }, new Vector3(kit.toward(1.05), 0.82, spec.z - 1.8), materials.signboard(`standee${spec.seed}`, NEON.violet, spec.seed + 5), 0.22);
+    const standeeAt = new Vector3(kit.toward(1.05), 0.82, spec.z - 1.8);
+    slab(
+      kit,
+      "standee",
+      { width: 0.1, height: 1.35, depth: 0.7 },
+      standeeAt,
+      materials.painted("boardBack", new Color3(0.08, 0.075, 0.07), 0.8),
+      0.22,
+    );
+    signFace(
+      kit,
+      "standeeFace",
+      { width: 0.7, height: 1.35 },
+      new Vector3(standeeAt.x + kit.out * 0.06, standeeAt.y, standeeAt.z + 0.014),
+      new Vector3(kit.out, 0, 0),
+      materials.sign("standee.maidcafe", ["ただいま", "営業中"], NEON.violet, 0.7 / 1.35, "plate"),
+    ).rotation.y += 0.22;
     slab(kit, "standeeFoot", { width: 0.55, height: 0.14, depth: 0.55 }, new Vector3(kit.toward(1.05), 0.09, spec.z - 1.8), materials.painted("boardLeg", new Color3(0.12, 0.1, 0.09), 0.8));
   }
 
@@ -423,8 +497,34 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
   // A projecting sign, hung off the wall at right angles so it is legible
   // from up the street rather than only from in front of it.
   if (spec.business !== "shutter" && spec.business !== "lobby") {
-    const height = 1.4 + kit.random() * 1.6;
-    slab(kit, "bladeSign", { width: 0.9, height, depth: 0.12 }, new Vector3(kit.toward(0.75), SHOPFRONT_HEIGHT + 1.4 + height / 2, spec.z + (kit.random() - 0.5) * spec.width * 0.4), materials.signboard(`blade${spec.seed}`, colour, spec.seed + 11));
+    // Sized to its words: two characters a line, so the board is as tall as
+    // the name is long and the text stays horizontal on it.
+    const bladeLines = SIGN_COPY[spec.business]?.blade ?? [];
+    const height = Math.max(1.2, 0.62 * bladeLines.length + 0.5);
+    const bladeAt = new Vector3(
+      kit.toward(0.75),
+      SHOPFRONT_HEIGHT + 1.4 + height / 2,
+      spec.z + (kit.random() - 0.5) * spec.width * 0.4,
+    );
+    slab(
+      kit,
+      "bladeSign",
+      { width: 0.9, height, depth: 0.12 },
+      bladeAt,
+      materials.painted("signPlate", new Color3(0.03, 0.035, 0.04), 0.6),
+    );
+    const bladeMaterial = materials.sign(`blade.${spec.business}`, bladeLines, colour, 0.9 / height);
+    // Both sides: a projecting sign is read from up the street and down it.
+    for (const towards of [-1, 1] as const) {
+      signFace(
+        kit,
+        `bladeFace${towards}`,
+        { width: 0.9, height },
+        new Vector3(bladeAt.x, bladeAt.y, bladeAt.z + towards * 0.065),
+        new Vector3(0, 0, towards),
+        bladeMaterial,
+      );
+    }
     slab(kit, "bladeArm", { width: 0.5, height: 0.06, depth: 0.06 }, new Vector3(kit.toward(0.45), SHOPFRONT_HEIGHT + 1.5, spec.z), materials.painted("signArm", new Color3(0.1, 0.1, 0.11), 0.6, 0.5));
   }
 }

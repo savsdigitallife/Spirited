@@ -21,6 +21,7 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Scene } from "@babylonjs/core/scene";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
+import { CreatePlane } from "@babylonjs/core/Meshes/Builders/planeBuilder";
 import { CreateLineSystem } from "@babylonjs/core/Meshes/Builders/linesBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
@@ -42,6 +43,7 @@ import { Weather } from "../world/Weather";
 import { LampPool, type LampSite } from "../world/LampPool";
 import { WetGround } from "../world/WetGround";
 import { planarUv, tint } from "../world/Shapes";
+import { STATION_COPY } from "../world/Signage";
 import { buildAlley } from "../world/Alley";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
 import { ShopInteriors } from "../world/ShopInterior";
@@ -76,6 +78,8 @@ const STATION_Z = 27;
 /** The alley mouth, on the west side between the two shuttered units. */
 const ALLEY_Z = 2.5;
 const SEED = 91733;
+/** The hanging banners, which differ only in what they say. */
+const BANNERS = ["neon_banner_01", "neon_banner_02", "neon_banner_03"] as const;
 /** Late. The signs are the light source, which is the point of the place. */
 const START_TIME_OF_DAY = 0.965;
 
@@ -453,9 +457,16 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     mouth.parent = station;
     const sign = CreateBox("station.sign", { width: 0.12, height: 0.7, depth: 5 }, scene);
     sign.position.set(PAVE_OUTER - 3.4, 3.95, STATION_Z);
-    sign.material = materials.signboard("station", NEON.ice, 314);
+    sign.material = materials.painted("signPlate", new Color3(0.03, 0.035, 0.04), 0.6);
     sign.isPickable = false;
     sign.parent = station;
+    // The name of the station, facing the street it is on.
+    const signFace = CreatePlane("station.signFace", { width: 5, height: 0.7 }, scene);
+    signFace.position.set(PAVE_OUTER - 3.47, 3.95, STATION_Z);
+    signFace.rotation.y = Math.PI / 2;
+    signFace.material = materials.sign("station", STATION_COPY, NEON.ice, 5 / 0.7);
+    signFace.isPickable = false;
+    signFace.parent = station;
   }
 
   // -------------------------------------------------------------- prefabs
@@ -464,7 +475,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   catalog.defineAll(tokyoPrefabs(materials));
   await catalog.prepare([
     "street_light_01", "utility_pole_01", "vending_machine_01", "traffic_light_01", "sign_post_01",
-    "trash_bin_01", "planter_01", "bicycle_01", "tokyo_car_01", "neon_banner_01",
+    "trash_bin_01", "planter_01", "bicycle_01", "tokyo_car_01", ...BANNERS,
     "bollard_01", "guardrail_01", "utility_box_01", "drain_grate_01", "bike_rack_01",
     "crate_01", "traffic_cone_01", "scooter_01", "bench_01", "street_condenser_01", "gas_bottles_01",
   ]);
@@ -609,7 +620,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     // Hanging signage above the shopfronts, on the frontages themselves.
     for (const plot of side === -1 ? WEST : EAST) {
       if (plot.business === "shutter" || plot.business === "lobby") continue;
-      catalog.spawn("neon_banner_01", {
+      catalog.spawn(BANNERS[Math.floor(random() * BANNERS.length)] ?? "neon_banner_01", {
         position: new Vector3(side * (PAVE_OUTER - 0.35), 5.4 + random() * 2.6, plot.z + (random() - 0.5) * plot.width * 0.5),
         rotationY: facing,
       });

@@ -79,6 +79,20 @@ for (const step of script.split(",").filter(Boolean)) {
     await page.mouse.move(640 + Number(a), 360 + Number(b), { steps: 12 });
   } else if (verb === "wait") {
     await page.waitForTimeout(Number(a) * 1000);
+  } else if (verb === "eye") {
+    // Development only: put the camera at x:y:z looking at tx:ty:tz.
+    const n = step.split(":").slice(1).map(Number);
+    await page.evaluate(
+      ([ex, ey, ez, tx, ty, tz]) => {
+        const s = window.nagori.scenes.active.scene;
+        const camera = s.activeCamera;
+        s.onBeforeRenderObservable.add(() => {
+          camera.position.set(ex, ey, ez);
+          camera.setTarget(new (camera.position.constructor)(tx, ty, tz));
+        });
+      },
+      n,
+    );
   } else if (verb === "see") {
     // Development only: frame a named mesh from `b` metres away, slightly
     // above it. For looking at one prop without chasing it on foot.

@@ -13,6 +13,7 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
+import { CreatePlane } from "@babylonjs/core/Meshes/Builders/planeBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { AssetDefinition } from "../../engine/AssetCatalog";
@@ -494,24 +495,127 @@ export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
       collides: false,
       castsShadow: false,
       build: ({ scene }) => {
-        // A vertical shop banner: dark plate, glowing strokes, a bright rim.
+        // A banner hung off a frontage: dark plate, lit words, a bright rim.
+        // Built lying the way it hangs rather than rotated into place, so the
+        // words it carries are the right way up.
         const plate = box(
           scene,
           "plate",
-          { width: 0.62, height: 2.6, depth: 0.1 },
+          { width: 2.6, height: 0.62, depth: 0.1 },
           new Vector3(0, 0, 0),
-          materials.signboard("banner", NEON.rose, 991),
+          materials.painted("bannerPlate", new Color3(0.03, 0.035, 0.04), 0.6),
         );
-        plate.rotation.z = Math.PI / 2;
+        const words = materials.sign("banner.karaoke", ["カラオケ"], NEON.rose, 2.6 / 0.62);
+        const faces = [-1, 1].map((towards) => {
+          const face = CreatePlane(`face${towards}`, { width: 2.6, height: 0.62 }, scene);
+          face.position.set(0, 0, towards * 0.055);
+          // A plane looks down -Z until it is turned; these look out both ways.
+          face.rotation.y = towards > 0 ? Math.PI : 0;
+          face.material = words;
+          return face;
+        });
+        // A frame rather than a panel: a solid rim in front of the plate
+        // covered the words it was supposed to be framing.
+        const rimMaterial = materials.emissive("bannerRim", NEON.ice, 2.6);
         const rim = box(
           scene,
-          "rim",
-          { width: 0.68, height: 2.66, depth: 0.06 },
-          new Vector3(0, 0, 0.05),
-          materials.emissive("bannerRim", NEON.ice, 2.6),
+          "rimTop",
+          { width: 2.72, height: 0.06, depth: 0.14 },
+          new Vector3(0, 0.34, 0),
+          rimMaterial,
         );
-        rim.rotation.z = Math.PI / 2;
-        return [plate, rim];
+        const rimParts = [
+          box(scene, "rimBottom", { width: 2.72, height: 0.06, depth: 0.14 }, new Vector3(0, -0.34, 0), rimMaterial),
+          box(scene, "rimLeft", { width: 0.06, height: 0.74, depth: 0.14 }, new Vector3(-1.33, 0, 0), rimMaterial),
+          box(scene, "rimRight", { width: 0.06, height: 0.74, depth: 0.14 }, new Vector3(1.33, 0, 0), rimMaterial),
+        ];
+        return [plate, rim, ...rimParts, ...faces];
+      },
+    },
+    {
+      id: "neon_banner_02",
+      category: "prop",
+      collides: false,
+      castsShadow: false,
+      build: ({ scene }) => {
+        // A banner hung off a frontage: dark plate, lit words, a bright rim.
+        // Built lying the way it hangs rather than rotated into place, so the
+        // words it carries are the right way up.
+        const plate = box(
+          scene,
+          "plate",
+          { width: 2.6, height: 0.62, depth: 0.1 },
+          new Vector3(0, 0, 0),
+          materials.painted("bannerPlate", new Color3(0.03, 0.035, 0.04), 0.6),
+        );
+        const words = materials.sign("banner.snack", ["二階 スナック"], NEON.violet, 2.6 / 0.62);
+        const faces = [-1, 1].map((towards) => {
+          const face = CreatePlane(`face${towards}`, { width: 2.6, height: 0.62 }, scene);
+          face.position.set(0, 0, towards * 0.055);
+          // A plane looks down -Z until it is turned; these look out both ways.
+          face.rotation.y = towards > 0 ? Math.PI : 0;
+          face.material = words;
+          return face;
+        });
+        // A frame rather than a panel: a solid rim in front of the plate
+        // covered the words it was supposed to be framing.
+        const rimMaterial = materials.emissive("bannerRim", NEON.ice, 2.6);
+        const rim = box(
+          scene,
+          "rimTop",
+          { width: 2.72, height: 0.06, depth: 0.14 },
+          new Vector3(0, 0.34, 0),
+          rimMaterial,
+        );
+        const rimParts = [
+          box(scene, "rimBottom", { width: 2.72, height: 0.06, depth: 0.14 }, new Vector3(0, -0.34, 0), rimMaterial),
+          box(scene, "rimLeft", { width: 0.06, height: 0.74, depth: 0.14 }, new Vector3(-1.33, 0, 0), rimMaterial),
+          box(scene, "rimRight", { width: 0.06, height: 0.74, depth: 0.14 }, new Vector3(1.33, 0, 0), rimMaterial),
+        ];
+        return [plate, rim, ...rimParts, ...faces];
+      },
+    },
+    {
+      id: "neon_banner_03",
+      category: "prop",
+      collides: false,
+      castsShadow: false,
+      build: ({ scene }) => {
+        // A banner hung off a frontage: dark plate, lit words, a bright rim.
+        // Built lying the way it hangs rather than rotated into place, so the
+        // words it carries are the right way up.
+        const plate = box(
+          scene,
+          "plate",
+          { width: 2.6, height: 0.62, depth: 0.1 },
+          new Vector3(0, 0, 0),
+          materials.painted("bannerPlate", new Color3(0.03, 0.035, 0.04), 0.6),
+        );
+        const words = materials.sign("banner.late", ["深夜営業"], NEON.gold, 2.6 / 0.62);
+        const faces = [-1, 1].map((towards) => {
+          const face = CreatePlane(`face${towards}`, { width: 2.6, height: 0.62 }, scene);
+          face.position.set(0, 0, towards * 0.055);
+          // A plane looks down -Z until it is turned; these look out both ways.
+          face.rotation.y = towards > 0 ? Math.PI : 0;
+          face.material = words;
+          return face;
+        });
+        // A frame rather than a panel: a solid rim in front of the plate
+        // covered the words it was supposed to be framing.
+        const rimMaterial = materials.emissive("bannerRim", NEON.ice, 2.6);
+        const rim = box(
+          scene,
+          "rimTop",
+          { width: 2.72, height: 0.06, depth: 0.14 },
+          new Vector3(0, 0.34, 0),
+          rimMaterial,
+        );
+        const rimParts = [
+          box(scene, "rimBottom", { width: 2.72, height: 0.06, depth: 0.14 }, new Vector3(0, -0.34, 0), rimMaterial),
+          box(scene, "rimLeft", { width: 0.06, height: 0.74, depth: 0.14 }, new Vector3(-1.33, 0, 0), rimMaterial),
+          box(scene, "rimRight", { width: 0.06, height: 0.74, depth: 0.14 }, new Vector3(1.33, 0, 0), rimMaterial),
+        ];
+        return [plate, rim, ...rimParts, ...faces];
       },
     },
 
