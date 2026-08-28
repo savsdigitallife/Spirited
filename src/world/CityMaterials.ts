@@ -19,6 +19,7 @@ import { makeSurface, type SurfaceRecipe } from "./ProceduralMaterials";
 import { fbm, makeRandom } from "./Noise";
 import { makeGlass, type GlassKind } from "./Glass";
 import { japaneseAvailable, signTexture, type SignStyle } from "./Signage";
+import { makeCycleMark, makePaving, type PavingKind } from "./Paving";
 
 const RECIPES = {
   asphalt: {
@@ -143,6 +144,39 @@ export class CityMaterials {
       texture.anisotropicFilteringLevel = this.anisotropy;
     }
     this.cache.set(key, material);
+    return material;
+  }
+
+  /**
+   * One of the footway surfaces. Paired with `planarUv` at `PAVING_TILE`.
+   */
+  paving(kind: PavingKind): PBRMaterial {
+    const key = `paving:${kind}`;
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    const material = makePaving(this.scene, kind, Math.min(1024, Math.max(256, this.textureSize)), this.anisotropy);
+    this.cache.set(key, material);
+    return material;
+  }
+
+  /**
+   * How much of the night's own light is showing, 0 by day and 1 after
+   * dark. Called once a frame by the region that owns these materials.
+   */
+  setNightFactor(value: number): void {
+    const factor = Math.max(0, Math.min(1, value));
+    for (const entry of this.lit) {
+      if (entry.albedo) entry.material.albedoColor = entry.albedo.scale(factor);
+      entry.material.emissiveIntensity = entry.emissive * factor;
+    }
+  }
+
+  /** The bicycle and chevron painted along a cycle lane. */
+  cycleMark(): PBRMaterial {
+    const cached = this.cache.get("cycleMark");
+    if (cached) return cached;
+    const material = makeCycleMark(this.scene, this.anisotropy);
+    this.cache.set("cycleMark", material);
     return material;
   }
 
@@ -379,6 +413,19 @@ export class CityMaterials {
   }
 
   private aggregate: DynamicTexture | null = null;
+  /**
+   * Everything that is lit from within: neon, signage, the window grids.
+   *
+   * A sign is only bright relative to what is around it. Left at full
+   * strength through the morning the whole street reads as a night scene
+   * with a blue sky over it, so the region scales these back as the sun
+   * comes up (see `setNightFactor`).
+   */
+  private readonly lit: {
+    material: PBRMaterial;
+    albedo: Color3 | null;
+    emissive: number;
+  }[] = [];
 
   /** A canvas-backed texture written a pixel at a time. */
   private paint(name: string, size: number, write: (px: Uint8ClampedArray) => void): DynamicTexture {
@@ -433,6 +480,7 @@ export class CityMaterials {
     material.albedoColor = colour.scale(strength);
     material.emissiveColor = colour;
     material.emissiveIntensity = strength;
+    this.lit.push({ material, albedo: material.albedoColor.clone(), emissive: strength });
     this.cache.set(key, material);
     return material;
   }
@@ -492,7 +540,10 @@ export class CityMaterials {
       // blue is metalness. The wall is rough and dielectric; the panes are
       // smooth and part-metal, which is how a window catches the sun while
       // the concrete around it does not.
-      ctx.fillStyle = emissive ? "#000000" : pass === "gloss" ? "#00c010" : "#20242a";
+      // Pale by day, because that is what these buildings are: tile, panel
+      // and painted concrete. At night almost none of it is lit and the
+      // windows carry the frame, so a light wall costs nothing there.
+      ctx.fillStyle = emissive ? "#000000" : pass === "gloss" ? "#00c010" : "#6d7076";
       ctx.fillRect(0, 0, size, size);
 
       const cellW = size / options.columns;
@@ -525,7 +576,8 @@ export class CityMaterials {
             ctx.fillRect(x, y, w, h);
             ctx.globalAlpha = 1;
           } else {
-            ctx.fillStyle = cell.lit ? "#2c3038" : "#14171b";
+            // Glazing reads darker than the wall around it in daylight.
+            ctx.fillStyle = cell.lit ? "#39404a" : "#252a31";
             ctx.fillRect(x, y, w, h);
           }
         }
@@ -542,6 +594,7 @@ export class CityMaterials {
     material.emissiveTexture = draw("emissive");
     material.emissiveColor = new Color3(1, 1, 1);
     material.emissiveIntensity = 1.1;
+    this.lit.push({ material, albedo: null, emissive: 1.1 });
     // Metalness and roughness now come per-pixel from the gloss map; the
     // factors above it stay at 1 so the map is what decides.
     material.metallicTexture = draw("gloss");
@@ -578,11 +631,30 @@ export class CityMaterials {
     if (!japaneseAvailable()) return this.signboard(name, colour, name.length * 31 + 7);
 
     const material = new PBRMaterial(`city.sign.${name}`, this.scene);
+    const texture = signTexture(this.scene, name, { lines, colour, aspect, style });
+    material.albedoTexture = texture;
+    if (style === "tenant") {
+      // A light box: lit by the street by day and from inside after dark,
+      // so it is a shaded material with an emissive pass over it rather
+      // than an unlit one.
+      material.roughness = 0.62;
+      material.metallic = 0;
+      material.emissiveTexture = texture;
+      material.emissiveColor = new Color3(1, 1, 1);
+      material.emissiveIntensity = 0.75;
+      this.lit.push({ material, albedo: null, emissive: 0.75 });
+      this.cache.set(key, material);
+      return material;
+    }
     material.unlit = true;
-    material.albedoTexture = signTexture(this.scene, name, { lines, colour, aspect, style });
     // Over-bright so the tube blows into the bloom pass the way neon does;
     // ink on a board is lit by the street instead.
     material.albedoColor = style === "neon" ? new Color3(3, 3, 3) : new Color3(1.1, 1.1, 1.1);
+    // Sign faces are unlit, so their brightness lives in the albedo; the
+    // plate ones stay legible by day rather than fading out entirely.
+    if (style === "neon") {
+      this.lit.push({ material, albedo: material.albedoColor.clone(), emissive: 1 });
+    }
     this.cache.set(key, material);
     return material;
   }
@@ -641,6 +713,7 @@ export class CityMaterials {
     material.unlit = true;
     material.albedoTexture = texture;
     material.albedoColor = new Color3(3.4, 3.4, 3.4);
+    this.lit.push({ material, albedo: material.albedoColor.clone(), emissive: 1 });
     this.cache.set(key, material);
     return material;
   }

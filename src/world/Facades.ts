@@ -28,7 +28,7 @@ import type { Material } from "@babylonjs/core/Materials/material";
 import type { Scene } from "@babylonjs/core/scene";
 import { CityMaterials, NEON, type NeonColour } from "./CityMaterials";
 import { makeRandom } from "./Noise";
-import { SIGN_COPY } from "./Signage";
+import { SIGN_COPY, TENANT_COPY } from "./Signage";
 
 /** What is on the ground floor. Decides the whole frontage's character. */
 export type BusinessKind =
@@ -529,6 +529,85 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
   }
 }
 
+/**
+ * The tenant stack.
+ *
+ * The thing that makes a Japanese commercial street look like one is not the
+ * buildings, which are plain: it is that every square metre of frontage above
+ * the shop is covered in panels, one for each business upstairs, each with
+ * its floor number on it. A column of them runs up the wall, and a second
+ * column stands off it at right angles so the whole stack can be read from
+ * along the street.
+ *
+ * Original businesses throughout — see `TENANT_COPY`.
+ */
+function tenantStack(kit: Kit, spec: BuildingSpec, top: number): void {
+  const { materials } = kit;
+  if (spec.floors < 2) return;
+
+  const frame = materials.painted("tenantFrame", new Color3(0.09, 0.09, 0.1), 0.6, 0.3);
+  const stripes: NeonColour[] = ["rose", "gold", "lime", "ice", "violet", "peach"];
+  const base = SHOPFRONT_HEIGHT + 0.55;
+  const panel = 0.62;
+  const gap = 0.12;
+  const rows = Math.max(2, Math.min(6, Math.floor((top - 1.4 - base) / (panel + gap))));
+
+  // Flat against the wall, at one end of the frontage.
+  const wallZ = spec.z + (kit.random() < 0.5 ? -1 : 1) * (spec.width / 2 - 1.15);
+  const wallWidth = 1.9;
+  for (let i = 0; i < rows; i += 1) {
+    const y = base + i * (panel + gap) + panel / 2;
+    const copy = TENANT_COPY[Math.floor(kit.random() * TENANT_COPY.length)] ?? ["営業中"];
+    const colour = NEON[stripes[Math.floor(kit.random() * stripes.length)] ?? "ice"];
+    slab(kit, `tenantBox${i}`, { width: 0.22, height: panel, depth: wallWidth }, new Vector3(kit.toward(0.11), y, wallZ), frame);
+    signFace(
+      kit,
+      `tenantFace${i}`,
+      { width: wallWidth - 0.08, height: panel - 0.06 },
+      new Vector3(kit.toward(0.23), y, wallZ),
+      new Vector3(kit.out, 0, 0),
+      materials.sign(`tenant.${copy[0]}`, copy, colour, (wallWidth - 0.08) / (panel - 0.06), "tenant"),
+    );
+  }
+
+  // And a column standing off the wall, read from up and down the street.
+  const bladeZ = spec.z + (wallZ > spec.z ? -1 : 1) * (spec.width / 2 - 0.9);
+  const bladeRows = Math.max(2, rows - 1);
+  const bladeDepth = 1.15;
+  for (let i = 0; i < bladeRows; i += 1) {
+    const y = base + 0.3 + i * (panel + gap) + panel / 2;
+    const copy = TENANT_COPY[Math.floor(kit.random() * TENANT_COPY.length)] ?? ["営業中"];
+    const colour = NEON[stripes[Math.floor(kit.random() * stripes.length)] ?? "gold"];
+    const at = new Vector3(kit.toward(0.45 + bladeDepth / 2), y, bladeZ);
+    slab(kit, `tenantBlade${i}`, { width: bladeDepth, height: panel, depth: 0.16 }, at, frame);
+    const material = materials.sign(
+      `tenant.${copy[0]}`,
+      copy,
+      colour,
+      bladeDepth / (panel - 0.06),
+      "tenant",
+    );
+    for (const towards of [-1, 1] as const) {
+      signFace(
+        kit,
+        `tenantBladeFace${i}.${towards}`,
+        { width: bladeDepth - 0.04, height: panel - 0.06 },
+        new Vector3(at.x, y, bladeZ + towards * 0.085),
+        new Vector3(0, 0, towards),
+        material,
+      );
+    }
+  }
+  // The bracket the standing column hangs off.
+  slab(
+    kit,
+    "tenantMast",
+    { width: 0.14, height: rows * (panel + gap), depth: 0.14 },
+    new Vector3(kit.toward(0.4), base + (rows * (panel + gap)) / 2, bladeZ),
+    frame,
+  );
+}
+
 /** One residential or office floor: windows, sometimes a balcony. */
 function floorBand(kit: Kit, spec: BuildingSpec, level: number, y: number): void {
   const { materials } = kit;
@@ -653,6 +732,7 @@ export function buildBuilding(
   for (let level = 0; level < spec.floors; level += 1) {
     floorBand(kit, spec, level, SHOPFRONT_HEIGHT + level * FLOOR_HEIGHT);
   }
+  if (spec.business !== "lobby") tenantStack(kit, spec, top);
   roofscape(kit, spec, top);
   services(kit, spec, top);
 

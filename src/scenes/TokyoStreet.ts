@@ -43,6 +43,7 @@ import { Weather } from "../world/Weather";
 import { LampPool, type LampSite } from "../world/LampPool";
 import { WetGround } from "../world/WetGround";
 import { planarUv, tint } from "../world/Shapes";
+import { PAVING_TILE, type PavingKind } from "../world/Paving";
 import { STATION_COPY } from "../world/Signage";
 import { buildAlley } from "../world/Alley";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
@@ -317,20 +318,97 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   // One tile every three metres, laid on the ground plane rather than on
   // each slab's own face, so the pavement reads as paving instead of as
   // corduroy.
-  const PAVE_TILE = 0.9;
-  const paving = materials.planarSurface("paving", PAVE_TILE);
   const kerbMaterial = materials.painted("kerb", new Color3(0.5, 0.49, 0.46), 0.8);
-  for (const side of [-1, 1] as const) {
-    planarUv(
-      slab(
-        `pavement${side}`,
-        // Run it past the building line so the recessed doorways have floor.
-        { width: PAVE_OUTER - ROAD_HALF + 0.8, height: KERB, depth: roadLength },
-        new Vector3(side * (ROAD_HALF + (PAVE_OUTER - ROAD_HALF + 0.8) / 2), KERB / 2, roadCentre),
-        paving,
-      ),
-      PAVE_TILE,
+  const paveWidth = PAVE_OUTER - ROAD_HALF + 0.8;
+  const paveCentre = ROAD_HALF + paveWidth / 2;
+
+  /**
+   * The footway, in runs.
+   *
+   * A Tokyo pavement changes surface at the property line and at every
+   * rebuild, so this is laid as a sequence of runs rather than as one slab:
+   * interlocking blocks outside most of it, clay pavers where the older
+   * frontages are, plain slabs where the road was widened, and a stretch of
+   * coloured asphalt cycle lane along the kerb on the east side. Every run
+   * carries world-plane UVs, so the pattern is continuous from one into the
+   * next and only the material changes at the join.
+   */
+  interface PaveRun {
+    from: number;
+    to: number;
+    kind: PavingKind;
+    /** Metres of cycle lane taken off the kerb edge of this run. */
+    cycleway?: number;
+  }
+  const WEST_PAVING: PaveRun[] = [
+    { from: -44, to: -24, kind: "concrete" },
+    { from: -24, to: -9, kind: "brick" },
+    { from: -9, to: 7, kind: "block" },
+    { from: 7, to: 21, kind: "brick" },
+    { from: 21, to: 44, kind: "concrete" },
+  ];
+  const EAST_PAVING: PaveRun[] = [
+    { from: -44, to: -19, kind: "block", cycleway: 1.25 },
+    { from: -19, to: 3, kind: "concrete", cycleway: 1.25 },
+    { from: 3, to: 24, kind: "block", cycleway: 1.25 },
+    { from: 24, to: 44, kind: "brick" },
+  ];
+
+  const paveSlab = (
+    name: string,
+    kind: PavingKind,
+    from: number,
+    to: number,
+    innerX: number,
+    outerX: number,
+    side: -1 | 1,
+  ): void => {
+    const width = outerX - innerX;
+    const mesh = slab(
+      name,
+      { width, height: KERB, depth: to - from },
+      new Vector3(side * (innerX + width / 2), KERB / 2, (from + to) / 2),
+      materials.paving(kind),
     );
+    planarUv(mesh, PAVING_TILE);
+  };
+
+  for (const side of [-1, 1] as const) {
+    const runs = side === -1 ? WEST_PAVING : EAST_PAVING;
+    for (const run of runs) {
+      const lane = run.cycleway ?? 0;
+      if (lane > 0) {
+        // The cycle lane sits against the kerb, where it is in life.
+        paveSlab(`cycleway${side}.${run.from}`, "cycleway", run.from, run.to, ROAD_HALF, ROAD_HALF + lane, side);
+      }
+      paveSlab(
+        `pavement${side}.${run.from}`,
+        run.kind,
+        run.from,
+        run.to,
+        ROAD_HALF + lane,
+        ROAD_HALF + paveWidth,
+        side,
+      );
+    }
+
+    // The yellow tactile guide line, running the length of the footway a
+    // metre off the building line — the one thing every Japanese pavement
+    // has, and the strongest single cue that this is Tokyo and not anywhere.
+    const guideX = side * (ROAD_HALF + paveWidth - 1.15);
+    for (const [from, to] of [
+      [-44, CROSSING_Z - CROSSING_HALF - 0.6],
+      [CROSSING_Z + CROSSING_HALF + 0.6, 44],
+    ] as const) {
+      const guide = CreateBox(`tactileGuide${side}.${from}`, { width: 0.32, height: 0.02, depth: to - from }, scene);
+      guide.position.set(guideX, KERB + 0.006, (from + to) / 2);
+      guide.material = materials.paving("tactile");
+      guide.isPickable = false;
+      guide.receiveShadows = true;
+      planarUv(guide, PAVING_TILE);
+      guide.freezeWorldMatrix();
+    }
+
     slab(
       `kerb${side}`,
       { width: 0.2, height: KERB + 0.02, depth: roadLength },
@@ -338,6 +416,31 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       kerbMaterial,
       false,
     );
+  }
+
+  // A white line between the cycle lane and the footway, and a bicycle
+  // painted on the lane every few metres.
+  {
+    const lanePaint = materials.painted("lanePaint", new Color3(0.82, 0.82, 0.78), 0.7);
+    for (const run of EAST_PAVING) {
+      const lane = run.cycleway ?? 0;
+      if (lane <= 0) continue;
+      const edge = CreateBox(`cyclewayEdge${run.from}`, { width: 0.08, height: 0.02, depth: run.to - run.from }, scene);
+      edge.position.set(ROAD_HALF + lane, KERB + 0.006, (run.from + run.to) / 2);
+      edge.material = lanePaint;
+      edge.isPickable = false;
+      edge.freezeWorldMatrix();
+      for (let z = run.from + 4; z < run.to - 2; z += 13) {
+        if (Math.abs(z - CROSSING_Z) < CROSSING_HALF + 1) continue;
+        const mark = CreatePlane(`cycleMark${z.toFixed(0)}`, { width: 0.8, height: 1.5 }, scene);
+        mark.rotation.x = Math.PI / 2;
+        mark.rotation.y = Math.PI;
+        mark.position.set(ROAD_HALF + lane / 2, KERB + 0.007, z);
+        mark.material = materials.cycleMark();
+        mark.isPickable = false;
+        mark.freezeWorldMatrix();
+      }
+    }
   }
 
   // Markings sit a whisker above the asphalt to avoid z-fighting.
@@ -369,10 +472,10 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       `ramp${side}`,
       { width: 1.1, height: KERB, depth: CROSSING_HALF * 2 },
       new Vector3(side * (ROAD_HALF + 0.55), KERB / 2 - 0.035, CROSSING_Z),
-      paving,
+      materials.paving("block"),
     );
     ramp.rotation.z = side * 0.1;
-    planarUv(ramp, PAVE_TILE);
+    planarUv(ramp, PAVING_TILE);
     const pad = CreateBox(`tactile${side}`, { width: 0.9, height: 0.03, depth: CROSSING_HALF * 1.7 }, scene);
     pad.position.set(side * (ROAD_HALF + 0.75), KERB + 0.005, CROSSING_Z);
     pad.material = tactile;
@@ -694,7 +797,21 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   const lighting = new Lighting(scene);
   // A lit street is never black. The ambient carries the bounce off wet
   // asphalt and forty signs; the pooled lamps carry the local contrast.
-  lighting.setUrbanGlow(new Color3(0.07, 0.09, 0.15), new Color3(0.2, 0.13, 0.09), 0.55);
+  lighting.setUrbanGlow(new Color3(0.1, 0.14, 0.27), new Color3(0.22, 0.14, 0.09), 0.6);
+  // How this city takes the light. By day the sun comes in soft and a little
+  // orange — the warmth that comes off concrete and glass in a street this
+  // narrow. At night the moon actually reaches the pavement instead of
+  // leaving everything to the neon, and it arrives blue, which is what makes
+  // the shopfronts read as warm against it.
+  lighting.setMood({
+    dayTint: new Color3(1, 0.93, 0.82),
+    daySoftness: 0.86,
+    nightTint: new Color3(0.52, 0.66, 1),
+    nightIntensity: 0.9,
+    dayAmbient: 1.25,
+    dayAmbientTint: new Color3(1.42, 1.18, 0.9),
+    shadowDarkness: 0.45,
+  });
   const environment = new Environment(scene, sky);
   // What the windows have to show. The frontages carry the signage and the
   // lit shopfronts, and the near towers carry the rest of the city's light;
@@ -1105,6 +1222,13 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       const solar = sky.update(time.timeOfDay);
       lighting.update(solar);
       environment.update(time.rawDeltaSeconds);
+      // Neon, window grids and street lamps belong to the night. Held at
+      // full strength through the morning they read as a night scene with a
+      // blue sky over it, which is exactly how the first daylight pass
+      // looked, so they fade out as the sun comes up.
+      const afterDark = 1 - solar.daylight * 0.88;
+      materials.setNightFactor(afterDark);
+      lamps.setDimming(Math.max(0, afterDark * 1.15 - 0.15));
       // The far end of the street dissolves into sign light, not into black.
       scene.fogColor = Color3.Lerp(sky.horizonColor(), new Color3(0.11, 0.09, 0.12), 0.5);
 

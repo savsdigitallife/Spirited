@@ -33,7 +33,13 @@ export type SignStyle =
   /** Lit tube on a dark plate: shopfront bands, blade signs, banners. */
   | "neon"
   /** Ink on board: menu boards, standees, notices. */
-  | "plate";
+  | "plate"
+  /**
+   * A tenant panel: dark type on a pale light box with a colour stripe down
+   * one edge. These are what actually covers a Japanese commercial
+   * frontage — one for every business upstairs, each with its floor on it.
+   */
+  | "tenant";
 
 export interface SignRequest {
   /** One string per line. Lines are laid out horizontally, top to bottom. */
@@ -123,6 +129,7 @@ export function signTexture(scene: Scene, name: string, request: SignRequest): D
   );
   const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
   const hex = request.colour.toHexString();
+  let inverted = false;
 
   // Drawn upside down, so that it is the right way up.
   //
@@ -140,6 +147,22 @@ export function signTexture(scene: Scene, name: string, request: SignRequest): D
     ctx.strokeStyle = hex;
     ctx.lineWidth = Math.max(2, height * 0.02);
     ctx.strokeRect(height * 0.05, height * 0.05, width - height * 0.1, height - height * 0.1);
+  } else if (request.style === "tenant") {
+    // Roughly a third of them are colour-blocked instead of cream, which is
+    // what a real stack looks like: a wall of white panels with a red or a
+    // gold one every few floors. Decided from the name so a business keeps
+    // the same panel wherever it appears.
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) % 9973;
+    inverted = hash % 3 === 0;
+    ctx.fillStyle = inverted ? hex : "#eae7e0";
+    ctx.fillRect(0, 0, width, height);
+    // The stripe down the leading edge, which is how a stack of these reads
+    // as a stack rather than as one white slab.
+    ctx.fillStyle = inverted ? "#f4f2ec" : hex;
+    ctx.fillRect(0, 0, Math.max(4, width * 0.045), height);
+    ctx.fillStyle = "#1b1b1d";
+    ctx.fillRect(0, height - Math.max(3, height * 0.035), width, Math.max(3, height * 0.035));
   } else {
     ctx.fillStyle = "#07090c";
     ctx.fillRect(0, 0, width, height);
@@ -170,6 +193,10 @@ export function signTexture(scene: Scene, name: string, request: SignRequest): D
       ctx.strokeStyle = hex;
       ctx.fillText(line, width / 2, y);
       ctx.strokeText(line, width / 2, y);
+    } else if (request.style === "tenant") {
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = inverted ? "#f7f5ef" : "#17181a";
+      ctx.fillText(line, width / 2 + width * 0.02, y);
     } else {
       ctx.shadowBlur = 0;
       ctx.fillStyle = hex;
@@ -225,3 +252,29 @@ export const BANNER_COPY: readonly (readonly string[])[] = [
 
 /** The way underground. An invented station on an invented line. */
 export const STATION_COPY: readonly string[] = ["地下鉄 羽澄町駅"];
+
+/**
+ * The businesses upstairs.
+ *
+ * Every one of these is invented, and every one carries the floor it is on,
+ * because that is the whole purpose of the panel: a passer-by reads the
+ * stack to find out what is in the building.
+ */
+export const TENANT_COPY: readonly (readonly string[])[] = [
+  ["カラオケ 3F"],
+  ["居酒屋 4F"],
+  ["スナック 5F"],
+  ["整体 6F"],
+  ["歯科 2F"],
+  ["ネイル 3F"],
+  ["占い 4F"],
+  ["雀荘 B1F"],
+  ["バー 5F"],
+  ["中華 2F"],
+  ["古着 3F"],
+  ["ゲーム 4F"],
+  ["美容 2F"],
+  ["写真 6F"],
+  ["酒場 B1F"],
+  ["パスタ 2F"],
+];

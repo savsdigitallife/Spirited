@@ -38,6 +38,8 @@ export class LampPool {
   private readonly pool: PooledLight[] = [];
   private sites: LampSite[] = [];
   private sinceReassign = REASSIGN_INTERVAL;
+  /** Scales every lamp: 1 after dark, near zero at noon. */
+  private dimming = 1;
 
   constructor(scene: Scene, sites: readonly LampSite[], poolSize = 4) {
     this.sites = [...sites];
@@ -48,6 +50,11 @@ export class LampPool {
       light.specular = new Color3(0.4, 0.4, 0.4);
       this.pool.push({ light, site: null, fade: 0, fadingOut: false });
     }
+  }
+
+  /** How much of the pool is lit. Street lights go out in daylight. */
+  setDimming(value: number): void {
+    this.dimming = Math.max(0, Math.min(1, value));
   }
 
   get lightCount(): number {
@@ -73,7 +80,7 @@ export class LampPool {
         entry.fadingOut = false;
       }
       if (entry.site) {
-        entry.light.intensity = entry.site.intensity * entry.fade;
+        entry.light.intensity = entry.site.intensity * entry.fade * this.dimming;
       } else {
         entry.light.intensity = 0;
       }

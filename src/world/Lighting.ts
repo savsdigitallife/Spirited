@@ -27,6 +27,42 @@ const SKY_NIGHT = new Color3(0.06, 0.09, 0.16);
 const GROUND_DAY = new Color3(0.24, 0.22, 0.18);
 const GROUND_NIGHT = new Color3(0.03, 0.04, 0.05);
 
+/**
+ * A region's own feeling for the light.
+ *
+ * The solar model is shared — one sun, one moon, one arc — but what a place
+ * does with it is not. A city at dusk wants a warm, soft key and a moon that
+ * actually reaches the pavement; a valley wants neither.
+ */
+export interface LightingMood {
+  /** Multiplies the sun's colour. A warm tint here is a warm afternoon. */
+  dayTint: Color3;
+  /** Scales the sun's strength. Below 1 for softer, flatter daylight. */
+  daySoftness: number;
+  /** The moon's colour. */
+  nightTint: Color3;
+  /** How much of the moon reaches the ground, against a default of 0.34. */
+  nightIntensity: number;
+  /**
+   * Extra hemispheric fill by day.
+   *
+   * A street this narrow spends the afternoon in its own shadow, and what
+   * fills it is light bounced off the buildings opposite rather than the sun
+   * itself. Without this the city reads as overcast at noon.
+   */
+  dayAmbient: number;
+  /** Tints that fill. Warm, for concrete and glass throwing light about. */
+  dayAmbientTint: Color3;
+  /**
+   * How lit a shadow still is, 0 black and 1 invisible.
+   *
+   * A street between six-storey buildings is in its own shadow most of the
+   * day, so the shadow term is most of what the eye reads there. At the
+   * countryside's 0.12 the city goes black at noon.
+   */
+  shadowDarkness?: number;
+}
+
 export class Lighting {
   readonly key: DirectionalLight;
   readonly ambient: HemisphericLight;
@@ -39,6 +75,7 @@ export class Lighting {
    * bounce with the ambient term is far cheaper than lighting it for real.
    */
   private urbanGlow: { sky: Color3; ground: Color3; intensity: number } | null = null;
+  private mood: LightingMood | null = null;
 
   constructor(private readonly scene: Scene) {
     // Direction is overwritten every frame; the initial value only has to be
@@ -103,7 +140,7 @@ export class Lighting {
     csm.autoCalcDepthBounds = q.preset === "ultra";
     csm.normalBias = 0.02;
     csm.bias = 0.0012;
-    csm.darkness = 0.12;
+    csm.darkness = this.mood?.shadowDarkness ?? 0.12;
     csm.transparencyShadow = true;
 
     // PCF stays on at every preset. Turning it off changes the sampler type
@@ -119,6 +156,12 @@ export class Lighting {
           ? CascadedShadowGenerator.QUALITY_MEDIUM
           : CascadedShadowGenerator.QUALITY_HIGH;
     this.key.shadowMaxZ = q.shadowMaxDistance;
+  }
+
+  /** How this region wants its daylight and its moonlight. */
+  setMood(mood: LightingMood | null): void {
+    this.mood = mood;
+    if (this.shadows) this.shadows.darkness = mood?.shadowDarkness ?? 0.12;
   }
 
   /** Colours the ambient term to match a lit environment after dark. */
@@ -143,37 +186,43 @@ export class Lighting {
     // the body in the sky.
     this.key.direction = source.scale(-1);
 
+    const mood = this.mood;
     if (solar.isNight) {
-      this.key.diffuse = MOON;
-      this.key.specular = MOON;
-      // Moonlight is faint, and fades out entirely near the horizon so
-      // moonrise is not a hard edge.
-      this.key.intensity = 0.34 * Math.max(0, Math.min(1, -solar.elevation / 0.25));
+      this.key.diffuse = mood?.nightTint ?? MOON;
+      this.key.specular = this.key.diffuse;
+      // Moonlight fades out entirely near the horizon so moonrise is not a
+      // hard edge. How much of it lands is the region's business.
+      const risen = Math.max(0, Math.min(1, -solar.elevation / 0.25));
+      this.key.intensity = (mood?.nightIntensity ?? 0.34) * risen;
     } else {
       const lowness = 1 - Math.min(1, solar.elevation / 0.34);
-      this.key.diffuse = Color3.Lerp(SUN_HIGH, SUN_LOW, lowness * lowness);
+      const sun = Color3.Lerp(SUN_HIGH, SUN_LOW, lowness * lowness);
+      this.key.diffuse = mood ? sun.multiply(mood.dayTint) : sun;
       this.key.specular = this.key.diffuse;
-      this.key.intensity = 0.4 + solar.daylight * 2.9;
+      this.key.intensity = (0.4 + solar.daylight * 2.9) * (mood?.daySoftness ?? 1);
     }
 
     const glow = this.urbanGlow;
     const night = 1 - solar.daylight;
+    const daySky = mood ? SKY_DAY.multiply(mood.dayAmbientTint) : SKY_DAY;
+    const dayGround = mood ? GROUND_DAY.multiply(mood.dayAmbientTint) : GROUND_DAY;
+    const fill = 0.22 + solar.daylight * (0.5 + (mood?.dayAmbient ?? 0));
     if (glow) {
       this.ambient.diffuse = Color3.Lerp(
         Color3.Lerp(SKY_NIGHT, glow.sky, night),
-        SKY_DAY,
+        daySky,
         solar.daylight,
       );
       this.ambient.groundColor = Color3.Lerp(
         Color3.Lerp(GROUND_NIGHT, glow.ground, night),
-        GROUND_DAY,
+        dayGround,
         solar.daylight,
       );
-      this.ambient.intensity = 0.22 + solar.daylight * 0.5 + night * glow.intensity;
+      this.ambient.intensity = fill + night * glow.intensity;
     } else {
-      this.ambient.diffuse = Color3.Lerp(SKY_NIGHT, SKY_DAY, solar.daylight);
-      this.ambient.groundColor = Color3.Lerp(GROUND_NIGHT, GROUND_DAY, solar.daylight);
-      this.ambient.intensity = 0.22 + solar.daylight * 0.5;
+      this.ambient.diffuse = Color3.Lerp(SKY_NIGHT, daySky, solar.daylight);
+      this.ambient.groundColor = Color3.Lerp(GROUND_NIGHT, dayGround, solar.daylight);
+      this.ambient.intensity = fill;
     }
   }
 

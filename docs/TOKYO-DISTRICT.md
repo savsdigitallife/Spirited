@@ -206,6 +206,50 @@ down into the canvas, because a plane's V runs opposite to a canvas's rows —
 everything symmetrical had hidden that until a test board with an "A" on it
 made it obvious.
 
+## Daylight, moonlight, and the pavement under both
+
+**The light.** The solar model is shared with the countryside, but what a
+region does with it is not, so `Lighting` takes a mood and Tokyo sets one:
+a soft, faintly orange key by day, a blue moon at night that actually
+reaches the pavement, a warm hemispheric fill, and shadows lit to 0.45
+rather than the valley's 0.12 — a street between six-storey buildings is in
+its own shadow most of the day, and at the countryside's setting it went
+black at noon.
+
+The other half of daylight was giving the night back its own lights. Neon,
+window grids, sign faces and the street lamps are all scaled by how far the
+sun is up: held at full strength through the morning, the street read as a
+night scene with a blue sky over it. The building facades were repainted
+pale for the same reason — they are tile and painted concrete, and at night
+almost none of that is lit anyway.
+
+**The pavement.** A Tokyo footway changes surface at the property line and
+at every rebuild, so it is laid as runs rather than as one slab:
+interlocking blocks outside most of it, clay pavers where the older
+frontages are, plain slabs where the road was widened, and a stretch of
+coloured asphalt cycle lane along the kerb on the east side with a white
+edge line and a bicycle painted on it. `src/world/Paving.ts` draws each
+surface from a recipe in metres — 20 cm blocks, 21 cm pavers, 90 cm slabs —
+so the unit size is right whatever texture resolution the preset is running,
+and every run carries world-plane UVs so the pattern is continuous across
+the joins.
+
+Running the length of both sides, a metre off the building line, is the
+yellow tactile guide: raised dots on 30 cm blocks. It is the one thing every
+Japanese pavement has, and the single strongest cue that this is Tokyo.
+
+## The frontages
+
+What makes a Japanese commercial street look like one is not the buildings,
+which are plain — it is that every square metre of frontage above the shop
+is covered in tenant panels, one for each business upstairs, each with its
+floor number on it. Every building now carries a column of them flat against
+the wall and a second column standing off it at right angles, so the stack
+can be read from along the street as well as from in front: 整体 6F,
+ネイル 3F, ゲーム 4F, 占い 4F, 雀荘 B1F. Roughly a third are colour-blocked
+rather than cream, decided from the business's name so it keeps the same
+panel wherever it appears. Every business is invented.
+
 ## What is next
 
 Modelled characters and props to drop in behind the ids that are already
