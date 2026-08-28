@@ -16,10 +16,9 @@ import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
-import type { PrefabDefinition } from "../../world/Prefabs";
+import type { AssetDefinition } from "../../engine/AssetCatalog";
 import type { SurfaceLibrary } from "../../world/ProceduralMaterials";
 
-const MODEL_ROOT = "props/rural/";
 
 export interface RuralPalette {
   surfaces: SurfaceLibrary;
@@ -92,7 +91,7 @@ function hipRoof(
   return parts;
 }
 
-export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
+export function ruralPrefabs(palette: RuralPalette): AssetDefinition[] {
   const { surfaces, painted, emissive } = palette;
   const timber = () => surfaces.get("timber", 3);
   // Rural walls are lime render over an earth core: warm, and a long way
@@ -106,8 +105,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
 
   return [
     {
-      id: "cedar",
-      model: `${MODEL_ROOT}cedar.glb`,
+      id: "cedar_tree_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const bark = painted("bark", new Color3(0.14, 0.1, 0.08), 0.95);
@@ -140,8 +139,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "broadleaf",
-      model: `${MODEL_ROOT}broadleaf.glb`,
+      id: "broadleaf_tree_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const bark = painted("barkPale", new Color3(0.2, 0.16, 0.13), 0.92);
@@ -170,8 +169,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "farmhouse",
-      model: `${MODEL_ROOT}farmhouse.glb`,
+      id: "farmhouse_01",
+      category: "building",
       collides: true,
       build: ({ scene }) => {
         const w = 9.5;
@@ -204,8 +203,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "barn",
-      model: `${MODEL_ROOT}barn.glb`,
+      id: "barn_01",
+      category: "building",
       collides: true,
       build: ({ scene }) => {
         const w = 7;
@@ -225,8 +224,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "shed",
-      model: `${MODEL_ROOT}shed.glb`,
+      id: "shed_01",
+      category: "building",
       collides: true,
       build: ({ scene }) => {
         const board = painted("shedBoard", new Color3(0.24, 0.19, 0.14), 0.95);
@@ -241,8 +240,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "torii",
-      model: `${MODEL_ROOT}torii.glb`,
+      id: "torii_gate_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const painted7 = painted("toriiWood", new Color3(0.32, 0.13, 0.11), 0.82);
@@ -265,8 +264,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "shrine",
-      model: `${MODEL_ROOT}shrine.glb`,
+      id: "shrine_01",
+      category: "building",
       collides: true,
       build: ({ scene }) => {
         const wood = painted("shrineWood", new Color3(0.26, 0.18, 0.12), 0.86);
@@ -280,8 +279,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "stoneLantern",
-      model: `${MODEL_ROOT}stone-lantern.glb`,
+      id: "stone_lantern_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const parts: Mesh[] = [
@@ -299,8 +298,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "ruralPole",
-      model: `${MODEL_ROOT}rural-pole.glb`,
+      id: "rural_pole_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const wood = painted("poleWood", new Color3(0.23, 0.18, 0.14), 0.94);
@@ -316,8 +315,9 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "fenceRun",
-      model: `${MODEL_ROOT}fence-run.glb`,
+      id: "fence_run_01",
+      category: "prop",
+      cullAt: 90,
       collides: false,
       build: ({ scene }) => {
         const wood = painted("fenceWood", new Color3(0.25, 0.2, 0.15), 0.95);
@@ -332,8 +332,9 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "boulder",
-      model: `${MODEL_ROOT}boulder.glb`,
+      id: "boulder_01",
+      category: "prop",
+      cullAt: 110,
       collides: true,
       build: ({ scene }) => {
         const rock = CreateSphere("rock", { diameter: 1, segments: 6 }, scene);
@@ -344,8 +345,8 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "signpost",
-      model: `${MODEL_ROOT}signpost.glb`,
+      id: "signpost_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const wood = painted("signWood", new Color3(0.28, 0.22, 0.16), 0.9);
@@ -355,8 +356,9 @@ export function ruralPrefabs(palette: RuralPalette): PrefabDefinition[] {
       },
     },
     {
-      id: "riceRow",
-      model: `${MODEL_ROOT}rice-row.glb`,
+      id: "rice_row_01",
+      category: "prop",
+      cullAt: 90,
       collides: false,
       castsShadow: false,
       build: ({ scene }) => {

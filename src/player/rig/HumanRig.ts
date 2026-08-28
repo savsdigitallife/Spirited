@@ -86,9 +86,22 @@ function matte(scene: Scene, id: string, colour: Color3, roughness: number, meta
   return material;
 }
 
+/**
+ * Materials are shared between everyone built from the same spec name.
+ *
+ * A body needs ten materials, and ten materials is ten shader permutations
+ * to compile. Six people in a room built independently is sixty compiles and
+ * a visibly long load; six people sharing three palettes is thirty, and the
+ * variation the player sees comes from the parts and proportions anyway.
+ */
+const paletteCache = new Map<string, Palette>();
+
 function palette(scene: Scene, spec: CharacterSpec): Palette {
+  const key = `${scene.uid}:${spec.name}`;
+  const cached = paletteCache.get(key);
+  if (cached) return cached;
   const id = (part: string) => `char.${spec.name}.${part}`;
-  return {
+  const built = {
     skin: matte(scene, id("skin"), spec.skin, 0.62),
     // Sleek, not matte: black hair with no sheen is a black hole on screen.
     hair: matte(scene, id("hair"), spec.hairColour, 0.28, 0.06),
@@ -101,6 +114,8 @@ function palette(scene: Scene, spec: CharacterSpec): Palette {
     iris: matte(scene, id("iris"), spec.eyeColour, 0.18, 0.1),
     pupil: matte(scene, id("pupil"), new Color3(0.02, 0.02, 0.03), 0.2),
   };
+  paletteCache.set(key, built);
+  return built;
 }
 
 export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
@@ -496,8 +511,9 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       for (const mesh of meshes) mesh.isVisible = visible;
     },
     dispose(): void {
+      // The palette is shared with everyone else built from this spec, so it
+      // belongs to the scene rather than to any one body.
       root.dispose(false, true);
-      for (const material of Object.values(p)) material.dispose();
     },
   };
   return rig;

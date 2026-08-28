@@ -31,7 +31,7 @@ import { Lighting } from "../world/Lighting";
 import { Environment } from "../world/Environment";
 import { Water } from "../world/Water";
 import { SurfaceLibrary } from "../world/ProceduralMaterials";
-import { PrefabRegistry } from "../world/Prefabs";
+import { AssetCatalog } from "../engine/AssetCatalog";
 import { InteractionSystem } from "../world/Interaction";
 import { fbm, ridge, makeRandom } from "../world/Noise";
 import { ruralPrefabs } from "./props/rural";
@@ -280,23 +280,26 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
 
   // -------------------------------------------------------------- prefabs
   ctx.progress(0.44, "Building the village…");
-  const prefabs = new PrefabRegistry(scene, ctx.assets);
-  prefabs.defineAll(ruralPrefabs({ surfaces, painted, emissive }));
-  await prefabs.prepare([
-    "cedar",
-    "broadleaf",
-    "farmhouse",
-    "barn",
-    "shed",
-    "torii",
-    "shrine",
-    "stoneLantern",
-    "ruralPole",
-    "fenceRun",
-    "boulder",
-    "signpost",
-    "riceRow",
+  const catalog = new AssetCatalog(scene, ctx.assets);
+  catalog.defineAll(ruralPrefabs({ surfaces, painted, emissive }));
+  await catalog.prepare([
+    "cedar_tree_01",
+    "broadleaf_tree_01",
+    "farmhouse_01",
+    "barn_01",
+    "shed_01",
+    "torii_gate_01",
+    "shrine_01",
+    "stone_lantern_01",
+    "rural_pole_01",
+    "fence_run_01",
+    "boulder_01",
+    "signpost_01",
+    "rice_row_01",
   ]);
+
+  catalog.applyLevelsOfDetail();
+  catalog.reportMissing("Hazama valley");
 
   // --------------------------------------------------------------- railway
   ctx.progress(0.54, "Laying the line…");
@@ -395,20 +398,20 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   for (const [i, z] of houseZs.entries()) {
     const east = i % 2 === 0;
     const x = ROAD_X + (east ? 11 : -11);
-    prefabs.spawn("farmhouse", {
+    catalog.spawn("farmhouse_01", {
       position: ground(x, z),
       rotationY: east ? -Math.PI / 2 : Math.PI / 2,
       name: `house.${i}`,
     });
     if (random() < 0.7) {
-      prefabs.spawn("barn", {
+      catalog.spawn("barn_01", {
         position: ground(x + (east ? 9 : -9), z + 9),
         rotationY: random() * Math.PI * 2,
         name: `barn.${i}`,
       });
     }
     if (random() < 0.6) {
-      prefabs.spawn("shed", {
+      catalog.spawn("shed_01", {
         position: ground(x + (east ? 6 : -6), z - 8),
         rotationY: random() * Math.PI * 2,
         name: `shed.${i}`,
@@ -419,23 +422,23 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   // Poles down the road, with the wires left off: out here they are single
   // strung lines and reading them as clutter would be wrong.
   for (let z = -110; z <= 110; z += 26) {
-    prefabs.spawn("ruralPole", { position: ground(ROAD_X + 3.4, z) });
+    catalog.spawn("rural_pole_01", { position: ground(ROAD_X + 3.4, z) });
   }
 
   // ------------------------------------------------------------ the shrine
   ctx.progress(0.66, "Setting the shrine…");
-  const shrineNode = prefabs.spawn("shrine", {
+  const shrineNode = catalog.spawn("shrine_01", {
     position: ground(SHRINE.x, SHRINE.z),
     rotationY: -Math.PI / 2,
-    name: "shrine",
+    name: "shrine_01",
   });
-  prefabs.spawn("torii", {
+  catalog.spawn("torii_gate_01", {
     position: ground(SHRINE.x - 15, SHRINE.z),
     rotationY: Math.PI / 2,
     name: "shrine.torii",
   });
   for (const dz of [-4, 4]) {
-    prefabs.spawn("stoneLantern", {
+    catalog.spawn("stone_lantern_01", {
       position: ground(SHRINE.x - 8, SHRINE.z + dz),
       name: `shrine.lantern${dz}`,
     });
@@ -471,7 +474,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
     if (across < 96) continue;
     if (terrain.slopeAt(x, z) > 0.62) continue;
     if (random() > density * 0.55) continue;
-    prefabs.spawn("cedar", {
+    catalog.spawn("cedar_tree_01", {
       position: ground(x, z),
       rotationY: random() * Math.PI * 2,
       scale: 0.8 + random() * 0.6,
@@ -484,7 +487,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
     const x = riverX(z) + side * (13 + random() * 22);
     if (Math.abs(x) > 100) continue;
     if (random() > density * 0.5) continue;
-    prefabs.spawn("broadleaf", {
+    catalog.spawn("broadleaf_tree_01", {
       position: ground(x, z),
       rotationY: random() * Math.PI * 2,
       scale: 0.75 + random() * 0.7,
@@ -493,7 +496,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   for (let i = 0; i < 260; i += 1) {
     const z = (random() * 2 - 1) * 330;
     const x = riverX(z) + (random() * 2 - 1) * 13;
-    prefabs.spawn("boulder", {
+    catalog.spawn("boulder_01", {
       position: ground(x, z),
       rotationY: random() * Math.PI * 2,
       scale: 0.6 + random() * 2.2,
@@ -504,7 +507,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
     const rows = Math.max(2, Math.round(9 * density));
     for (let r = 0; r < rows; r += 1) {
       for (let c = 0; c < Math.max(2, Math.round(5 * density)); c += 1) {
-        prefabs.spawn("riceRow", {
+        catalog.spawn("rice_row_01", {
           position: new Vector3(
             paddy.x - paddy.halfX + 2 + (c / Math.max(1, Math.round(5 * density))) * (paddy.halfX * 2 - 4),
             paddy.y + 0.1,
@@ -517,7 +520,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   // Fences along the paddock edges beside the road.
   for (let z = -80; z <= 80; z += 3) {
     if (Math.abs(z % 24) > 12) continue;
-    prefabs.spawn("fenceRun", { position: ground(ROAD_X - 4.2, z) });
+    catalog.spawn("fence_run_01", { position: ground(ROAD_X - 4.2, z) });
   }
 
   // -------------------------------------------------------------- lighting
@@ -560,8 +563,8 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   lighting.applySettings(quality);
   for (const mesh of player.character.meshes) lighting.addCaster(mesh, false);
   for (const mesh of built) lighting.addCaster(mesh, false);
-  for (const id of ["cedar", "broadleaf", "farmhouse", "barn", "shed", "torii", "shrine", "stoneLantern", "ruralPole", "boulder"]) {
-    for (const template of prefabs.templates(id)) lighting.addCaster(template, false);
+  for (const id of ["cedar_tree_01", "broadleaf_tree_01", "farmhouse_01", "barn_01", "shed_01", "torii_gate_01", "shrine_01", "stone_lantern_01", "rural_pole_01", "boulder_01"]) {
+    for (const template of catalog.templates(id)) lighting.addCaster(template, false);
   }
   lighting.addCaster(sleeperTemplate, false);
 
@@ -570,7 +573,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   // ---------------------------------------------------------- interaction
   const interaction = new InteractionSystem(ui, input);
   interaction.add({
-    id: "shrine",
+    id: "shrine_01",
     position: ground(SHRINE.x - 4, SHRINE.z, 1),
     radius: 4,
     label: "Look at the shrine",
@@ -584,7 +587,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
     },
   });
   interaction.add({
-    id: "signpost",
+    id: "signpost_01",
     position: ground(ROAD_X + 4, TRACK_Z, 1),
     radius: 3.6,
     label: "Read the signpost",
@@ -595,7 +598,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
       ui.setObjective("Follow the track east, to the farm");
     },
   });
-  prefabs.spawn("signpost", { position: ground(ROAD_X + 4, TRACK_Z), rotationY: -0.4 });
+  catalog.spawn("signpost_01", { position: ground(ROAD_X + 4, TRACK_Z), rotationY: -0.4 });
 
   await awaitSceneReady(scene, 60);
   ctx.progress(1, "Ready.");
@@ -703,7 +706,7 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
       water.dispose();
       player.dispose();
       camera.dispose();
-      prefabs.dispose();
+      catalog.dispose();
       sleeperTemplate.dispose();
       platform.dispose(false, true);
       shrineNode.dispose(false, true);

@@ -21,6 +21,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
+import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Material } from "@babylonjs/core/Materials/material";
 import type { Scene } from "@babylonjs/core/scene";
@@ -32,6 +33,7 @@ export type BusinessKind =
   | "ramen"
   | "konbini"
   | "cafe"
+  | "maidcafe"
   | "izakaya"
   | "laundry"
   | "bookshop"
@@ -55,6 +57,12 @@ export interface BuildingSpec {
   /** Chooses facade tone, window rhythm and trim. */
   variant: number;
   seed: number;
+  /**
+   * True for shops the player can walk into. The doorway is left open and
+   * the glazing is split around it, rather than a sealed pane she would
+   * have to walk through.
+   */
+  enterable?: boolean;
 }
 
 export interface BuiltBuilding {
@@ -64,8 +72,15 @@ export interface BuiltBuilding {
   glass: Mesh[];
   /** Where the door is, in world space — for interaction points. */
   entrance: Vector3;
-  /** The bay behind the glass, for a visual interior to be dropped into. */
-  interior: { centre: Vector3; width: number; depth: number; height: number } | null;
+  /** The bay behind the glass, for an interior to be dropped into. */
+  interior: {
+    centre: Vector3;
+    width: number;
+    depth: number;
+    height: number;
+    /** Along-street position of the doorway. */
+    doorZ: number;
+  } | null;
   business: BusinessKind;
 }
 
@@ -116,6 +131,7 @@ const SIGN_COLOUR: Record<BusinessKind, NeonColour> = {
   ramen: "gold",
   konbini: "lime",
   cafe: "peach",
+  maidcafe: "violet",
   izakaya: "rose",
   laundry: "ice",
   bookshop: "violet",
@@ -128,6 +144,7 @@ const BUSINESS_NAME: Record<BusinessKind, string> = {
   ramen: "ramen",
   konbini: "konbini",
   cafe: "cafe",
+  maidcafe: "maidcafe",
   izakaya: "izakaya",
   laundry: "laundry",
   bookshop: "books",
@@ -195,26 +212,47 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
     return null;
   }
 
-  // Stall riser, glazing, and a door reveal in it.
-  slab(
-    kit,
-    "riser",
-    { width: 0.16, height: 0.42, depth: openWidth },
-    new Vector3(glassX, 0.21, spec.z),
-    trim,
-  );
+  // Stall riser under the glazing — with a gap at the door on a shop you
+  // can walk into, because a 0.42 m kerb across the entrance is a wall.
+  const doorWidthEarly = 1.1;
+  const doorZEarly = spec.z + (spec.business === "konbini" ? 0 : -openWidth * 0.28);
+  const riserRuns: [number, number][] = spec.enterable
+    ? [
+        [spec.z - openWidth / 2, doorZEarly - doorWidthEarly * 0.75],
+        [doorZEarly + doorWidthEarly * 0.75, spec.z + openWidth / 2],
+      ]
+    : [[spec.z - openWidth / 2, spec.z + openWidth / 2]];
+  for (const [from, to] of riserRuns) {
+    if (to - from < 0.15) continue;
+    slab(
+      kit,
+      "riser",
+      { width: 0.16, height: 0.42, depth: to - from },
+      new Vector3(glassX, 0.21, (from + to) / 2),
+      trim,
+    );
+  }
   const glassHeight = SHOPFRONT_HEIGHT - 1.35;
-  const doorWidth = 1.1;
-  const doorZ = spec.z + (spec.business === "konbini" ? 0 : -openWidth * 0.28);
+  const doorWidth = doorWidthEarly;
+  const doorZ = doorZEarly;
 
-  const pane = CreateBox(
-    "shopGlass",
-    { width: 0.06, height: glassHeight, depth: openWidth },
-    kit.scene,
-  );
-  pane.position.set(glassX, 0.42 + glassHeight / 2, spec.z);
-  pane.material = materials.glass();
-  kit.glass.push(pane);
+  // Glazing. An enterable shop gets two panes with a gap where the door is,
+  // so the way in is a real opening rather than a pane of glass the player
+  // walks through.
+  const glazing: [number, number][] = spec.enterable
+    ? [
+        [spec.z - openWidth / 2, doorZ - doorWidth * 0.75],
+        [doorZ + doorWidth * 0.75, spec.z + openWidth / 2],
+      ]
+    : [[spec.z - openWidth / 2, spec.z + openWidth / 2]];
+  for (const [from, to] of glazing) {
+    const span = to - from;
+    if (span < 0.15) continue;
+    const pane = CreateBox("shopGlass", { width: 0.06, height: glassHeight, depth: span }, kit.scene);
+    pane.position.set(glassX, 0.42 + glassHeight / 2, (from + to) / 2);
+    pane.material = materials.glass();
+    kit.glass.push(pane);
+  }
 
   // Mullions across the glazing: the one detail that stops a shopfront
   // looking like a hole with a colour behind it.
@@ -226,16 +264,46 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
   }
   slab(kit, "transom", { width: 0.12, height: 0.1, depth: openWidth }, new Vector3(glassX, 0.42 + glassHeight, spec.z), trim);
 
-  // The door: a frame, a leaf, and a handle rail.
-  slab(kit, "doorFrame", { width: 0.16, height: 2.25, depth: doorWidth + 0.16 }, new Vector3(glassX, 1.125, doorZ), trim);
-  slab(
-    kit,
-    "doorLeaf",
-    { width: 0.08, height: 2.05, depth: doorWidth },
-    new Vector3(glassX + kit.out * 0.04, 1.05, doorZ),
-    materials.glass(),
-  );
-  slab(kit, "doorRail", { width: 0.1, height: 0.06, depth: doorWidth * 0.7 }, new Vector3(glassX + kit.out * 0.1, 1.02, doorZ), trim);
+  // The door. A closed shop keeps its leaf; an open one has the leaf slid
+  // back into its pocket beside the opening, which is what these doors do.
+  // A frame is two jambs and a head. Built as one slab it was a solid block
+  // filling the doorway, and the shop could not be walked into at all.
+  for (const side of [-1, 1] as const) {
+    slab(
+      kit,
+      `doorJamb${side}`,
+      { width: 0.16, height: 2.25, depth: 0.1 },
+      new Vector3(glassX, 1.125, doorZ + side * (doorWidth / 2 + 0.05)),
+      trim,
+    );
+  }
+  slab(kit, "doorHead", { width: 0.16, height: 0.16, depth: doorWidth + 0.2 }, new Vector3(glassX, 2.17, doorZ), trim);
+  if (spec.enterable) {
+    slab(
+      kit,
+      "doorLeafOpen",
+      { width: 0.07, height: 2.05, depth: doorWidth * 0.9 },
+      new Vector3(glassX, 1.05, doorZ + doorWidth * 1.05),
+      materials.glass(),
+    );
+    // A lit head over the opening, so the way in reads from up the street.
+    slab(
+      kit,
+      "doorGlow",
+      { width: 0.05, height: 0.09, depth: doorWidth + 0.4 },
+      new Vector3(kit.into(RECESS - 0.03), 2.32, doorZ),
+      materials.emissive("doorwayGlow", new Color3(1, 0.86, 0.62), 1.1),
+    );
+  } else {
+    slab(
+      kit,
+      "doorLeaf",
+      { width: 0.08, height: 2.05, depth: doorWidth },
+      new Vector3(glassX + kit.out * 0.04, 1.05, doorZ),
+      materials.glass(),
+    );
+    slab(kit, "doorRail", { width: 0.1, height: 0.06, depth: doorWidth * 0.7 }, new Vector3(glassX + kit.out * 0.1, 1.02, doorZ), trim);
+  }
   // A threshold step, which is what makes a doorway feel like a doorway.
   slab(kit, "threshold", { width: RECESS + 0.2, height: 0.09, depth: doorWidth + 0.5 }, new Vector3(kit.into(RECESS / 2), 0.045, doorZ), materials.surface("paving", 3));
 
@@ -263,6 +331,7 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
     width: openWidth,
     depth: spec.depth * 0.44,
     height: glassHeight + 0.42,
+    doorZ,
   };
 }
 
@@ -302,10 +371,33 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
     }
   }
 
-  if (spec.business === "ramen" || spec.business === "cafe" || spec.business === "izakaya") {
+  if (
+    spec.business === "ramen" ||
+    spec.business === "cafe" ||
+    spec.business === "maidcafe" ||
+    spec.business === "izakaya"
+  ) {
     // A menu board out on the pavement.
     slab(kit, "menuBoard", { width: 0.09, height: 1.1, depth: 0.62 }, new Vector3(kit.toward(0.85), 0.72, spec.z + 1.5), materials.signboard(`menu${spec.seed}`, NEON.gold, spec.seed + 3), 0.18);
     slab(kit, "menuLegs", { width: 0.5, height: 0.16, depth: 0.5 }, new Vector3(kit.toward(0.85), 0.1, spec.z + 1.5), materials.painted("boardLeg", new Color3(0.12, 0.1, 0.09), 0.8));
+  }
+
+  if (spec.business === "maidcafe") {
+    // An upstairs-café frontage brought down to the street: a pastel awning,
+    // a string of small lamps along its lip, and a standee by the door. The
+    // house is an invention of this street's, as every business here is.
+    slab(kit, "awning", { width: 1.4, height: 0.1, depth: spec.width - 1.2 }, new Vector3(kit.toward(0.75), 3.05, spec.z), materials.painted("awningRose", new Color3(0.62, 0.3, 0.42), 0.9), 0);
+    slab(kit, "awningLip", { width: 0.08, height: 0.24, depth: spec.width - 1.2 }, new Vector3(kit.toward(1.42), 2.93, spec.z), materials.painted("awningCream", new Color3(0.94, 0.9, 0.86), 0.85));
+    const lamps = Math.max(5, Math.round(spec.width - 2));
+    for (let i = 0; i < lamps; i += 1) {
+      const bulb = CreateSphere(`cafeBulb${i}`, { diameter: 0.11, segments: 6 }, kit.scene);
+      bulb.position.set(kit.toward(1.42), 2.76, spec.z - (spec.width - 2) / 2 + (i / (lamps - 1)) * (spec.width - 2));
+      bulb.material = materials.emissive("cafeBulb", new Color3(1, 0.86, 0.72), 1.1);
+      kit.parts.push(bulb);
+    }
+    // The standee: a lit board on legs, angled at whoever is walking past.
+    slab(kit, "standee", { width: 0.1, height: 1.35, depth: 0.7 }, new Vector3(kit.toward(1.05), 0.82, spec.z - 1.8), materials.signboard(`standee${spec.seed}`, NEON.violet, spec.seed + 5), 0.22);
+    slab(kit, "standeeFoot", { width: 0.55, height: 0.14, depth: 0.55 }, new Vector3(kit.toward(1.05), 0.09, spec.z - 1.8), materials.painted("boardLeg", new Color3(0.12, 0.1, 0.09), 0.8));
   }
 
   if (spec.business === "cafe") {
@@ -480,7 +572,7 @@ export function buildBuilding(
     new Vector3(kit.into(RECESS + spec.depth * 0.5), SHOPFRONT_HEIGHT + upper / 2, spec.z),
     concrete,
   );
-  const groundBack = interior ? spec.depth - roomDepth : spec.depth;
+  const groundBack = spec.enterable ? 0 : interior ? spec.depth - roomDepth : spec.depth;
   if (groundBack > 0.2) {
     slab(
       kit,
@@ -515,7 +607,7 @@ export function buildBuilding(
   return {
     meshes,
     glass: kit.glass,
-    entrance: new Vector3(kit.toward(0.9), 0, spec.z),
+    entrance: new Vector3(kit.toward(0.9), 0, interior?.doorZ ?? spec.z),
     interior,
     business: spec.business,
   };

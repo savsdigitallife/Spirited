@@ -33,14 +33,17 @@ import { Sky } from "../world/Sky";
 import { Lighting } from "../world/Lighting";
 import { Environment } from "../world/Environment";
 import { CityMaterials, NEON } from "../world/CityMaterials";
-import { PrefabRegistry } from "../world/Prefabs";
+import { AssetCatalog } from "../engine/AssetCatalog";
 import { InteractionSystem } from "../world/Interaction";
-import { Crowd } from "../world/Crowd";
+import { Citizens, type Doorway } from "../world/Citizens";
 import { Traffic } from "../world/Traffic";
 import { Weather } from "../world/Weather";
 import { LampPool, type LampSite } from "../world/LampPool";
+import { WetGround } from "../world/WetGround";
+import { buildAlley } from "../world/Alley";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
 import { ShopInteriors } from "../world/ShopInterior";
+import { buildEnterable, type EnterableRoom } from "../world/Interiors";
 import { makeRandom } from "../world/Noise";
 import { tokyoPrefabs } from "./props/tokyo";
 import { PlayerController } from "../player/PlayerController";
@@ -68,6 +71,8 @@ const BLOCK_TO = 32;
 const CROSSING_Z = 5;
 const CROSSING_HALF = 2.6;
 const STATION_Z = 27;
+/** The alley mouth, on the west side between the two shuttered units. */
+const ALLEY_Z = 2.5;
 const SEED = 91733;
 /** Late. The signs are the light source, which is the point of the place. */
 const START_TIME_OF_DAY = 0.965;
@@ -78,6 +83,8 @@ interface Plot {
   floors: number;
   depth: number;
   business: BusinessKind;
+  /** Shops with a real room behind the door rather than a view of one. */
+  enterable?: boolean;
 }
 
 /**
@@ -92,9 +99,12 @@ const WEST: Plot[] = [
   { z: -28, width: 7.5, floors: 4, depth: 11, business: "lobby" },
   { z: -20, width: 6.5, floors: 3, depth: 10, business: "laundry" },
   { z: -13, width: 7, floors: 5, depth: 12, business: "izakaya" },
-  { z: -5.5, width: 8, floors: 2, depth: 12, business: "ramen" },
-  { z: 2.5, width: 6, floors: 4, depth: 10, business: "shutter" },
-  { z: 10, width: 7.5, floors: 3, depth: 11, business: "cafe" },
+  { z: -5.5, width: 8, floors: 2, depth: 12, business: "ramen", enterable: true },
+  // Two narrow shuttered units either side of the alley mouth, which is what
+  // is left when a lane takes the middle of a plot.
+  { z: -0.8, width: 1.8, floors: 4, depth: 10, business: "shutter" },
+  { z: 6, width: 2.2, floors: 3, depth: 10, business: "shutter" },
+  { z: 11.2, width: 7.5, floors: 3, depth: 12, business: "maidcafe", enterable: true },
   { z: 18, width: 7, floors: 6, depth: 13, business: "bookshop" },
   { z: 25.5, width: 6.5, floors: 4, depth: 10, business: "lobby" },
 ];
@@ -103,7 +113,7 @@ const EAST: Plot[] = [
   { z: -27, width: 7, floors: 3, depth: 10, business: "salon" },
   { z: -19.5, width: 7.5, floors: 5, depth: 12, business: "izakaya" },
   { z: -12, width: 6.5, floors: 2, depth: 10, business: "shutter" },
-  { z: -4, width: 9, floors: 3, depth: 13, business: "konbini" },
+  { z: -4, width: 9, floors: 3, depth: 13, business: "konbini", enterable: true },
   { z: 5.5, width: 6.5, floors: 4, depth: 11, business: "lobby" },
   { z: 13, width: 7, floors: 3, depth: 11, business: "cafe" },
   { z: 20.5, width: 7, floors: 5, depth: 12, business: "bookshop" },
@@ -227,6 +237,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   // ------------------------------------------------------------ buildings
   ctx.progress(0.22, "Raising the frontages…");
   const interiors = new ShopInteriors(scene, materials);
+  const rooms: EnterableRoom[] = [];
   const buildings: BuiltBuilding[] = [];
   let plotSeed = SEED;
   for (const [side, plots] of [[-1, WEST], [1, EAST]] as const) {
@@ -242,9 +253,34 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
         business: plot.business,
         variant: plotSeed % 5,
         seed: plotSeed,
+        enterable: plot.enterable,
       });
       buildings.push(built);
-      if (built.interior) {
+      if (!built.interior) continue;
+
+      if (
+        plot.enterable &&
+        (plot.business === "ramen" || plot.business === "konbini" || plot.business === "maidcafe")
+      ) {
+        // A real room, not a view of one.
+        rooms.push(
+          buildEnterable(
+            scene,
+            {
+              id: plot.business === "maidcafe" ? "maid_cafe_01" : `${plot.business}_shop_01`,
+              kind: plot.business === "maidcafe" ? "cafe" : plot.business,
+              faceX: side * PAVE_OUTER,
+              out: -side,
+              z: plot.z,
+              doorZ: built.interior.doorZ,
+              width: plot.width - 0.6,
+              depth: plot.depth - 1.2,
+              height: 2.9,
+            },
+            () => undefined,
+          ),
+        );
+      } else {
         interiors.add(plot.business, { ...built.interior, out: -side }, plotSeed);
       }
     }
@@ -283,14 +319,17 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
 
   // -------------------------------------------------------------- prefabs
   ctx.progress(0.5, "Setting the street furniture…");
-  const prefabs = new PrefabRegistry(scene, ctx.assets);
-  prefabs.defineAll(tokyoPrefabs(materials));
-  await prefabs.prepare([
-    "streetLight", "utilityPole", "vendingMachine", "trafficLight", "signPost",
-    "trashBin", "planter", "bicycle", "car", "neonBanner",
-    "bollard", "guardrail", "utilityBox", "drainGrate", "bikeRack",
-    "crate", "cone", "scooter", "benchSeat", "streetCondenser", "gasBottles",
+  const catalog = new AssetCatalog(scene, ctx.assets);
+  catalog.defineAll(tokyoPrefabs(materials));
+  await catalog.prepare([
+    "street_light_01", "utility_pole_01", "vending_machine_01", "traffic_light_01", "sign_post_01",
+    "trash_bin_01", "planter_01", "bicycle_01", "tokyo_car_01", "neon_banner_01",
+    "bollard_01", "guardrail_01", "utility_box_01", "drain_grate_01", "bike_rack_01",
+    "crate_01", "traffic_cone_01", "scooter_01", "bench_01", "street_condenser_01", "gas_bottles_01",
   ]);
+
+  catalog.applyLevelsOfDetail();
+  catalog.reportMissing("Tokyo backstreet");
 
   const lampSites: LampSite[] = [];
   const poleTops: Vector3[] = [];
@@ -302,7 +341,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     for (let z = BLOCK_FROM + 4; z < BLOCK_TO; z += 13) {
       const at = z + (side > 0 ? 6.5 : 0);
       if (at > BLOCK_TO - 2) continue;
-      prefabs.spawn("streetLight", { position: new Vector3(kerbX, KERB, at), rotationY: side > 0 ? Math.PI : 0 });
+      catalog.spawn("street_light_01", { position: new Vector3(kerbX, KERB, at), rotationY: side > 0 ? Math.PI : 0 });
       lampSites.push({
         position: new Vector3(kerbX - side * 1.36, 5.9, at),
         colour: new Color3(1, 0.9, 0.74),
@@ -312,7 +351,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     }
     if (side === -1) {
       for (let z = BLOCK_FROM + 9; z < BLOCK_TO; z += 15) {
-        prefabs.spawn("utilityPole", { position: new Vector3(kerbX - 0.1, KERB, z) });
+        catalog.spawn("utility_pole_01", { position: new Vector3(kerbX - 0.1, KERB, z) });
         poleTops.push(new Vector3(kerbX - 0.1, 7.9, z));
       }
     }
@@ -349,7 +388,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
 
   for (const side of [-1, 1] as const) {
     for (const offset of [-1, 1] as const) {
-      prefabs.spawn("trafficLight", {
+      catalog.spawn("traffic_light_01", {
         position: new Vector3(side * (ROAD_HALF + 0.5), KERB, CROSSING_Z + offset * (CROSSING_HALF + 1.2)),
         rotationY: side > 0 ? Math.PI : 0,
       });
@@ -380,24 +419,24 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       const roll = random();
       if (roll < 0.14) {
         const spot = new Vector3(wallX - side * 0.1, KERB, z);
-        prefabs.spawn("vendingMachine", { position: spot, rotationY: facing });
+        catalog.spawn("vending_machine_01", { position: spot, rotationY: facing });
         vendingSpots.push(spot);
       } else if (roll < 0.28) {
-        prefabs.spawn("streetCondenser", { position: new Vector3(wallX, KERB, z), rotationY: facing });
+        catalog.spawn("street_condenser_01", { position: new Vector3(wallX, KERB, z), rotationY: facing });
       } else if (roll < 0.4) {
-        prefabs.spawn("crate", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
+        catalog.spawn("crate_01", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
       } else if (roll < 0.5) {
-        prefabs.spawn("gasBottles", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
+        catalog.spawn("gas_bottles_01", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
       } else if (roll < 0.6) {
-        prefabs.spawn("trashBin", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
+        catalog.spawn("trash_bin_01", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
       } else if (roll < 0.7) {
-        prefabs.spawn("utilityBox", { position: new Vector3(wallX, KERB, z), rotationY: facing });
+        catalog.spawn("utility_box_01", { position: new Vector3(wallX, KERB, z), rotationY: facing });
       } else if (roll < 0.82) {
-        prefabs.spawn("bicycle", { position: new Vector3(wallX + side * 0.2, KERB, z), rotationY: facing + 0.1 });
+        catalog.spawn("bicycle_01", { position: new Vector3(wallX + side * 0.2, KERB, z), rotationY: facing + 0.1 });
       } else if (roll < 0.9) {
-        prefabs.spawn("planter", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
+        catalog.spawn("planter_01", { position: new Vector3(wallX, KERB, z), rotationY: random() * 6.28 });
       } else {
-        prefabs.spawn("benchSeat", { position: new Vector3(wallX, KERB, z), rotationY: facing });
+        catalog.spawn("bench_01", { position: new Vector3(wallX, KERB, z), rotationY: facing });
       }
     }
 
@@ -406,30 +445,30 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       if (Math.abs(z - CROSSING_Z) < CROSSING_HALF + 2) continue;
       const roll = random();
       if (roll < 0.35) {
-        prefabs.spawn("bollard", { position: new Vector3(kerbX, KERB, z) });
+        catalog.spawn("bollard_01", { position: new Vector3(kerbX, KERB, z) });
       } else if (roll < 0.5) {
-        prefabs.spawn("guardrail", { position: new Vector3(kerbX, KERB, z) });
+        catalog.spawn("guardrail_01", { position: new Vector3(kerbX, KERB, z) });
       } else if (roll < 0.62) {
-        prefabs.spawn("cone", { position: new Vector3(kerbX - side * 0.3, KERB, z) });
+        catalog.spawn("traffic_cone_01", { position: new Vector3(kerbX - side * 0.3, KERB, z) });
       } else if (roll < 0.72) {
-        prefabs.spawn("scooter", { position: new Vector3(kerbX - side * 0.6, KERB, z), rotationY: facing });
+        catalog.spawn("scooter_01", { position: new Vector3(kerbX - side * 0.6, KERB, z), rotationY: facing });
       } else if (roll < 0.82) {
-        prefabs.spawn("bikeRack", { position: new Vector3(kerbX - side * 0.5, KERB, z), rotationY: facing });
+        catalog.spawn("bike_rack_01", { position: new Vector3(kerbX - side * 0.5, KERB, z), rotationY: facing });
         for (let b = 0; b < 3; b += 1) {
-          prefabs.spawn("bicycle", { position: new Vector3(kerbX - side * 0.75, KERB, z - 0.9 + b * 0.6), rotationY: facing });
+          catalog.spawn("bicycle_01", { position: new Vector3(kerbX - side * 0.75, KERB, z - 0.9 + b * 0.6), rotationY: facing });
         }
       } else if (roll < 0.9) {
-        prefabs.spawn("signPost", { position: new Vector3(kerbX, KERB, z), rotationY: facing });
+        catalog.spawn("sign_post_01", { position: new Vector3(kerbX, KERB, z), rotationY: facing });
       }
       if (random() < 0.3) {
-        prefabs.spawn("drainGrate", { position: new Vector3(side * (ROAD_HALF - 0.45), 0.011, z + 0.6) });
+        catalog.spawn("drain_grate_01", { position: new Vector3(side * (ROAD_HALF - 0.45), 0.011, z + 0.6) });
       }
     }
 
     // Hanging signage above the shopfronts, on the frontages themselves.
     for (const plot of side === -1 ? WEST : EAST) {
       if (plot.business === "shutter" || plot.business === "lobby") continue;
-      prefabs.spawn("neonBanner", {
+      catalog.spawn("neon_banner_01", {
         position: new Vector3(side * (PAVE_OUTER - 0.35), 5.4 + random() * 2.6, plot.z + (random() - 0.5) * plot.width * 0.5),
         rotationY: facing,
       });
@@ -485,6 +524,20 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
 
   // -------------------------------------------------------------- lighting
   ctx.progress(0.72, "Turning the lights on…");
+  // ---------------------------------------------------------------- alley
+  // Between the two shuttered units: three metres wide, eleven deep, and
+  // dark at the far end.
+  const alley = buildAlley(scene, materials, {
+    faceX: -PAVE_OUTER,
+    out: 1,
+    z: ALLEY_Z,
+    width: 4.2,
+    depth: 11,
+    wallHeight: 9,
+    seed: SEED + 21,
+  });
+  lampSites.push({ position: alley.lampAt, colour: alley.lampColour, intensity: 15, range: 11 });
+
   const sky = new Sky(scene, quality.drawDistance);
   const lighting = new Lighting(scene);
   // A lit street is never black. The ambient carries the bounce off wet
@@ -510,6 +563,23 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     intensity: 44,
     range: 30,
   });
+  // What the rain leaves behind: puddles across the carriageway, and a smear
+  // of each of those lights down the wet ground under it.
+  const wetGround = new WetGround(
+    scene,
+    lampSites.map((site) => ({ at: site.position, colour: site.colour, strength: site.intensity / 34 })),
+    {
+      y: 0.016,
+      roadHalf: ROAD_HALF,
+      paveOuter: PAVE_OUTER,
+      from: BLOCK_FROM + 2,
+      to: BLOCK_TO - 2,
+      clearAround: { z: CROSSING_Z, half: CROSSING_HALF + 1 },
+      seed: SEED + 5,
+      puddles: quality.foliageDensity > 0.6 ? 30 : 18,
+    },
+  );
+
   const lamps = new LampPool(scene, lampSites, 4);
 
   for (const material of scene.materials) {
@@ -525,9 +595,18 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   camera.setFarPlane(Math.max(340, quality.drawDistance));
   camera.setHeading(0, 0.16);
   const player = new PlayerController(scene, input, camera, audio, spawn);
+  // Wide enough to contain the enterable rooms, which reach ten metres back
+  // from the building line. Everything solid between here and there is
+  // collidable, so the bounds are a backstop rather than the wall.
+  // The district is one level: the road, the pavement over its kerb, the
+  // rooms behind the building line and the alley beyond them. Only the
+  // station stairs go below it, so only they are left to collision alone.
+  player.setGroundHeight((x, z) =>
+    x > PAVE_OUTER && Math.abs(z - STATION_Z) < 7 ? -3 : 0,
+  );
   player.setBounds({
-    minX: -(PAVE_OUTER + 0.5),
-    maxX: PAVE_OUTER + 0.5,
+    minX: -18,
+    maxX: 18,
     minZ: BLOCK_FROM - 6,
     maxZ: BLOCK_TO + 2,
     floorY: -2,
@@ -538,12 +617,27 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   // Only the built mass stops the camera. Street furniture is scenery.
   for (const built of buildings) camera.addOccluders(built.meshes);
   camera.addOccluders(scene.meshes.filter((m) => m.name.startsWith("station.")));
+  camera.addOccluders(alley.shell);
 
   // ----------------------------------------------------------- inhabitants
   ctx.progress(0.88, "Letting people out…");
-  const crowd = new Crowd(scene, materials, {
-    count: Math.round(22 * Math.min(1.4, Math.max(0.4, quality.foliageDensity))),
+  // Doors people actually use. Fed from the buildings, so adding a shop to
+  // the plot table puts people in and out of it with no further work.
+  const doorways: Doorway[] = buildings
+    .filter((b) => b.interior)
+    .map((b, i) => ({
+      id: `door.${i}`,
+      at: b.entrance.clone(),
+      facing: b.entrance.x < 0 ? -Math.PI / 2 : Math.PI / 2,
+    }));
+
+  const crowd = new Citizens(scene, materials, {
+    // The floor matters more than the ceiling: a street with ten people on it
+    // reads as empty at any frame rate, so the low preset still gets a crowd
+    // and pays for it with detail range instead.
+    count: Math.round(30 * Math.min(1.4, Math.max(0.6, quality.foliageDensity))),
     crossingZ: CROSSING_Z,
+    doors: doorways,
     seed: SEED + 1,
     lanes: [
       { x: -(ROAD_HALF + 1.2), from: BLOCK_FROM + 2, to: BLOCK_TO - 2, y: KERB },
@@ -553,7 +647,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     ],
   });
 
-  const traffic = new Traffic(prefabs, {
+  const traffic = new Traffic(catalog, {
     crossingZ: CROSSING_Z,
     carsPerLane: 3,
     vehicleGreen: 16,
@@ -579,8 +673,8 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   lighting.applySettings(quality);
   for (const mesh of casters) lighting.addCaster(mesh, false);
   for (const built of buildings) for (const mesh of built.meshes) lighting.addCaster(mesh, false);
-  for (const id of ["car", "vendingMachine", "streetLight", "trashBin", "planter", "bicycle", "bollard", "guardrail", "utilityBox", "crate", "scooter", "benchSeat", "streetCondenser"]) {
-    for (const template of prefabs.templates(id)) lighting.addCaster(template, false);
+  for (const id of ["tokyo_car_01", "vending_machine_01", "street_light_01", "trash_bin_01", "planter_01", "bicycle_01", "bollard_01", "guardrail_01", "utility_box_01", "crate_01", "scooter_01", "bench_01", "street_condenser_01"]) {
+    for (const template of catalog.templates(id)) lighting.addCaster(template, false);
   }
   for (const template of crowd.shadowTemplates) lighting.addCaster(template, false);
 
@@ -634,6 +728,161 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       },
     });
   }
+
+  /**
+   * What there is to do inside.
+   *
+   * Interactions are declared where the room is, so a shop with a counter
+   * and a cook has ordering and conversation without the street's code
+   * knowing anything about ramen.
+   */
+  let seatedAt: EnterableRoom | null = null;
+  for (const room of rooms) {
+    if (room.kind === "ramen") {
+      const seat = room.seats.find((s) => !s.taken);
+      if (seat) {
+        interaction.add({
+          id: `${room.id}.sit`,
+          position: seat.at.clone(),
+          radius: 1.3,
+          label: seatedAt === room ? "Get up" : "Sit at the counter",
+          activate: () => {
+            if (seatedAt === room) {
+              seatedAt = null;
+              player.releaseAnimation();
+              player.setLocked(false);
+              ui.say("She leaves the stool spinning.", 3);
+              return;
+            }
+            seatedAt = room;
+            player.teleport(new Vector3(seat.at.x, KERB, seat.at.z), seat.facing);
+            player.setLocked(true);
+            player.playAnimation("sit");
+            audio.blip(300, 0.14);
+            ui.say("The stool is still warm. The cook does not look up.", 4);
+          },
+        });
+      }
+      interaction.add({
+        id: `${room.id}.order`,
+        position: room.counterAt.clone(),
+        radius: 2.2,
+        label: "Order",
+        activate: () => {
+          audio.blip(660, 0.12);
+          if (seatedAt === room) player.playAnimation("eat");
+          state.give("ramen", 1);
+          state.raise("ateRamen");
+          ui.say(
+            state.itemCount("ramen") === 1
+              ? "\"Shoyu. Extra spring onion.\" He is already reaching for a bowl."
+              : "\"Same again?\" He does not wait for an answer.",
+            5,
+          );
+        },
+      });
+    }
+
+    if (room.kind === "konbini") {
+      interaction.add({
+        id: `${room.id}.shelf`,
+        position: new Vector3(room.threshold.x + (room.threshold.x < 0 ? -2.4 : 2.4), 0, room.threshold.z - 1.5),
+        radius: 2,
+        label: "Take something from the shelf",
+        activate: () => {
+          player.playAnimation("pickUp");
+          audio.blip(720, 0.08);
+          const items = ["onigiri", "bento", "melonBread", "coldTea"];
+          const item = items[Math.floor(Math.random() * items.length)] ?? "onigiri";
+          state.give(item, 1);
+          ui.say(`She puts a ${item.replace(/([A-Z])/g, " $1").toLowerCase()} in the basket.`, 3.5);
+        },
+      });
+      interaction.add({
+        id: `${room.id}.till`,
+        position: room.counterAt.clone(),
+        radius: 2,
+        label: "Pay",
+        activate: () => {
+          player.playAnimation("interact");
+          audio.blip(880, 0.07);
+          window.setTimeout(() => audio.blip(1180, 0.09), 180);
+          const basket =
+            state.itemCount("onigiri") + state.itemCount("bento") +
+            state.itemCount("melonBread") + state.itemCount("coldTea");
+          state.raise("shoppedAtKonbini");
+          ui.say(
+            basket === 0
+              ? "\"Nothing today?\" The clerk goes back to the magazine rack."
+              : `${basket} item${basket === 1 ? "" : "s"}. He bags them without being asked and wishes her a good night.`,
+            5,
+          );
+        },
+      });
+    }
+
+    if (room.kind === "cafe") {
+      const seat = room.seats.find((s) => !s.taken);
+      if (seat) {
+        interaction.add({
+          id: `${room.id}.sit`,
+          position: seat.at.clone(),
+          radius: 1.4,
+          label: "Take a table",
+          activate: () => {
+            if (seatedAt === room) {
+              seatedAt = null;
+              player.releaseAnimation();
+              player.setLocked(false);
+              ui.say("She leaves the cup where it is.", 3);
+              return;
+            }
+            seatedAt = room;
+            player.teleport(new Vector3(seat.at.x, KERB, seat.at.z), seat.facing);
+            player.setLocked(true);
+            player.playAnimation("sit");
+            audio.blip(520, 0.12);
+            ui.say("Someone is singing along to the speakers. Nobody minds.", 4);
+          },
+        });
+      }
+      interaction.add({
+        id: `${room.id}.order`,
+        position: room.counterAt.clone(),
+        radius: 2.4,
+        label: "Order",
+        activate: () => {
+          audio.blip(780, 0.1);
+          window.setTimeout(() => audio.blip(980, 0.1), 150);
+          state.give("cremeSoda", 1);
+          state.raise("visitedCafe");
+          ui.say(
+            state.itemCount("cremeSoda") === 1
+              ? "\"Welcome home.\" It is what they say to everyone, and it still lands."
+              : "\"Another? Of course.\"",
+            5,
+          );
+        },
+      });
+    }
+  }
+
+  interaction.add({
+    id: "alley.shrine",
+    position: alley.shrineAt.clone(),
+    radius: 1.8,
+    label: "Leave a coin",
+    activate: () => {
+      player.playAnimation("interact");
+      audio.blip(1240, 0.1);
+      window.setTimeout(() => audio.blip(880, 0.16), 220);
+      state.raise("leftOffering");
+      ui.say(
+        "The coin rings on the stone. For a moment the rain sounds further away than it is.",
+        5.5,
+      );
+    },
+  });
 
   interaction.add({
     id: "station",
@@ -697,8 +946,21 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       // The far end of the street dissolves into sign light, not into black.
       scene.fogColor = Color3.Lerp(sky.horizonColor(), new Color3(0.11, 0.09, 0.12), 0.5);
 
+      // Inside, the street framing puts the camera through the back wall.
+      const room = rooms.find((r) => r.contains(feet)) ?? null;
+      // The alley is three metres wide, which is closer than the street
+      // camera can hold without ending up in a wall.
+      camera.setProfile(room || alley.contains(feet) ? "interior" : "street");
+      for (const each of rooms) each.update(dt);
+      alley.update(dt, feet);
+      cityAmbience?.setIntensity(room ? 0.28 : 0.8);
+      rainAmbience?.setIntensity(room ? 0.14 : 0.62);
+
       lamps.update(dt, feet);
       traffic.update(dt);
+      crowd.setWetness(weather.wetness);
+      wetGround.setWetness(weather.wetness);
+      crowd.setTimeOfDay(time.timeOfDay);
       crowd.update(dt, feet, traffic.pedestriansMayCross);
       weather.update(dt, camera.camera.position);
 
@@ -737,8 +999,11 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       crowd.dispose();
       player.dispose();
       camera.dispose();
-      prefabs.dispose();
+      catalog.dispose();
       interiors.dispose();
+      for (const room of rooms) room.dispose();
+      wetGround.dispose();
+      alley.dispose();
       lamps.dispose();
       skyline.dispose(false, true);
       station.dispose(false, true);

@@ -68,11 +68,14 @@ docs/          design bible and notes
 Playable from the city to the valley: a wet Tokyo backstreet at night, the
 last train south, and the countryside it puts her down in.
 
+- `docs/TOKYO-DISTRICT.md` — the asset pipeline, the crowd, the rooms you
+  can walk into, the alley, and rain that lands.
 - `docs/TOKYO-REBUILD.md` — Aiko, the third-person presentation, and the
   street rebuilt as a real environment.
 - `docs/JOURNEY.md` — the train interlude and Hazama valley.
 - `docs/TOKYO-SLICE.md` — the first pass at the character and the street.
 - `docs/PHASE-1.md` — the engine foundation underneath it all.
 
-Next: pedestrians that look and behave like people, then interiors you can
-walk into.
+Next: modelled assets to drop in behind the ids that already address them,
+the residential street and the park, and rooms behind the frontages that are
+still only views.

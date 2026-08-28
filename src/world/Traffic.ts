@@ -9,7 +9,7 @@
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import type { PrefabRegistry } from "./Prefabs";
+import type { AssetCatalog } from "../engine/AssetCatalog";
 import { makeRandom } from "./Noise";
 
 export interface TrafficLane {
@@ -53,7 +53,7 @@ export class Traffic {
   private timer = 0;
 
   constructor(
-    prefabs: PrefabRegistry,
+    catalog: AssetCatalog,
     private readonly options: TrafficOptions,
   ) {
     const random = makeRandom(options.seed);
@@ -61,7 +61,7 @@ export class Traffic {
       const span = lane.to - lane.from;
       for (let i = 0; i < options.carsPerLane; i += 1) {
         const z = lane.from + ((i + random() * 0.6) / options.carsPerLane) * span;
-        const node = prefabs.spawn("car", {
+        const node = catalog.spawn("tokyo_car_01", {
           position: new Vector3(lane.x, lane.y, z),
           rotationY: lane.direction > 0 ? 0 : Math.PI,
           name: `car.${lane.x}.${i}`,

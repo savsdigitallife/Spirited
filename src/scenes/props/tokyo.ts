@@ -15,11 +15,9 @@ import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder"
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
-import type { PrefabDefinition } from "../../world/Prefabs";
+import type { AssetDefinition } from "../../engine/AssetCatalog";
 import { CityMaterials, NEON } from "../../world/CityMaterials";
 
-/** Model paths are declared even though the files do not exist yet. */
-const MODEL_ROOT = "props/tokyo/";
 
 function box(
   scene: Scene,
@@ -34,15 +32,15 @@ function box(
   return mesh;
 }
 
-export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
+export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
   const metalDark = () => materials.painted("metalDark", new Color3(0.09, 0.1, 0.11), 0.45, 0.7);
   const metalPale = () => materials.painted("metalPale", new Color3(0.42, 0.44, 0.46), 0.4, 0.8);
   const plasticWhite = () => materials.painted("plasticWhite", new Color3(0.82, 0.83, 0.84), 0.5);
 
   return [
     {
-      id: "streetLight",
-      model: `${MODEL_ROOT}street-light.glb`,
+      id: "street_light_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const pole = CreateCylinder(
@@ -69,8 +67,8 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "utilityPole",
-      model: `${MODEL_ROOT}utility-pole.glb`,
+      id: "utility_pole_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const concrete = materials.painted("poleConcrete", new Color3(0.34, 0.34, 0.33), 0.85);
@@ -109,8 +107,8 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "vendingMachine",
-      model: `${MODEL_ROOT}vending-machine.glb`,
+      id: "vending_machine_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const body = box(
@@ -138,8 +136,8 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "trafficLight",
-      model: `${MODEL_ROOT}traffic-light.glb`,
+      id: "traffic_light_01",
+      category: "prop",
       collides: true,
       build: ({ scene }) => {
         const pole = CreateCylinder("pole", { diameter: 0.12, height: 5, tessellation: 8 }, scene);
@@ -172,8 +170,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "signPost",
-      model: `${MODEL_ROOT}sign-post.glb`,
+      id: "sign_post_01",
+      category: "prop",
+      cullAt: 70,
       collides: true,
       build: ({ scene }) => {
         const pole = CreateCylinder("pole", { diameter: 0.07, height: 2.4, tessellation: 6 }, scene);
@@ -197,8 +196,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "trashBin",
-      model: `${MODEL_ROOT}trash-bin.glb`,
+      id: "trash_bin_01",
+      category: "prop",
+      cullAt: 60,
       collides: true,
       build: ({ scene }) => {
         const bin = CreateCylinder(
@@ -215,8 +215,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "planter",
-      model: `${MODEL_ROOT}planter.glb`,
+      id: "planter_01",
+      category: "prop",
+      cullAt: 60,
       collides: true,
       build: ({ scene }) => {
         const tub = box(
@@ -234,8 +235,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "bicycle",
-      model: `${MODEL_ROOT}bicycle.glb`,
+      id: "bicycle_01",
+      category: "vehicle",
+      cullAt: 70,
       collides: false,
       build: ({ scene }) => {
         const frame = box(
@@ -269,8 +271,8 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "car",
-      model: `${MODEL_ROOT}car.glb`,
+      id: "tokyo_car_01",
+      category: "vehicle",
       collides: false,
       castsShadow: true,
       build: ({ scene }) => {
@@ -328,8 +330,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "acUnit",
-      model: `${MODEL_ROOT}ac-unit.glb`,
+      id: "ac_unit_01",
+      category: "prop",
+      cullAt: 70,
       collides: false,
       build: ({ scene }) => {
         const shell = box(
@@ -350,8 +353,8 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "neonBanner",
-      model: `${MODEL_ROOT}neon-banner.glb`,
+      id: "neon_banner_01",
+      category: "prop",
       collides: false,
       castsShadow: false,
       build: ({ scene }) => {
@@ -377,13 +380,14 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
     },
 
     {
-      id: "bollard",
-      model: `${MODEL_ROOT}bollard.glb`,
+      id: "bollard_01",
+      category: "prop",
+      cullAt: 55,
       collides: true,
       build: ({ scene }) => {
         const post = CreateCylinder("post", { diameter: 0.11, height: 0.85, tessellation: 10 }, scene);
         post.position.y = 0.42;
-        post.material = materials.painted("bollard", new Color3(0.72, 0.72, 0.7), 0.55, 0.3);
+        post.material = materials.painted("bollard_01", new Color3(0.72, 0.72, 0.7), 0.55, 0.3);
         const band = box(
           scene,
           "band",
@@ -393,13 +397,14 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
         );
         const cap = CreateSphere("cap", { diameter: 0.115, segments: 8 }, scene);
         cap.position.y = 0.85;
-        cap.material = materials.painted("bollard", new Color3(0.72, 0.72, 0.7), 0.55, 0.3);
+        cap.material = materials.painted("bollard_01", new Color3(0.72, 0.72, 0.7), 0.55, 0.3);
         return [post, band, cap];
       },
     },
     {
-      id: "guardrail",
-      model: `${MODEL_ROOT}guardrail.glb`,
+      id: "guardrail_01",
+      category: "prop",
+      cullAt: 80,
       collides: true,
       build: ({ scene }) => {
         const steel = materials.painted("railSteel", new Color3(0.62, 0.63, 0.62), 0.45, 0.7);
@@ -421,8 +426,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "utilityBox",
-      model: `${MODEL_ROOT}utility-box.glb`,
+      id: "utility_box_01",
+      category: "prop",
+      cullAt: 70,
       collides: true,
       build: ({ scene }) => {
         const shell = box(
@@ -450,8 +456,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "drainGrate",
-      model: `${MODEL_ROOT}drain-grate.glb`,
+      id: "drain_grate_01",
+      category: "prop",
+      cullAt: 40,
       collides: false,
       castsShadow: false,
       build: ({ scene }) => {
@@ -478,8 +485,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "bikeRack",
-      model: `${MODEL_ROOT}bike-rack.glb`,
+      id: "bike_rack_01",
+      category: "prop",
+      cullAt: 60,
       collides: false,
       build: ({ scene }) => {
         const steel = materials.painted("railSteel", new Color3(0.62, 0.63, 0.62), 0.45, 0.7);
@@ -498,8 +506,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "crate",
-      model: `${MODEL_ROOT}crate.glb`,
+      id: "crate_01",
+      category: "prop",
+      cullAt: 55,
       collides: true,
       build: ({ scene }) => {
         const a = box(
@@ -521,8 +530,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "cone",
-      model: `${MODEL_ROOT}cone.glb`,
+      id: "traffic_cone_01",
+      category: "prop",
+      cullAt: 50,
       collides: false,
       build: ({ scene }) => {
         const body = CreateCylinder(
@@ -550,8 +560,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "scooter",
-      model: `${MODEL_ROOT}scooter.glb`,
+      id: "scooter_01",
+      category: "vehicle",
+      cullAt: 75,
       collides: true,
       build: ({ scene }) => {
         const paint = materials.painted("scooterPaint", new Color3(0.5, 0.5, 0.52), 0.35, 0.5);
@@ -578,8 +589,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "benchSeat",
-      model: `${MODEL_ROOT}bench.glb`,
+      id: "bench_01",
+      category: "prop",
+      cullAt: 70,
       collides: true,
       build: ({ scene }) => {
         const wood = materials.painted("benchWood", new Color3(0.3, 0.22, 0.15), 0.85);
@@ -596,8 +608,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "streetCondenser",
-      model: `${MODEL_ROOT}street-condenser.glb`,
+      id: "street_condenser_01",
+      category: "prop",
+      cullAt: 60,
       collides: true,
       build: ({ scene }) => {
         const shell = box(
@@ -625,8 +638,9 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "gasBottles",
-      model: `${MODEL_ROOT}gas-bottles.glb`,
+      id: "gas_bottles_01",
+      category: "prop",
+      cullAt: 50,
       collides: true,
       build: ({ scene }) => {
         const steel = materials.painted("bottleSteel", new Color3(0.55, 0.5, 0.42), 0.5, 0.6);
@@ -641,8 +655,8 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
       },
     },
     {
-      id: "awning",
-      model: `${MODEL_ROOT}awning.glb`,
+      id: "awning_01",
+      category: "prop",
       collides: false,
       castsShadow: true,
       build: ({ scene }) => {

@@ -175,7 +175,9 @@ const worldStats = () =>
       materials: scene.materials.length,
       particles: scene.particleSystems.length,
       player: aiko ? [aiko.position.x, aiko.position.y, aiko.position.z] : null,
-      walkers: scene.transformNodes.filter((n) => n.name.startsWith("walker.")).length,
+      // One instanced head per pedestrian; the parts-bin templates carry no
+      // index in their name, so they are not counted.
+      walkers: scene.meshes.filter((m) => m.name.includes(".citizen.head.") && m.isEnabled()).length,
       cars: scene.transformNodes.filter((n) => n.name.startsWith("car.")).length,
     };
   });

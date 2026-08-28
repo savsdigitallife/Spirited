@@ -75,6 +75,7 @@ export interface GameEventMap {
   "ui/caption": { text: string; seconds: number };
   "ui/objective": { text: string | null };
   "audio/unlocked": { context: "user-gesture" };
+  "assets/report": { region: string; generated: number; total: number };
 }
 
 export const events = new EventBus<GameEventMap>();

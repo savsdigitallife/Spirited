@@ -10,6 +10,7 @@
 import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
 import type { Scene } from "@babylonjs/core/scene";
 import { SceneInstrumentation } from "@babylonjs/core/Instrumentation/sceneInstrumentation";
+import { events } from "../core/Events";
 import type { Time } from "../core/Time";
 import type { QualitySettings } from "../core/Settings";
 
@@ -33,12 +34,21 @@ export class DebugOverlay {
   private capsLine = "";
   private instrumentation: SceneInstrumentation | null = null;
   private instrumentedScene: Scene | null = null;
+  private assetLine = "";
 
   constructor() {
     this.root = document.createElement("div");
     this.root.setAttribute("style", STYLE);
     this.root.hidden = true;
     document.body.appendChild(this.root);
+    // The art backlog, straight from the catalog rather than from a list
+    // somebody has to remember to update.
+    events.on("assets/report", ({ region, generated, total }) => {
+      this.assetLine =
+        generated === 0
+          ? `assets ${total} on models`
+          : `assets ${total - generated}/${total} on models · ${generated} generated (${region})`;
+    });
   }
 
   describeEngine(backend: string, caps: readonly string[]): void {
@@ -92,6 +102,7 @@ export class DebugOverlay {
       `${size} @ scale ${scale}`,
       `draws ${draws}   meshes ${meshes}/${total}   tris ${Math.round(indices / 3).toLocaleString()}   mats ${materials}`,
       `shadows ${quality.shadowsEnabled ? `${quality.shadowMapSize}px × ${quality.shadowCascades} ${quality.shadowFiltering}` : "off"}   ssao ${quality.ssao ? "on" : "off"}   bloom ${quality.bloom ? "on" : "off"}   aa ${quality.antialias}`,
+      this.assetLine,
       `cam ${this.describeCamera(scene)}`,
       `day ${time.day}   ${time.formatTimeOfDay()}`,
       this.capsLine,

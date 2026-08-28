@@ -78,6 +78,16 @@ for (const step of script.split(",").filter(Boolean)) {
     await page.mouse.move(640 + Number(a), 360 + Number(b), { steps: 12 });
   } else if (verb === "wait") {
     await page.waitForTimeout(Number(a) * 1000);
+  } else if (verb === "at") {
+    // Place the character directly. Development only; the game never does this.
+    const [x, y, z] = step.split(":").slice(1).map(Number);
+    await page.evaluate(
+      ([px, py, pz]) => {
+        const c = window.nagori.scenes.active.scene.getMeshByName("player.collider");
+        c.position.set(px, py + 0.85, pz);
+      },
+      [x, y, z],
+    );
   }
   await page.waitForTimeout(1200);
 }
@@ -101,6 +111,12 @@ console.log(
     }),
   ),
 );
+
+// An escape hatch for one-off questions about the live scene:
+//   PROBE='window.nagori.scenes.active.scene.meshes.length' node tools/shot.mjs …
+if (process.env.PROBE) {
+  console.log(JSON.stringify(await page.evaluate(process.env.PROBE)));
+}
 
 const dataUrl = await page.evaluate(
   () =>

@@ -23,6 +23,21 @@ export interface WeatherOptions {
   height: number;
 }
 
+/** A soft round blob, for the burst where a drop lands. */
+function splashTexture(scene: Scene): Texture {
+  const texture = new DynamicTexture("rain.splash", { width: 32, height: 32 }, scene, false);
+  const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
+  const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gradient.addColorStop(0, "rgba(255,255,255,0.6)");
+  gradient.addColorStop(0.55, "rgba(255,255,255,0.18)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 32, 32);
+  texture.update(false);
+  texture.hasAlpha = true;
+  return texture;
+}
+
 function dropTexture(scene: Scene): Texture {
   // A soft vertical streak; stretched billboards do the rest.
   const texture = new DynamicTexture("rain.drop", { width: 8, height: 64 }, scene, false);
@@ -40,6 +55,8 @@ function dropTexture(scene: Scene): Texture {
 
 export class Weather {
   private readonly rain: ParticleSystem;
+  /** The burst of spray where the rain lands, close in around the camera. */
+  private readonly splash: ParticleSystem;
   private readonly options: WeatherOptions;
   private intensity = 0;
   private target = 0;
@@ -72,6 +89,32 @@ export class Weather {
     rain.preWarmCycles = 60;
     rain.start();
     this.rain = rain;
+
+    // Rain that stops at the ground plane is rain the eye does not believe.
+    // A short-lived flare of spray around the camera's feet costs a few
+    // hundred particles and is what makes the ground look hit.
+    const splash = new ParticleSystem("rain.splash", 320, scene);
+    splash.particleTexture = splashTexture(scene);
+    splash.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+    splash.minEmitBox = new Vector3(-9, 0.02, -9);
+    splash.maxEmitBox = new Vector3(9, 0.06, 9);
+    splash.emitter = new Vector3(0, 0, 0);
+    splash.color1 = new Color4(0.8, 0.86, 0.96, 0.3);
+    splash.color2 = new Color4(0.9, 0.94, 1, 0.18);
+    splash.colorDead = new Color4(0.8, 0.86, 0.96, 0);
+    splash.minSize = 0.05;
+    splash.maxSize = 0.16;
+    splash.minLifeTime = 0.12;
+    splash.maxLifeTime = 0.26;
+    splash.emitRate = 0;
+    splash.gravity = new Vector3(0, -6, 0);
+    splash.direction1 = new Vector3(-0.5, 1.6, -0.5);
+    splash.direction2 = new Vector3(0.5, 2.4, 0.5);
+    splash.minEmitPower = 0.2;
+    splash.maxEmitPower = 0.5;
+    splash.isLocal = false;
+    splash.start();
+    this.splash = splash;
   }
 
   /** 0 dry, 1 downpour. Eased so weather turns rather than switches. */
@@ -97,9 +140,13 @@ export class Weather {
     this.intensity += (this.target - this.intensity) * Math.min(1, dt * 0.4);
     (this.rain.emitter as Vector3).copyFrom(cameraPosition);
     this.rain.emitRate = this.intensity * this.options.maxDrops * this.dropBudget * 0.55;
+    // The splash sits on the ground plane under the camera, not at its eye.
+    (this.splash.emitter as Vector3).set(cameraPosition.x, 0, cameraPosition.z);
+    this.splash.emitRate = this.intensity * 260 * this.dropBudget;
   }
 
   dispose(): void {
     this.rain.dispose(true);
+    this.splash.dispose(true);
   }
 }
