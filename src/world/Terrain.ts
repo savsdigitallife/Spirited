@@ -25,16 +25,27 @@ export interface TerrainOptions {
   /** Quads per side. */
   subdivisions: number;
   seed: number;
+  /**
+   * A region's own landform, replacing the default rolling meadow.
+   *
+   * Passed as a function rather than as baked mesh data so that gameplay can
+   * still ask for the ground height anywhere without raycasting, and so a
+   * distant LOD ring can be rebuilt at a different resolution without the
+   * two disagreeing about where the ground is.
+   */
+  shape?: (x: number, z: number) => number;
 }
 
 export class Terrain {
   readonly mesh: Mesh;
   readonly size: number;
   private readonly seed: number;
+  private readonly shape: ((x: number, z: number) => number) | null;
 
   constructor(scene: Scene, options: TerrainOptions) {
     this.size = options.size;
     this.seed = options.seed;
+    this.shape = options.shape ?? null;
 
     const mesh = CreateGround(
       "nagori.terrain",
@@ -74,6 +85,7 @@ export class Terrain {
 
   /** Ground height in metres at a world position. Cheap; safe to call per frame. */
   heightAt(x: number, z: number): number {
+    if (this.shape) return this.shape(x, z);
     const half = this.size / 2;
     const u = x / this.size;
     const v = z / this.size;

@@ -42,6 +42,13 @@ const CSS = `
 .nag-fade { position: absolute; inset: 0; background: #05070a; opacity: 0;
   transition: opacity .8s ease; }
 
+.nag-bar { position: absolute; left: 0; right: 0; height: 0; background: #05070a;
+  transition: height .9s cubic-bezier(.4,0,.2,1); }
+.nag-bar.top { top: 0; }
+.nag-bar.bottom { bottom: 0; }
+.nag-ui.cine .nag-bar { height: 11vh; }
+.nag-ui.cine .nag-caption { bottom: 13.5vh; font-size: 19px; letter-spacing: .01em; }
+
 .nag-pause { position: absolute; inset: 0; display: none; place-content: center;
   justify-items: center; gap: 18px; background: rgba(5,7,10,.72);
   backdrop-filter: blur(10px); pointer-events: auto; }
@@ -96,6 +103,8 @@ export class UI {
     this.root.className = "nag-ui";
     this.root.innerHTML = `
       <div class="nag-fade"></div>
+      <div class="nag-bar top"></div>
+      <div class="nag-bar bottom"></div>
       <div class="nag-objective"></div>
       <div class="nag-prompt"><span class="nag-key"></span><span class="nag-label"></span></div>
       <div class="nag-caption"></div>
@@ -162,6 +171,16 @@ export class UI {
     void this.fadeLayer.offsetHeight;
     this.fadeLayer.style.opacity = String(Math.max(0, Math.min(1, to)));
     return new Promise((resolve) => window.setTimeout(resolve, seconds * 1000));
+  }
+
+  /**
+   * Letterbox. The bars are the signal that control has been taken away —
+   * they appear before the first line and leave after the last, so the
+   * player never wonders whether their input is being ignored.
+   */
+  setCinematic(on: boolean): void {
+    this.root.classList.toggle("cine", on);
+    if (on) this.hidePrompt();
   }
 
   setPaused(paused: boolean): void {

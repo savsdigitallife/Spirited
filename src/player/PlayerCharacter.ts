@@ -255,6 +255,28 @@ export class PlayerCharacter {
     this.shinR = legRight.knee;
   }
 
+  /**
+   * Sits her down: thighs forward, shins down, hands in her lap.
+   *
+   * Held statically rather than animated — a seated idle is the one pose
+   * where stillness reads as tiredness rather than as a broken animation.
+   */
+  poseSeated(): void {
+    this.hips.position.y = 0.46;
+    this.spine.rotation.set(0.06, 0, 0);
+    this.legL.rotation.x = -1.5;
+    this.legR.rotation.x = -1.42;
+    this.shinL.rotation.x = 1.45;
+    this.shinR.rotation.x = 1.38;
+    // Upper arms hanging, forearms folded into her lap — not held out in
+    // front of her, which is what a small positive shoulder angle looks like.
+    this.armL.rotation.x = 0.12;
+    this.armR.rotation.x = 0.16;
+    this.forearmL.rotation.x = -1.2;
+    this.forearmR.rotation.x = -1.26;
+    this.head.rotation.x = 0.12;
+  }
+
   /** Every mesh in the rig, for registering shadow casters. */
   get meshes(): readonly Mesh[] {
     return this.parts;

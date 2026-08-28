@@ -77,24 +77,26 @@ const base = `http://127.0.0.1:${PORT}/?capture=1&adaptive=0&quality=low`;
 const bootedAt = Date.now();
 await page.goto(base, { waitUntil: "load" });
 
-let bootCleared = false;
 let bootError = "";
-try {
-  await page.waitForFunction(
-    () => document.getElementById("boot")?.classList.contains("fading") === true,
-    null,
-    { timeout: 900_000, polling: 1000 },
-  );
-  bootCleared = true;
-} catch (err) {
-  bootCleared = false;
-  bootError = err instanceof Error ? err.message.split("\n")[0] : String(err);
+const waitForBoot = async (timeout) => {
   try {
-    bootError += `  |  overlay: ${await page.textContent("#bootMsg")}`;
-  } catch {
-    bootError += "  |  page unreachable";
+    await page.waitForFunction(
+      () => document.getElementById("boot")?.classList.contains("fading") === true,
+      null,
+      { timeout, polling: 1000 },
+    );
+    return true;
+  } catch (err) {
+    bootError = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    try {
+      bootError += `  |  overlay: ${await page.textContent("#bootMsg")}`;
+    } catch {
+      bootError += "  |  page unreachable";
+    }
+    return false;
   }
-}
+};
+const bootCleared = await waitForBoot(900_000);
 check(
   "Tokyo boots",
   bootCleared,
@@ -210,9 +212,11 @@ const travelled = Math.hypot(
   (after.player?.[2] ?? 0) - (before.player?.[2] ?? 0),
 );
 check("walking moves the character", travelled > 2, `${travelled.toFixed(2)} m`);
+// She may legitimately be on a kerb ramp or a step; what she may never be
+// is below the road surface.
 check(
-  "character stays on the pavement",
-  Math.abs((after.player?.[1] ?? -1) - 0.16) < 0.35,
+  "character does not sink into the street",
+  (after.player?.[1] ?? -99) > -0.06 && (after.player?.[1] ?? 99) < 0.6,
   `y = ${(after.player?.[1] ?? 0).toFixed(2)}`,
 );
 await grab("tokyo-walk.png");
@@ -229,7 +233,7 @@ await page.waitForTimeout(1500);
 const sprinted = await worldStats();
 check(
   "sprint and jump keep the character in the world",
-  (sprinted.player?.[1] ?? -99) > -1 && (sprinted.player?.[1] ?? 99) < 6,
+  (sprinted.player?.[1] ?? -99) > -0.15 && (sprinted.player?.[1] ?? 99) < 6,
   `y = ${(sprinted.player?.[1] ?? 0).toFixed(2)}`,
 );
 await grab("tokyo-sprint.png");
@@ -282,19 +286,111 @@ check(
   consoleLines.filter((l) => l.startsWith("pageerror:")).join(" | "),
 );
 
+// ---------------------------------------------------------------- journey
+// The train interlude, and the transition it delivers you into.
+await page.goto(`${base}&scene=train`, { waitUntil: "load" });
+const trainBooted = await waitForBoot(300_000);
+check("the train interlude loads", trainBooted, bootError);
+
+if (trainBooted) {
+  await page.waitForTimeout(9000);
+  const train = await worldStats();
+  check("the interlude is its own region", train.region === "trainInterlude", train.region);
+  check("the interlude drives its own camera", train.camera === "camera.interlude", String(train.camera));
+  check(
+    "the carriage is furnished",
+    train.meshes > 60,
+    `${train.meshes} meshes, ${Math.round(train.indices / 3)} tris`,
+  );
+  const letterboxed = await page.evaluate(
+    () => document.querySelector(".nag-ui")?.classList.contains("cine") === true,
+  );
+  check("the interlude letterboxes", letterboxed, "");
+  const caption = await page.evaluate(
+    () => document.querySelector(".nag-caption")?.textContent ?? "",
+  );
+  check("the interlude narrates", caption.trim().length > 0, caption.slice(0, 48));
+  const trainStats = await frameStats();
+  check(
+    "the carriage renders",
+    trainStats.stdDev > 10,
+    `mean ${trainStats.mean.toFixed(1)}  stdDev ${trainStats.stdDev.toFixed(1)}`,
+  );
+  await grab("train.png");
+
+  // Skipping must land in the valley, not nowhere.
+  await page.mouse.click(640, 360);
+  await page.keyboard.press("KeyE");
+  let arrivedInValley = false;
+  try {
+    await page.waitForFunction(
+      () => window.nagori?.scenes?.active?.id === "hazamaValley",
+      null,
+      { timeout: 420_000, polling: 1000 },
+    );
+    arrivedInValley = true;
+  } catch {
+    arrivedInValley = false;
+  }
+  check("skipping the train arrives in the valley", arrivedInValley, "");
+
+  if (arrivedInValley) {
+    await page.waitForTimeout(8000);
+    const valley = await worldStats();
+    check("the valley is its own region", valley.region === "hazamaValley", valley.region);
+    check("the player made the journey", valley.player !== null, JSON.stringify(valley.player));
+    check(
+      "the valley has landscape",
+      valley.indices / 3 > 40_000,
+      `${Math.round(valley.indices / 3)} tris across ${valley.meshes} meshes`,
+    );
+    const waterCount = await page.evaluate(
+      () =>
+        window.nagori.scenes.active.scene.meshes.filter((m) => m.name.startsWith("water."))
+          .length,
+    );
+    check("there is water in the valley", waterCount > 10, `${waterCount} surfaces`);
+    const valleyStats = await frameStats();
+    check(
+      "the valley renders in daylight",
+      valleyStats.stdDev > 12 && valleyStats.mean > 25,
+      `mean ${valleyStats.mean.toFixed(1)}  stdDev ${valleyStats.stdDev.toFixed(1)}`,
+    );
+    await grab("valley-arrival.png");
+
+    const beforeWalk = valley.player ?? [0, 0, 0];
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("ShiftLeft");
+    await page.waitForTimeout(9000);
+    await page.keyboard.up("ShiftLeft");
+    await page.keyboard.up("KeyW");
+    await page.waitForTimeout(1200);
+    const walked = await worldStats();
+    const moved = Math.hypot(
+      (walked.player?.[0] ?? 0) - beforeWalk[0],
+      (walked.player?.[2] ?? 0) - beforeWalk[2],
+    );
+    check("the valley can be walked", moved > 4, `${moved.toFixed(1)} m`);
+    check(
+      "the ground holds her up",
+      (walked.player?.[1] ?? -99) > 0 && (walked.player?.[1] ?? 99) < 40,
+      `y = ${(walked.player?.[1] ?? 0).toFixed(2)}`,
+    );
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(2500);
+    await grab("valley-village.png");
+  }
+}
+
+check(
+  "no uncaught errors on the journey",
+  consoleLines.filter((l) => l.startsWith("pageerror:")).length === 0,
+  consoleLines.filter((l) => l.startsWith("pageerror:")).join(" | "),
+);
+
 // The Phase 1 proving ground must still load.
 await page.goto(`${base}&scene=proving`, { waitUntil: "load" });
-let provingOk = false;
-try {
-  await page.waitForFunction(
-    () => document.getElementById("boot")?.classList.contains("fading") === true,
-    null,
-    { timeout: 180_000, polling: 500 },
-  );
-  provingOk = true;
-} catch {
-  provingOk = false;
-}
+const provingOk = await waitForBoot(180_000);
 await page.waitForTimeout(2500);
 const proving = provingOk ? await worldStats() : { region: "n/a" };
 check("proving ground still loads", provingOk && proving.region === "provingGround", proving.region);

@@ -37,6 +37,7 @@ import { LampPool, type LampSite } from "../world/LampPool";
 import { makeRandom } from "../world/Noise";
 import { tokyoPrefabs } from "./props/tokyo";
 import { PlayerController } from "../player/PlayerController";
+import { TRAIN_INTERLUDE_ID } from "./TrainInterlude";
 import { ThirdPersonCamera } from "../player/ThirdPersonCamera";
 
 export const TOKYO_STREET_ID = "tokyoStreet";
@@ -662,16 +663,17 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   interaction.add({
     id: "station",
     position: stationMouth,
-    radius: 3.4,
-    label: "Enter the station",
-    activate: () => {
+    radius: 3.6,
+    label: "Take the last train south",
+    activate: async () => {
       state.raise("reachedStation");
-      audio.blip(420, 0.2);
-      ui.say(
-        "The last train south leaves at 23:40. There is nothing left up here to stay for.",
-        6,
-      );
-      ui.setObjective("Board the last train south");
+      audio.blip(420, 0.22);
+      ui.hidePrompt();
+      ui.setObjective(null);
+      ui.say("23:40. There is nothing left up here to stay for.", 4);
+      // Let the line land before the platform does.
+      await new Promise((resolve) => window.setTimeout(resolve, 2200));
+      ctx.travel(TRAIN_INTERLUDE_ID);
     },
   });
 

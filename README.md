@@ -33,7 +33,7 @@ npm run dev          # http://localhost:8080
 | `?quality=low\|medium\|high\|ultra` | Start on a given graphics preset |
 | `?adaptive=0` | Pin the resolution (benchmarking, screenshots) |
 | `?capture=1` | Keep the drawing buffer between frames, and expose `window.nagori` |
-| `?scene=proving` | Open the Phase 1 proving ground instead of the city |
+| `?scene=train\|valley\|proving` | Start in a given region instead of the city |
 
 ### Controls
 
@@ -63,11 +63,11 @@ docs/          design bible and notes
 
 ## Status
 
-The first part of the vertical slice is playable: a wet Tokyo backstreet at
-night, walked in third person, with a station at the end of it.
+Playable from the city to the valley: a wet Tokyo backstreet at night, the
+last train south, and the countryside it puts her down in.
 
-- `docs/TOKYO-SLICE.md` — the character, the camera, the street, and what was
-  learned building them.
-- `docs/PHASE-1.md` — the engine foundation underneath it.
+- `docs/JOURNEY.md` — the train interlude and Hazama valley.
+- `docs/TOKYO-SLICE.md` — the character, the camera, and the street.
+- `docs/PHASE-1.md` — the engine foundation underneath it all.
 
-Next: the train out of the city, and the countryside on the other side.
+Next: the farm at the end of the track east.

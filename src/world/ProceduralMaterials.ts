@@ -264,21 +264,31 @@ export class SurfaceLibrary {
 
   /** `worldScale` is the size in metres the texture should span. */
   get(name: SurfaceName, worldScale = 1): PBRMaterial {
+    return this.getScaled(name, worldScale, worldScale);
+  }
+
+  /**
+   * Tiling for a surface whose two axes are nothing like the same length.
+   *
+   * A box face is mapped 0..1 whatever its shape, so a 4 m by 700 m railway
+   * embankment textured with one scale smears its ballast into stripes.
+   * Giving U and V the surface's real extent keeps the grain square.
+   */
+  getScaled(name: SurfaceName, uMetres: number, vMetres: number): PBRMaterial {
     const recipe = SURFACES[name];
-    const key = `${name}@${worldScale}`;
+    const key = `${name}@${uMetres}x${vMetres}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
 
     const material = makeSurface(this.scene, recipe, this.options.size);
-    const repeat = worldScale * recipe.tiling;
     for (const texture of [
       material.albedoTexture,
       material.bumpTexture,
       material.metallicTexture,
     ]) {
       if (!(texture instanceof Texture)) continue;
-      texture.uScale = repeat;
-      texture.vScale = repeat;
+      texture.uScale = uMetres * recipe.tiling;
+      texture.vScale = vMetres * recipe.tiling;
       texture.anisotropicFilteringLevel = this.options.anisotropy;
     }
     this.cache.set(key, material);

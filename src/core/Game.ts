@@ -28,11 +28,15 @@ import { GameState } from "./GameState";
 import { AudioManager } from "../audio/AudioManager";
 import { createProvingGround, PROVING_GROUND_ID } from "../scenes/ProvingGround";
 import { createTokyoStreet, TOKYO_STREET_ID } from "../scenes/TokyoStreet";
+import { createTrainInterlude, TRAIN_INTERLUDE_ID } from "../scenes/TrainInterlude";
+import { createHazamaValley, HAZAMA_VALLEY_ID } from "../scenes/HazamaValley";
 
 /** `?scene=proving` opens the Phase 1 test region instead of the city. */
 function startingRegion(): string {
   const requested = new URLSearchParams(location.search).get("scene");
   if (requested === "proving") return PROVING_GROUND_ID;
+  if (requested === "train") return TRAIN_INTERLUDE_ID;
+  if (requested === "valley") return HAZAMA_VALLEY_ID;
   return TOKYO_STREET_ID;
 }
 
@@ -119,6 +123,8 @@ export class Game {
     });
     scenes.register(PROVING_GROUND_ID, createProvingGround);
     scenes.register(TOKYO_STREET_ID, createTokyoStreet);
+    scenes.register(TRAIN_INTERLUDE_ID, createTrainInterlude);
+    scenes.register(HAZAMA_VALLEY_ID, createHazamaValley);
     this.scenes = scenes;
 
     // Browsers will not start audio until the player interacts, and a

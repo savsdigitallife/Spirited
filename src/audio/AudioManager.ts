@@ -235,6 +235,130 @@ export class AudioManager {
   }
 
   /**
+   * Moving water, from a fixed point in the world. Narrower and higher than
+   * rain, and it never changes — a river is the one sound in the valley that
+   * is the same at four in the morning as it is at noon.
+   */
+  startWater(position: Vec3Like, reach = 34): Emitter | null {
+    const context = this.context;
+    const out = this.busNode("ambience");
+    if (!context || !out || !this.white) return null;
+
+    const panner = context.createPanner();
+    panner.panningModel = "HRTF";
+    panner.distanceModel = "inverse";
+    panner.refDistance = 6;
+    panner.maxDistance = reach;
+    panner.rolloffFactor = 1.1;
+    panner.positionX.value = position.x;
+    panner.positionY.value = position.y;
+    panner.positionZ.value = position.z;
+
+    const source = context.createBufferSource();
+    source.buffer = this.white;
+    source.loop = true;
+    const filter = context.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 1750;
+    filter.Q.value = 0.55;
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    source.connect(filter).connect(gain).connect(panner).connect(out);
+    source.start();
+
+    const stop = () => {
+      source.stop();
+      panner.disconnect();
+    };
+    this.teardown.push(stop);
+
+    return {
+      setPosition: (p: Vec3Like) => {
+        panner.positionX.value = p.x;
+        panner.positionY.value = p.y;
+        panner.positionZ.value = p.z;
+      },
+      setIntensity: (value: number) => {
+        gain.gain.setTargetAtTime(Math.max(0, value) * 0.3, context.currentTime, 0.6);
+      },
+      stop,
+    };
+  }
+
+  /**
+   * Wind through a valley: a low bed whose filter drifts, so it swells and
+   * falls instead of sitting there as hiss.
+   */
+  startWind(): Emitter | null {
+    const context = this.context;
+    const out = this.busNode("ambience");
+    if (!context || !out || !this.white) return null;
+
+    const source = context.createBufferSource();
+    source.buffer = this.white;
+    source.loop = true;
+    const filter = context.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 480;
+    filter.Q.value = 0.8;
+
+    // A very slow oscillator on the filter is what turns noise into weather.
+    const drift = context.createOscillator();
+    drift.frequency.value = 0.06;
+    const driftDepth = context.createGain();
+    driftDepth.gain.value = 260;
+    drift.connect(driftDepth).connect(filter.frequency);
+    drift.start();
+
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    source.connect(filter).connect(gain).connect(out);
+    source.start();
+
+    const stop = () => {
+      source.stop();
+      drift.stop();
+      gain.disconnect();
+    };
+    this.teardown.push(stop);
+
+    return {
+      setPosition: () => undefined,
+      setIntensity: (value: number) => {
+        gain.gain.setTargetAtTime(Math.max(0, value) * 0.16, context.currentTime, 1.2);
+      },
+      stop,
+    };
+  }
+
+  /**
+   * One bird, somewhere. Two or three descending notes with a little
+   * randomness; call it on a timer and a valley sounds occupied.
+   */
+  birdCall(): void {
+    const context = this.context;
+    const out = this.busNode("ambience");
+    if (!context || !out) return;
+    const base = 1500 + Math.random() * 1700;
+    const notes = 2 + Math.floor(Math.random() * 3);
+    const now = context.currentTime;
+    for (let i = 0; i < notes; i += 1) {
+      const at = now + i * (0.085 + Math.random() * 0.06);
+      const osc = context.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(base * (1 - i * 0.11), at);
+      osc.frequency.exponentialRampToValueAtTime(base * (1 - i * 0.11) * 0.82, at + 0.07);
+      const env = context.createGain();
+      env.gain.setValueAtTime(0.0001, at);
+      env.gain.exponentialRampToValueAtTime(0.035, at + 0.012);
+      env.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+      osc.connect(env).connect(out);
+      osc.start(at);
+      osc.stop(at + 0.14);
+    }
+  }
+
+  /**
    * A looping tone anchored somewhere in the world — a vending machine's
    * compressor, the hum of a shop's lights.
    */
@@ -314,6 +438,85 @@ export class AudioManager {
     source.connect(filter).connect(gain).connect(out);
     source.start(now, Math.random() * 1.5);
     source.stop(now + 0.2);
+  }
+
+  /**
+   * A train, from inside it: a rumble bed under a rail joint rhythm.
+   *
+   * The rhythm is what makes it a train rather than a machine — four beats
+   * with the third slightly early, scheduled ahead of time so the pattern
+   * does not drift with the frame rate.
+   */
+  startTrain(): Emitter | null {
+    const context = this.context;
+    const out = this.busNode("ambience");
+    if (!context || !out || !this.brown || !this.white) return null;
+
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    gain.connect(out);
+
+    const bed = context.createBufferSource();
+    bed.buffer = this.brown;
+    bed.loop = true;
+    const bedFilter = context.createBiquadFilter();
+    bedFilter.type = "lowpass";
+    bedFilter.frequency.value = 220;
+    const bedGain = context.createGain();
+    bedGain.gain.value = 1.5;
+    bed.connect(bedFilter).connect(bedGain).connect(gain);
+    bed.start();
+
+    const white = this.white;
+    const beats = [0, 0.34, 0.62, 0.98];
+    const period = 1.36;
+    let bar = 0;
+    const scheduleBar = (index: number, at: number) => {
+      for (const [i, beat] of beats.entries()) {
+        const when = at + index * period + beat;
+        const source = context.createBufferSource();
+        source.buffer = white;
+        source.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.value = i % 2 === 0 ? 190 : 260;
+        filter.Q.value = 2.2;
+        const env = context.createGain();
+        env.gain.setValueAtTime(0.0001, when);
+        env.gain.exponentialRampToValueAtTime(i % 2 === 0 ? 0.22 : 0.14, when + 0.008);
+        env.gain.exponentialRampToValueAtTime(0.0001, when + 0.14);
+        source.connect(filter).connect(env).connect(gain);
+        source.start(when, Math.random());
+        source.stop(when + 0.2);
+      }
+    };
+    const start = context.currentTime + 0.1;
+    scheduleBar(0, start);
+    scheduleBar(1, start);
+    bar = 2;
+    const timer = window.setInterval(() => {
+      if (!this.context) return;
+      const elapsed = this.context.currentTime - start;
+      while (elapsed + period * 2 > bar * period) {
+        scheduleBar(bar, start);
+        bar += 1;
+      }
+    }, period * 500);
+
+    const stop = () => {
+      window.clearInterval(timer);
+      bed.stop();
+      gain.disconnect();
+    };
+    this.teardown.push(stop);
+
+    return {
+      setPosition: () => undefined,
+      setIntensity: (value: number) => {
+        gain.gain.setTargetAtTime(Math.max(0, value) * 0.5, context.currentTime, 0.5);
+      },
+      stop,
+    };
   }
 
   /** A soft one-shot for interface confirmations and interactions. */

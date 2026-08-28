@@ -65,6 +65,31 @@ const JUMP_BUFFER = 0.16;
  */
 const MAX_COLLISION_STEP = 0.14;
 
+/**
+ * How far down the character reaches for the ground each frame while
+ * standing.
+ *
+ * Pressing down with gravity's velocity is the obvious thing and it is
+ * wrong: at a 100 ms frame that is a 0.37 m shove into the floor, the
+ * collider resolves most but not all of it, and the few millimetres left
+ * over accumulate until she is knee-deep in the road. A short fixed probe
+ * can only ever leave a few millimetres, and those are undone outright.
+ */
+const GROUND_PROBE = 0.07;
+
+/** Seconds of unsupported ground the animation is allowed to ignore. */
+const SUPPORT_GRACE = 0.15;
+
+/**
+ * How far above an analytic ground surface the character is still considered
+ * to be standing on it.
+ *
+ * A heightfield is sampled, not collided with, so there is no swept test to
+ * catch her — she simply must never be below it, and if she is just above it
+ * and descending, she is standing on it.
+ */
+const GROUND_SNAP = 0.45;
+
 export interface PlayerSurface {
   /** 0 soft earth, 1 wet concrete. Chooses the footstep sound. */
   hardness: number;
@@ -98,6 +123,7 @@ export class PlayerController {
   surface: PlayerSurface = { hardness: 1 };
   private bounds: PlayerBounds | null = null;
   private lastSafe: Vector3;
+  private groundHeight: ((x: number, z: number) => number) | null = null;
 
   constructor(
     private readonly scene: Scene,
@@ -139,6 +165,20 @@ export class PlayerController {
     this.bounds = bounds;
   }
 
+  /**
+   * Gives the controller the region's ground as a function.
+   *
+   * Where a region has a heightfield, this is strictly better than colliding
+   * with its mesh: it is exact at any speed, it cannot be tunnelled through,
+   * and it costs two noise samples instead of a swept test against seventy
+   * thousand triangles. Anything standing *on* the ground — a platform, a
+   * road slab, a step — is still handled by collision; the heightfield is
+   * only the floor beneath all of it.
+   */
+  setGroundHeight(fn: ((x: number, z: number) => number) | null): void {
+    this.groundHeight = fn;
+  }
+
   /** Feet position. */
   get position(): Vector3 {
     return new Vector3(
@@ -158,6 +198,17 @@ export class PlayerController {
 
   get isGrounded(): boolean {
     return this.grounded;
+  }
+
+  /**
+   * Grounded, or close enough for the animation to keep her feet down.
+   *
+   * Walking down a slope alternates between contact and free fall every
+   * frame. That is correct physics and terrible animation, so the pose and
+   * the footsteps read this instead.
+   */
+  get isSupported(): boolean {
+    return this.grounded || this.sinceGrounded < SUPPORT_GRACE;
   }
 
   get facingAngle(): number {
@@ -248,7 +299,7 @@ export class PlayerController {
       {
         speed: new Vector3(this.velocity.x, 0, this.velocity.z).length(),
         runSpeed: this.tuning.jog,
-        grounded: this.grounded,
+        grounded: this.isSupported,
         verticalSpeed: this.verticalSpeed,
         turnRate: this.turnRate,
       },
@@ -307,34 +358,66 @@ export class PlayerController {
 
   private applyGravity(dt: number): void {
     const wasGrounded = this.grounded;
-    this.verticalSpeed = Math.max(
-      -55,
-      this.verticalSpeed + this.tuning.gravity * dt,
-    );
-    const wanted = this.verticalSpeed * dt;
+    if (wasGrounded) this.verticalSpeed = 0;
+    else this.verticalSpeed = Math.max(-55, this.verticalSpeed + this.tuning.gravity * dt);
+
+    // Standing: reach down a fixed short distance. Falling: move by however
+    // far gravity got her.
+    const wanted = wasGrounded ? -GROUND_PROBE : this.verticalSpeed * dt;
     const before = this.collider.position.y;
     this.slide(new Vector3(0, wanted, 0));
     const achieved = this.collider.position.y - before;
 
     if (wanted < 0 && achieved > wanted + 1e-4) {
-      // Blocked on the way down: standing on something. A small residual
-      // downward speed keeps the collider pressed against the surface, so
-      // walking off a kerb does not float.
+      // The probe found floor. Put her back exactly where she was standing;
+      // whatever the collider let slip is discarded rather than banked.
       this.grounded = true;
-      this.verticalSpeed = -1.5;
-      // Resting contact leaks a millimetre or two per frame, and pressing
-      // down every frame turns that into a slow sink through the road. If
-      // the character was already standing and barely moved, hold the
-      // height she had; a real descent of more than a couple of centimetres
-      // is a step down and is kept.
-      if (wasGrounded && achieved > -0.02) {
-        this.collider.position.y = before;
-      }
+      this.verticalSpeed = 0;
+      if (wasGrounded) this.collider.position.y = before;
+      else this.depenetrate();
     } else if (wanted > 0 && achieved < wanted - 1e-4) {
       this.verticalSpeed = 0;
       this.grounded = false;
     } else {
+      // Nothing under her within the probe: she has walked off something.
       this.grounded = false;
+    }
+
+    this.settleOnGround();
+  }
+
+  /**
+   * Lands her *on* the floor rather than slightly in it.
+   *
+   * A swept collision that stops mid-surface leaves the collider a centimetre
+   * or two inside, and the resting-contact rule then holds that depth for as
+   * long as she stands there — so a jump costs a couple of centimetres and
+   * she gradually sinks over a walk. Lifting clear and dropping again starts
+   * the sweep from outside the geometry, where it resolves exactly.
+   */
+  private depenetrate(): void {
+    const lift = 0.3;
+    this.slide(new Vector3(0, lift, 0));
+    this.slide(new Vector3(0, -(lift + 0.02), 0));
+  }
+
+  /** Applies the region's heightfield as an absolute floor. */
+  private settleOnGround(): void {
+    const height = this.groundHeight;
+    if (!height) return;
+    const p = this.collider.position;
+    const surface = height(p.x, p.z) + 0.83;
+
+    if (p.y < surface) {
+      p.y = surface;
+      this.grounded = true;
+      this.verticalSpeed = 0;
+      return;
+    }
+    if (!this.grounded && this.verticalSpeed <= 0 && p.y - surface <= GROUND_SNAP) {
+      p.y = surface;
+      this.grounded = true;
+      this.verticalSpeed = 0;
     }
   }
 
