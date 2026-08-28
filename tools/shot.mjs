@@ -52,7 +52,8 @@ page.setDefaultTimeout(600_000);
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
 
 const sceneArg = scene === "tokyo" ? "" : `&scene=${scene}`;
-await page.goto(`http://127.0.0.1:${PORT}/?capture=1&adaptive=0&quality=low${sceneArg}`, {
+const quality = process.env.QUALITY ?? "low";
+await page.goto(`http://127.0.0.1:${PORT}/?capture=1&adaptive=0&quality=${quality}${sceneArg}`, {
   waitUntil: "load",
 });
 await page.waitForFunction(
@@ -78,6 +79,54 @@ for (const step of script.split(",").filter(Boolean)) {
     await page.mouse.move(640 + Number(a), 360 + Number(b), { steps: 12 });
   } else if (verb === "wait") {
     await page.waitForTimeout(Number(a) * 1000);
+  } else if (verb === "glint") {
+    // Development only: park a free camera where the sun's reflection in a
+    // given pane is aimed, so a glint can be looked at deliberately instead
+    // of walked into by luck. `a` is a substring of the mesh's name.
+    await page.evaluate(
+      ([match, distance]) => {
+        const s = window.nagori.scenes.active.scene;
+        const key = s.getLightByName("nagori.key");
+        const sun = { x: -key.direction.x, y: -key.direction.y, z: -key.direction.z };
+        // Of every pane in the region, the one most squarely facing the sun.
+        let pane = null;
+        let n = { x: 0, y: 0, z: 1 };
+        let dot = -2;
+        for (const mesh of s.meshes) {
+          if (!mesh.name.includes(match) || !mesh.isEnabled()) continue;
+          const world = mesh.getWorldMatrix();
+          const candidate = { x: world.m[8], y: world.m[9], z: world.m[10] };
+          const length = Math.hypot(candidate.x, candidate.y, candidate.z);
+          candidate.x /= length; candidate.y /= length; candidate.z /= length;
+          for (const facing of [candidate, { x: -candidate.x, y: -candidate.y, z: -candidate.z }]) {
+            const d = sun.x * facing.x + sun.y * facing.y + sun.z * facing.z;
+            if (d > dot) { dot = d; pane = mesh; n = facing; }
+          }
+        }
+        if (!pane) throw new Error(`no enabled mesh matching ${match}`);
+        const at = pane.getAbsolutePosition();
+        // Mirror the sun about the pane: that is where the eye has to be.
+        const d = { x: sun.x - 2 * dot * n.x, y: sun.y - 2 * dot * n.y, z: sun.z - 2 * dot * n.z };
+        const eye = { x: at.x - d.x * distance, y: at.y - d.y * distance, z: at.z - d.z * distance };
+        // Move the game's own camera rather than swapping in another: the
+        // render pipeline is bound to it, and this observer runs after the
+        // controller's, so the placement is what survives to the frame.
+        const camera = s.activeCamera;
+        const target = at.clone();
+        s.onBeforeRenderObservable.add(() => {
+          camera.position.set(eye.x, eye.y, eye.z);
+          camera.setTarget(target);
+        });
+        return { pane: pane.name, facing: dot };
+      },
+      [a, Number(b ?? 6)],
+    );
+  } else if (verb === "time") {
+    // Jump the clock. Development only: for looking at a night scene in
+    // daylight without waiting out a game day.
+    await page.evaluate((t) => {
+      window.nagori.time.timeOfDay = t;
+    }, Number(a));
   } else if (verb === "at") {
     // Place the character directly. Development only; the game never does this.
     const [x, y, z] = step.split(":").slice(1).map(Number);
@@ -101,7 +150,7 @@ console.log(
       return {
         interiors: names("interior."),
         buildings: names("building."),
-        glass: s.meshes.filter((m) => m.material?.name === "city.glass").length,
+        glass: s.meshes.filter((m) => m.material?.name.startsWith("city.glass") === true).length,
         meshes: s.meshes.length,
         active: s.getActiveMeshes().length,
         tris: Math.round(s.getActiveIndices() / 3),

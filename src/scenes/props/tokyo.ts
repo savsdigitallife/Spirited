@@ -125,6 +125,16 @@ export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
           new Vector3(0, 1.12, -0.37),
           materials.emissive("vendingGlow", new Color3(1, 0.97, 0.86), 2.4),
         );
+        // The pane in front of the display, which is what actually catches
+        // the street: a vending machine at night is mostly a lit rectangle
+        // behind glass.
+        const pane = box(
+          scene,
+          "pane",
+          { width: 0.9, height: 1.16, depth: 0.03 },
+          new Vector3(0, 1.12, -0.4),
+          materials.glass("cabinet"),
+        );
         const tray = box(
           scene,
           "tray",
@@ -132,7 +142,7 @@ export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
           new Vector3(0, 0.36, -0.37),
           metalDark(),
         );
-        return [body, front, tray];
+        return [body, front, pane, tray];
       },
     },
     {
@@ -289,7 +299,7 @@ export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
           "cabin",
           { width: 1.62, height: 0.58, depth: 2.3 },
           new Vector3(0, 1.2, -0.15),
-          materials.glass(),
+          materials.glass("vehicle"),
         );
         const parts: Mesh[] = [lower, cabin];
         for (const [x, z] of [

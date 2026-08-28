@@ -17,6 +17,7 @@ import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import type { Scene } from "@babylonjs/core/scene";
 import { makeSurface, type SurfaceRecipe } from "./ProceduralMaterials";
 import { makeRandom } from "./Noise";
+import { makeGlass, type GlassKind } from "./Glass";
 
 const RECIPES = {
   asphalt: {
@@ -201,20 +202,17 @@ export class CityMaterials {
     return material;
   }
 
-  glass(): PBRMaterial {
-    const key = "glass";
+  /**
+   * Glazing. Clear enough to see a room through, smooth enough to hold the
+   * sky: at 0.55 alpha over a dark albedo every shopfront was a black
+   * mirror, which defeats the point of building interiors behind them, and
+   * the reflection now sits over the transparency rather than replacing it.
+   */
+  glass(kind: GlassKind = "shopfront"): PBRMaterial {
+    const key = `glass:${kind}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
-    const material = new PBRMaterial("city.glass", this.scene);
-    // Clear enough to see a room through. At 0.55 alpha over a dark albedo
-    // every shopfront was a black mirror, which defeats the entire point of
-    // building interiors behind them.
-    material.albedoColor = new Color3(0.09, 0.11, 0.13);
-    material.metallic = 0.25;
-    material.roughness = 0.05;
-    material.alpha = 0.26;
-    material.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
-    material.backFaceCulling = false;
+    const material = makeGlass(this.scene, `city.glass.${kind}`, kind);
     this.cache.set(key, material);
     return material;
   }
@@ -232,16 +230,34 @@ export class CityMaterials {
     const size = Math.min(1024, Math.max(256, this.textureSize));
     const random = makeRandom(options.seed);
 
-    const draw = (emissive: boolean): DynamicTexture => {
+    // The grid is decided once and then drawn three times. Rolling it inside
+    // each pass would give the albedo, the emissive and the gloss map three
+    // different sets of lit windows.
+    const cells: { lit: boolean; brightness: number; cold: boolean; shade: number }[] = [];
+    for (let i = 0; i < options.rows * options.columns; i += 1) {
+      cells.push({
+        lit: random() < options.litFraction,
+        brightness: 0.5 + random() * 0.5,
+        cold: random() >= 0.78,
+        shade: random(),
+      });
+    }
+
+    const draw = (pass: "albedo" | "emissive" | "gloss"): DynamicTexture => {
+      const emissive = pass === "emissive";
       const texture = new DynamicTexture(
-        `facade.${name}.${emissive ? "emissive" : "albedo"}`,
+        `facade.${name}.${pass}`,
         { width: size, height: size },
         this.scene,
         true,
         Texture.TRILINEAR_SAMPLINGMODE,
       );
       const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
-      ctx.fillStyle = emissive ? "#000000" : "#20242a";
+      // The gloss map is read as metallic-roughness: green is roughness,
+      // blue is metalness. The wall is rough and dielectric; the panes are
+      // smooth and part-metal, which is how a window catches the sun while
+      // the concrete around it does not.
+      ctx.fillStyle = emissive ? "#000000" : pass === "gloss" ? "#00c010" : "#20242a";
       ctx.fillRect(0, 0, size, size);
 
       const cellW = size / options.columns;
@@ -257,16 +273,24 @@ export class CityMaterials {
           const y = row * cellH + inset;
           const w = cellW - inset * 2;
           const h = cellH - inset * 2;
-          const lit = random() < options.litFraction;
+          const cell = cells[row * options.columns + col]!;
+          if (pass === "gloss") {
+            // Roughness 0.09, metalness 0.55 over the pane, with a little
+            // variation so a facade is not one uniform sheet of mirror.
+            const rough = Math.round((0.07 + cell.shade * 0.06) * 255);
+            ctx.fillStyle = `rgb(0,${rough},140)`;
+            ctx.fillRect(x, y, w, h);
+            continue;
+          }
           if (emissive) {
-            if (!lit) continue;
-            const palette = random() < 0.78 ? warm : cold;
-            ctx.fillStyle = palette[Math.floor(random() * palette.length)] ?? "#ffd8a0";
-            ctx.globalAlpha = 0.5 + random() * 0.5;
+            if (!cell.lit) continue;
+            const palette = cell.cold ? cold : warm;
+            ctx.fillStyle = palette[Math.floor(cell.shade * palette.length)] ?? "#ffd8a0";
+            ctx.globalAlpha = cell.brightness;
             ctx.fillRect(x, y, w, h);
             ctx.globalAlpha = 1;
           } else {
-            ctx.fillStyle = lit ? "#2c3038" : "#14171b";
+            ctx.fillStyle = cell.lit ? "#2c3038" : "#14171b";
             ctx.fillRect(x, y, w, h);
           }
         }
@@ -279,12 +303,21 @@ export class CityMaterials {
     };
 
     const material = new PBRMaterial(`city.facade.${name}`, this.scene);
-    material.albedoTexture = draw(false);
-    material.emissiveTexture = draw(true);
+    material.albedoTexture = draw("albedo");
+    material.emissiveTexture = draw("emissive");
     material.emissiveColor = new Color3(1, 1, 1);
     material.emissiveIntensity = 1.1;
-    material.metallic = 0.1;
-    material.roughness = 0.7;
+    // Metalness and roughness now come per-pixel from the gloss map; the
+    // factors above it stay at 1 so the map is what decides.
+    material.metallicTexture = draw("gloss");
+    material.useRoughnessFromMetallicTextureAlpha = false;
+    material.useRoughnessFromMetallicTextureGreen = true;
+    material.useMetallnessFromMetallicTextureBlue = true;
+    material.metallic = 1;
+    material.roughness = 1;
+    // Windows are the only part of a facade that should out-reflect the
+    // street, and the map has already limited that to the panes.
+    material.environmentIntensity = 1.5;
     this.cache.set(key, material);
     return material;
   }

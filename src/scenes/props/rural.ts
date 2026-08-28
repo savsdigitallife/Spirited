@@ -25,6 +25,8 @@ export interface RuralPalette {
   /** Flat-colour helper shared with the rest of the region. */
   painted: (name: string, colour: Color3, roughness?: number, metallic?: number) => PBRMaterial;
   emissive: (name: string, colour: Color3, strength?: number) => PBRMaterial;
+  /** Glazing, shared with the city so a pane behaves the same everywhere. */
+  glass: () => PBRMaterial;
 }
 
 function box(
@@ -92,7 +94,7 @@ function hipRoof(
 }
 
 export function ruralPrefabs(palette: RuralPalette): AssetDefinition[] {
-  const { surfaces, painted, emissive } = palette;
+  const { surfaces, painted, emissive, glass } = palette;
   const timber = () => surfaces.get("timber", 3);
   // Rural walls are lime render over an earth core: warm, and a long way
   // from white. The library's plaster is a city colour and reads as a
@@ -182,7 +184,24 @@ export function ruralPrefabs(palette: RuralPalette): AssetDefinition[] {
         // as a cottage.
         parts.push(box(scene, "plinth", { width: w + 0.4, height: 0.5, depth: d + 0.4 }, new Vector3(0, 0.25, 0), stone()));
         parts.push(box(scene, "floor", { width: w, height: 0.22, depth: d }, new Vector3(0, 0.6, 0), timber()));
-        parts.push(box(scene, "back", { width: w, height: h, depth: 0.24 }, new Vector3(0, 0.6 + h / 2, d / 2), wall()));
+        // The back wall, built around two window openings rather than as one
+        // slab with panes buried inside it. Aluminium sashes: paper screens
+        // face the veranda, and the sides of a house like this were glazed
+        // decades ago. They are what catches the sun coming over the ridge.
+        const sashLow = 1.35;
+        const sashHigh = 2.55;
+        for (const [centre, width] of [[-3.975, 1.55], [0, 3.2], [3.975, 1.55]] as const) {
+          parts.push(box(scene, `backPier${centre}`, { width, height: h, depth: 0.24 }, new Vector3(centre, 0.6 + h / 2, d / 2), wall()));
+        }
+        const sash = painted("sash", new Color3(0.72, 0.73, 0.74), 0.35, 0.6);
+        for (const centre of [-2.4, 2.4]) {
+          parts.push(box(scene, `backSill${centre}`, { width: 1.6, height: sashLow - 0.6, depth: 0.24 }, new Vector3(centre, (0.6 + sashLow) / 2, d / 2), wall()));
+          parts.push(box(scene, `backHead${centre}`, { width: 1.6, height: 0.6 + h - sashHigh, depth: 0.24 }, new Vector3(centre, (sashHigh + 0.6 + h) / 2, d / 2), wall()));
+          parts.push(box(scene, `pane${centre}`, { width: 1.52, height: sashHigh - sashLow, depth: 0.05 }, new Vector3(centre, (sashLow + sashHigh) / 2, d / 2), glass()));
+          parts.push(box(scene, `sashHead${centre}`, { width: 1.66, height: 0.09, depth: 0.14 }, new Vector3(centre, sashHigh + 0.045, d / 2), sash));
+          parts.push(box(scene, `sashSill${centre}`, { width: 1.74, height: 0.11, depth: 0.3 }, new Vector3(centre, sashLow - 0.055, d / 2 + 0.03), sash));
+          parts.push(box(scene, `sashJamb${centre}`, { width: 0.08, height: sashHigh - sashLow, depth: 0.12 }, new Vector3(centre, (sashLow + sashHigh) / 2, d / 2), sash));
+        }
         parts.push(box(scene, "left", { width: 0.24, height: h, depth: d }, new Vector3(-w / 2, 0.6 + h / 2, 0), wall()));
         parts.push(box(scene, "right", { width: 0.24, height: h, depth: d }, new Vector3(w / 2, 0.6 + h / 2, 0), wall()));
         // Front: sliding screens between posts, so the face is mostly opening.

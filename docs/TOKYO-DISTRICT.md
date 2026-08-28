@@ -118,6 +118,34 @@ rain that stops dead at the ground plane is rain the eye does not believe.
 Everything reads the same wetness value: road roughness, citizens' umbrellas,
 footstep hardness, and both ground layers.
 
+## Glass
+
+Every pane in the game — shopfront, door, car cabin, carriage window, cake
+dome, fridge door, vending-machine face, farmhouse sash — is built by
+`src/world/Glass.ts`, so they all behave the same way in the same light.
+
+What makes glass read as glass is that it is smooth: it returns the sky in a
+sharp reflection, throws a hard highlight where the sun is, and reflects more
+the more edge-on you see it. All three come out of the PBR model once the
+material is set up honestly — no metalness, a dielectric's index of
+refraction (1.52), roughness near zero, and, crucially, the reflection and
+the specular allowed to show *over* the transparency rather than being faded
+out with it. A pane at 0.26 alpha without that is 26% of a reflection, which
+is no reflection at all.
+
+The reflection itself is the scene's environment cube: a probe refreshed every
+few seconds as the sun moves, which now runs on every quality preset — six
+128-pixel faces of a sky mesh is cheaper than one light, and it is the
+difference between a window and a dark rectangle. On the street the probe
+also renders the frontages and the near towers, because the thing a Tokyo
+window has to reflect at midnight is forty signs, not an empty sky.
+
+Building windows are not separate panes — there are thousands of them — so
+the facade texture carries a metallic-roughness map alongside its albedo and
+emissive: rough dielectric across the wall, smooth and part-metal over each
+pane. One texture, and every window on every tower catches the sun while the
+concrete around it does not.
+
 ## What is next
 
 Modelled characters and props to drop in behind the ids that are already

@@ -20,6 +20,7 @@ import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder"
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
+import { makeGlass } from "../world/Glass";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
@@ -132,13 +133,7 @@ export async function createTrainInterlude(ctx: SceneContext): Promise<GameScene
   const panelMat = surface(scene, "panel", [0.62, 0.6, 0.56], 0.6);
   const trimMat = surface(scene, "trim", [0.28, 0.3, 0.32], 0.35, 0.8);
   const seatMat = surface(scene, "seat", [0.13, 0.2, 0.28], 0.9);
-  const glassMat = new PBRMaterial("train.glass", scene);
-  glassMat.albedoColor = new Color3(0.02, 0.025, 0.03);
-  glassMat.metallic = 0.1;
-  glassMat.roughness = 0.05;
-  glassMat.alpha = 0.28;
-  glassMat.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
-  glassMat.backFaceCulling = false;
+  const glassMat = makeGlass(scene, "train.glass", "carriage");
 
   const part = (
     name: string,

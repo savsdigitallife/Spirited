@@ -26,6 +26,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import { Character } from "../player/Character";
 import type { CharacterSpec } from "../player/rig/CharacterSpec";
 import { revolve, chamferedBlock } from "./Shapes";
+import { makeGlass } from "./Glass";
 
 export type InteriorKind = "ramen" | "konbini" | "cafe";
 
@@ -447,6 +448,15 @@ export function buildEnterable(
     const steel = surface("fridgeFrame", new Color3(0.24, 0.25, 0.27), 0.45, 0.5, 0.3);
     put("fridgeWall", { width: 0.6, height: 2.1, depth: spec.width - 0.5 }, new Vector3(backX - inward * 0.4, 1.05, spec.z), steel, true);
     put("fridgeGlow", { width: 0.06, height: 1.8, depth: spec.width - 0.8 }, new Vector3(backX - inward * 0.72, 1.05, spec.z), surface("fridgeLight", new Color3(0.8, 0.93, 1), 0.3, 0, 1.5));
+    // The cabinet doors themselves, in front of the stock.
+    const fridgeDoors = CreateBox(`room.${spec.id}.fridgeGlass`, { width: 0.04, height: 1.95, depth: spec.width - 0.6 }, scene);
+    fridgeDoors.position.set(backX - inward * 0.78, 1.05, spec.z);
+    fridgeDoors.material = makeGlass(scene, `room.${spec.id}.fridgeGlass`, "cabinet");
+    fridgeDoors.isPickable = false;
+    fridgeDoors.receiveShadows = false;
+    parts.push(fridgeDoors);
+    register(fridgeDoors);
+
     // Bottles and cans behind the cabinet glass, in rows.
     const drinkColours = [
       new Color3(0.15, 0.35, 0.2), new Color3(0.7, 0.72, 0.75), new Color3(0.85, 0.6, 0.2),
@@ -579,7 +589,7 @@ export function buildEnterable(
       16,
     );
     dome.position.set(backX - inward * 0.65, 1.13, counterZ + spec.width * 0.16);
-    dome.material = surface("domeGlass", new Color3(0.95, 0.93, 1), 0.16, 0, 0.9);
+    dome.material = makeGlass(scene, `room.${spec.id}.domeGlass`, "cabinet");
     parts.push(dome);
     register(dome);
 

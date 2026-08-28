@@ -544,6 +544,16 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   // asphalt and forty signs; the pooled lamps carry the local contrast.
   lighting.setUrbanGlow(new Color3(0.07, 0.09, 0.15), new Color3(0.2, 0.13, 0.09), 0.55);
   const environment = new Environment(scene, sky);
+  // What the windows have to show. The frontages carry the signage and the
+  // lit shopfronts, and the near towers carry the rest of the city's light;
+  // the small street furniture is left out, because at a probe's resolution
+  // a bollard is one dark pixel that costs a draw call.
+  environment.reflect([
+    ...buildings.flatMap((built) => built.meshes),
+    ...skyline
+      .getChildMeshes()
+      .filter((mesh): mesh is Mesh => mesh instanceof Mesh && mesh.position.length() < 70),
+  ]);
 
   // Shopfronts are light sources too, and they are what makes some stretches
   // of the pavement bright and others dark.

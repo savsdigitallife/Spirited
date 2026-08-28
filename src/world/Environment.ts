@@ -22,6 +22,16 @@ const PROBE_INTERVAL = 4;
 
 export class Environment {
   private probe: ReflectionProbe | null = null;
+  /**
+   * What else goes in the reflection besides the sky.
+   *
+   * Sky alone is right for the countryside and wrong for a city at night,
+   * where the thing a window has to reflect is forty signs. The probe sits
+   * at one point in the region, so this is an approximation — but a pane of
+   * glass showing the street's own light is worth far more than a pane
+   * showing a mathematically exact black.
+   */
+  private extras: Mesh[] = [];
   private sinceProbe = PROBE_INTERVAL;
   private fogTint = new Color3(0.6, 0.7, 0.8);
 
@@ -41,12 +51,14 @@ export class Environment {
     // from it so a shorter view distance never shows a hard cut-off.
     this.scene.fogDensity = 2.6 / Math.max(60, q.drawDistance);
 
-    const wantProbe = q.preset !== "low";
-    if (!wantProbe) {
-      this.disposeProbe();
-      return;
-    }
-    const size = q.preset === "ultra" ? 256 : 128;
+    // Every preset gets a probe now, because every pane of glass in the game
+    // reflects it. Six 64-pixel faces of a single sky mesh, refreshed every
+    // four seconds, is cheaper than one extra light and is the difference
+    // between a window and a dark rectangle.
+    // Resolution matters more here than it looks: the sun is a small disc,
+    // and at 64 pixels a face it is filtered away to nothing before it can
+    // ever appear in a window.
+    const size = q.preset === "ultra" ? 512 : q.preset === "low" ? 128 : 256;
     if (this.probe && this.probe.cubeTexture.getSize().width === size) return;
 
     this.disposeProbe();
@@ -54,10 +66,19 @@ export class Environment {
     probe.position = new Vector3(0, 6, 0);
     // Manual refresh: we decide when the sky has changed enough to matter.
     probe.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
-    probe.renderList = [this.sky.mesh as Mesh];
+    probe.renderList = [this.sky.mesh as Mesh, ...this.extras];
     this.scene.environmentTexture = probe.cubeTexture;
     this.probe = probe;
     this.sinceProbe = PROBE_INTERVAL;
+  }
+
+  /**
+   * Adds meshes to the reflection alongside the sky. Called once, with the
+   * region's backdrop: the frontages and the skyline, not the small stuff.
+   */
+  reflect(meshes: Iterable<Mesh>): void {
+    this.extras = [...meshes];
+    if (this.probe) this.probe.renderList = [this.sky.mesh as Mesh, ...this.extras];
   }
 
   update(deltaSeconds: number): void {

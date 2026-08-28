@@ -35,6 +35,7 @@ import { AssetCatalog } from "../engine/AssetCatalog";
 import { InteractionSystem } from "../world/Interaction";
 import { fbm, ridge, makeRandom } from "../world/Noise";
 import { ruralPrefabs } from "./props/rural";
+import { makeGlass } from "../world/Glass";
 import { PlayerController } from "../player/PlayerController";
 import { ThirdPersonCamera } from "../player/ThirdPersonCamera";
 
@@ -281,7 +282,8 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   // -------------------------------------------------------------- prefabs
   ctx.progress(0.44, "Building the village…");
   const catalog = new AssetCatalog(scene, ctx.assets);
-  catalog.defineAll(ruralPrefabs({ surfaces, painted, emissive }));
+  const valleyGlass = makeGlass(scene, "valley.glass", "shopfront");
+  catalog.defineAll(ruralPrefabs({ surfaces, painted, emissive, glass: () => valleyGlass }));
   await catalog.prepare([
     "cedar_tree_01",
     "broadleaf_tree_01",
