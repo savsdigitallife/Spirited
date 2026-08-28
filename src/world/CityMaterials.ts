@@ -16,7 +16,7 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import type { Scene } from "@babylonjs/core/scene";
 import { makeSurface, type SurfaceRecipe } from "./ProceduralMaterials";
-import { makeRandom } from "./Noise";
+import { fbm, makeRandom } from "./Noise";
 import { makeGlass, type GlassKind } from "./Glass";
 
 const RECIPES = {
@@ -67,6 +67,20 @@ const RECIPES = {
 } as const satisfies Record<string, SurfaceRecipe>;
 
 export type CitySurface = keyof typeof RECIPES;
+
+/** Metres one tile of the road's macro maps covers. */
+export const ROAD_TILE = 8;
+/** Metres one tile of its aggregate detail map covers. */
+export const ROAD_DETAIL_TILE = 1.1;
+
+export interface RoadOptions {
+  /**
+   * How much smoother than the surrounding road this surface is, 0 to 1.
+   * The wheel tracks down each lane are polished by the traffic that made
+   * them, which is most of what you see reflected in a wet street.
+   */
+  polish?: number;
+}
 
 /** Sign colours. Chosen to read against a blue-black night, not copied. */
 export const NEON = {
@@ -132,7 +146,44 @@ export class CityMaterials {
   }
 
   /**
-   * Asphalt whose roughness the weather drives.
+   * A ground surface for meshes that carry world-plane UVs.
+   *
+   * Box faces map 0..1 each, and Babylon's top face runs its U along the
+   * depth — so a 4 m by 90 m pavement slab textured the ordinary way shows
+   * the map smeared ninety metres one way and repeated every fourteen
+   * centimetres the other, which is where the corduroy on the pavements came
+   * from. Paired with `planarUv`, this maps one tile per `metres` on the
+   * ground plane and every slab on it agrees.
+   */
+  planarSurface(name: CitySurface, metres: number): PBRMaterial {
+    const key = `planar:${name}:${metres}`;
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    const material = makeSurface(this.scene, RECIPES[name], this.textureSize);
+    material.name = `city.planar.${name}`;
+    for (const texture of [
+      material.albedoTexture,
+      material.bumpTexture,
+      material.metallicTexture,
+    ]) {
+      if (!(texture instanceof Texture)) continue;
+      texture.uScale = 1;
+      texture.vScale = 1;
+      texture.anisotropicFilteringLevel = this.anisotropy;
+    }
+    this.cache.set(key, material);
+    return material;
+  }
+
+  /**
+   * Asphalt: chippings in a binder, laid in patches, cracked between them,
+   * and polished where the wheels run.
+   *
+   * Two layers. The macro map carries what a road has done to it over years
+   * — resurfacing, trench patches, cracks — at eight metres a tile; the
+   * detail map carries the chippings themselves at about a metre. Either
+   * alone fails: macro on its own is grey mush underfoot, aggregate on its
+   * own moirés into a pattern down the street.
    *
    * Built here rather than cloned from `surface()`, because cloning a
    * Babylon material re-creates its textures from serialisation — and a
@@ -140,30 +191,213 @@ export class CityMaterials {
    * the clone's textures never become ready and the mesh silently never
    * renders. Anything generated at runtime must be referenced, never cloned.
    */
-  road(uMetres: number, vMetres: number): PBRMaterial {
-    const key = `road:${uMetres}x${vMetres}`;
+  road(options: RoadOptions = {}): PBRMaterial {
+    const polish = options.polish ?? 0;
+    const key = `road:${polish}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
 
-    const material = makeSurface(this.scene, RECIPES.asphalt, this.textureSize);
-    material.name = "city.road";
-    // Roughness comes from code, not from the packed texture, so rain can
-    // polish the surface every frame with a single uniform change.
-    material.metallicTexture?.dispose();
-    material.metallicTexture = null;
-    material.useRoughnessFromMetallicTextureGreen = false;
-    material.useMetallnessFromMetallicTextureBlue = false;
-    material.metallic = 0;
-    material.roughness = 0.78;
+    // Every surface on the carriageway carries world-plane UVs (see
+    // `planarUv`), so the maps are laid at a fixed metres-per-tile here and
+    // nothing has to know how big the mesh it lands on is.
+    const size = Math.min(512, Math.max(256, this.textureSize));
+    const material = new PBRMaterial(polish > 0 ? "city.road.polished" : "city.road", this.scene);
+    const macro = this.asphaltMacro(size, polish);
+    material.albedoTexture = macro.albedo;
+    material.bumpTexture = macro.normal;
+    material.metallicTexture = macro.orm;
+    material.useRoughnessFromMetallicTextureAlpha = false;
+    material.useRoughnessFromMetallicTextureGreen = true;
+    material.useMetallnessFromMetallicTextureBlue = true;
+    material.metallic = 1;
+    // Roughness is a multiplier over the map: the variation stays, and rain
+    // can still polish the whole surface with one uniform change.
+    material.roughness = 1;
+    material.invertNormalMapY = false;
+    material.specularIntensity = 0.5;
+    material.enableSpecularAntiAliasing = true;
 
-    for (const texture of [material.albedoTexture, material.bumpTexture]) {
-      if (!(texture instanceof Texture)) continue;
-      texture.uScale = uMetres * RECIPES.asphalt.tiling;
-      texture.vScale = vMetres * RECIPES.asphalt.tiling;
+    // The chippings, at the scale you actually see them from.
+    //
+    // Macro alone is grey mush underfoot; aggregate alone tiles so tightly
+    // it moirés down the street. The detail map runs the second layer at its
+    // own scale over the first, which is the difference between grey and
+    // asphalt.
+    const aggregate = this.asphaltAggregate(size);
+    material.detailMap.texture = aggregate;
+    material.detailMap.isEnabled = true;
+    material.detailMap.diffuseBlendLevel = 0.55;
+    // Kept modest: a strong normal at this tiling aliases into moiré bands
+    // the moment the camera looks down the street rather than at it.
+    material.detailMap.bumpLevel = 0.55;
+    material.detailMap.roughnessBlendLevel = 0.35;
+
+    for (const texture of [macro.albedo, macro.normal, macro.orm]) {
+      texture.uScale = 1;
+      texture.vScale = 1;
       texture.anisotropicFilteringLevel = this.anisotropy;
     }
+    // The detail layer runs at ROAD_TILE / DETAIL_TILE times the macro one.
+    aggregate.uScale = ROAD_TILE / ROAD_DETAIL_TILE;
+    aggregate.vScale = ROAD_TILE / ROAD_DETAIL_TILE;
+    aggregate.anisotropicFilteringLevel = this.anisotropy;
+
     this.cache.set(key, material);
     return material;
+  }
+
+  /**
+   * The road at arm's length: mottling from successive resurfacings, tar
+   * patches over old trenches, and the cracks that run between them.
+   */
+  private asphaltMacro(
+    size: number,
+    polish: number,
+  ): { albedo: DynamicTexture; normal: DynamicTexture; orm: DynamicTexture } {
+    // Deliberately low-contrast and featureless.
+    //
+    // A tiled texture repeats eleven times down this street, so anything
+    // memorable in it — a crack, a patch, a pale blotch — becomes a stripe
+    // running the length of the road. The character of the surface belongs
+    // on meshes laid once (see the trench patches, seams and ironwork in the
+    // street itself); what belongs here is the grain between them.
+    const height = new Float32Array(size * size);
+    const tone = new Float32Array(size * size);
+    const gloss = new Float32Array(size * size);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const u = x / size;
+        const v = y / size;
+        const broad =
+          fbm(u * 7, v * 7, { octaves: 4, period: 7, seed: 401 }) * 0.55 +
+          fbm(u * 2.6, v * 2.6, { octaves: 2, period: 3, seed: 55 }) * 0.45;
+        const i = y * size + x;
+        tone[i] = broad;
+        height[i] = broad;
+        // Worn smooth where the binder has gone, rougher where it has not.
+        gloss[i] = Math.max(0, Math.min(1, 0.74 + broad * 0.22 - polish));
+      }
+    }
+
+    const albedo = this.paint(`road.albedo.${polish}`, size, (px) => {
+      for (let i = 0; i < size * size; i += 1) {
+        const t = Math.min(1, Math.max(0, ((tone[i] ?? 0) - 0.3) / 0.4));
+        const o = i * 4;
+        // Asphalt is a warm dark grey — about a tenth of the light back —
+        // that goes paler as the binder wears off the top of the chippings.
+        px[o] = Math.round(255 * (0.085 + 0.075 * t));
+        px[o + 1] = Math.round(255 * (0.083 + 0.072 * t));
+        px[o + 2] = Math.round(255 * (0.079 + 0.068 * t));
+        px[o + 3] = 255;
+      }
+    });
+
+    const normal = this.paint(`road.normal.${polish}`, size, (px) => {
+      const at = (x: number, y: number): number =>
+        height[(((y % size) + size) % size) * size + (((x % size) + size) % size)] ?? 0;
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const dx = (at(x + 1, y) - at(x - 1, y)) * 1.4;
+          const dy = (at(x, y + 1) - at(x, y - 1)) * 1.4;
+          const length = Math.hypot(-dx, -dy, 1);
+          const o = (y * size + x) * 4;
+          px[o] = Math.round(((-dx / length) * 0.5 + 0.5) * 255);
+          px[o + 1] = Math.round(((-dy / length) * 0.5 + 0.5) * 255);
+          px[o + 2] = Math.round((1 / length) * 0.5 * 255 + 127);
+          px[o + 3] = 255;
+        }
+      }
+    });
+
+    const orm = this.paint(`road.orm.${polish}`, size, (px) => {
+      for (let i = 0; i < size * size; i += 1) {
+        const o = i * 4;
+        px[o] = 255;
+        px[o + 1] = Math.round(255 * (gloss[i] ?? 0.8));
+        px[o + 2] = 0;
+        px[o + 3] = 255;
+      }
+    });
+
+    return { albedo, normal, orm };
+  }
+
+  /**
+   * The chippings themselves, as a detail map.
+   *
+   * Babylon reads this one texture as four separate things: red is an albedo
+   * multiplier around 0.5, blue is a roughness offset around 0.5, and alpha
+   * with green carry the normal's X and Y. One texture, three channels of
+   * grit.
+   */
+  private asphaltAggregate(size: number): DynamicTexture {
+    const shared = this.aggregate;
+    if (shared) return shared;
+    const stones = new Float32Array(size * size);
+    const random = makeRandom(5501);
+    for (let i = 0; i < size * size; i += 1) stones[i] = random();
+    // Two blur passes turn per-texel static into chippings with a size. One
+    // pass gives millimetre grit that has averaged itself away by the time
+    // you are standing up; five millimetres is what you actually see.
+    const blurred = new Float32Array(size * size);
+    const at = (data: Float32Array, x: number, y: number): number =>
+      data[(((y % size) + size) % size) * size + (((x % size) + size) % size)] ?? 0;
+    const radius = Math.max(1, Math.round(size / 320));
+    const span = (radius * 2 + 1) * (radius * 2 + 1);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        let sum = 0;
+        for (let dy = -radius; dy <= radius; dy += 1) {
+          for (let dx = -radius; dx <= radius; dx += 1) sum += at(stones, x + dx, y + dy);
+        }
+        // Pushed away from the mean so the chippings keep their edges.
+        const mean = sum / span;
+        blurred[y * size + x] = Math.min(1, Math.max(0, (mean - 0.5) * 2.2 + 0.5));
+      }
+    }
+
+    const texture = this.paint("road.aggregate", size, (px) => {
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const n = at(blurred, x, y);
+          const dx = (at(blurred, x + 1, y) - at(blurred, x - 1, y)) * 3.2;
+          const dy = (at(blurred, x, y + 1) - at(blurred, x, y - 1)) * 3.2;
+          const length = Math.hypot(-dx, -dy, 1);
+          const o = (y * size + x) * 4;
+          // Red: albedo grain. Blue: roughness grain, brighter in the pits
+          // where the binder still sits. Alpha and green: the normal.
+          px[o] = Math.round(255 * (0.24 + n * 0.56));
+          px[o + 1] = Math.round(((-dy / length) * 0.5 + 0.5) * 255);
+          px[o + 2] = Math.round(255 * (0.38 + (1 - n) * 0.3));
+          px[o + 3] = Math.round(((-dx / length) * 0.5 + 0.5) * 255);
+        }
+      }
+    });
+    this.aggregate = texture;
+    return texture;
+  }
+
+  private aggregate: DynamicTexture | null = null;
+
+  /** A canvas-backed texture written a pixel at a time. */
+  private paint(name: string, size: number, write: (px: Uint8ClampedArray) => void): DynamicTexture {
+    const texture = new DynamicTexture(
+      `city.${name}`,
+      { width: size, height: size },
+      this.scene,
+      true,
+      Texture.TRILINEAR_SAMPLINGMODE,
+      undefined,
+      false,
+    );
+    const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
+    const image = ctx.createImageData(size, size);
+    write(image.data);
+    ctx.putImageData(image, 0, 0);
+    texture.update(false);
+    texture.wrapU = Texture.WRAP_ADDRESSMODE;
+    texture.wrapV = Texture.WRAP_ADDRESSMODE;
+    return texture;
   }
 
   /** Flat colour, for painted metal, plastic, road markings. */

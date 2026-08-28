@@ -146,6 +146,39 @@ emissive: rough dielectric across the wall, smooth and part-metal over each
 pane. One texture, and every window on every tower catches the sun while the
 concrete around it does not.
 
+## The road, and what runs on it
+
+Asphalt is two layers: a macro map at eight metres a tile carrying the grain
+of the surface, and a detail map at about a metre carrying the chippings
+themselves. Neither works alone — macro is grey mush underfoot, aggregate
+moirés into stripes down the street — and Babylon's detail map runs the
+second over the first for the cost of one texture.
+
+Both are deliberately featureless, because a tiled map repeats eleven times
+down this street: anything memorable in it becomes a stripe running the whole
+length. Everything with character is laid once as geometry instead — the
+polished wheel tracks, the joint down each gutter, the transverse joints
+between the paver's passes, backfilled trench patches, cracks with branches
+off them, and the ironwork. All of it shares the road's material and takes
+its tone from vertex colour, so a patch is asphalt of a different age rather
+than a clean grey rectangle.
+
+Everything on the ground plane now carries world-plane UVs (`planarUv`).
+This fixed the corduroy: a box's faces are each mapped 0..1 and the top
+face's U runs along its *depth*, so a four-by-ninety-metre pavement slab was
+showing its texture smeared ninety metres one way and repeated every fourteen
+centimetres the other. With world UVs the grain is continuous across the
+road, its patches and the pavement, whatever size each mesh is.
+
+**Wheels.** A tyre and a rim are both surfaces of revolution, which is what
+they are in life. The tyre's profile carries the bead, the sidewall bulge,
+the shoulders and three circumferential grooves; the rim's carries the barrel
+and its lips, with five spokes across the face, a hub cap and a brake disc
+behind. Rubber is a dielectric at 0.82 roughness; the rim is a polished metal
+at 0.14, so it returns the street the way the glass does. The four wheels
+merge to one mesh — they never move relative to each other — and the rim
+faces outward on both sides of the car.
+
 ## What is next
 
 Modelled characters and props to drop in behind the ids that are already

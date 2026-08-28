@@ -13,10 +13,11 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { AssetDefinition } from "../../engine/AssetCatalog";
 import { CityMaterials, NEON } from "../../world/CityMaterials";
+import { revolve } from "../../world/Shapes";
 
 
 function box(
@@ -30,6 +31,122 @@ function box(
   mesh.position.copyFrom(at);
   mesh.material = material;
   return mesh;
+}
+
+
+/**
+ * A road wheel: a grooved rubber tyre on a bright alloy rim.
+ *
+ * Both are surfaces of revolution, which is what they are in life — the
+ * tyre's profile carries the bead, the sidewall bulge, the shoulders and
+ * three circumferential grooves, and the rim's carries the barrel and its
+ * lips. A cylinder with a black material reads as a bin lid; a profile with
+ * a sidewall and a tread reads as a tyre from the pavement.
+ *
+ * Built lying along the lathe's Y axis and laid over onto the axle by the
+ * caller's merge, so the whole set of four ends up as one mesh.
+ */
+function roadWheel(
+  scene: Scene,
+  name: string,
+  at: Vector3,
+  tyreMaterial: Mesh["material"],
+  rimMaterial: Mesh["material"],
+  discMaterial: Mesh["material"],
+): Mesh[] {
+  const width = 0.205;
+  const parts: Mesh[] = [];
+  // Lay the lathe's axis onto the axle, and put the rim's face outward: the
+  // spokes are on the far end of the profile, so the two sides of the car
+  // turn opposite ways.
+  const outward = at.x >= 0 ? -1 : 1;
+  const place = (mesh: Mesh): Mesh => {
+    mesh.rotation.z = (outward * Math.PI) / 2;
+    mesh.position.set(at.x + (outward * width) / 2, at.y, at.z);
+    parts.push(mesh);
+    return mesh;
+  };
+
+  const tyre = revolve(
+    scene,
+    `${name}.tyre`,
+    [
+      [0.188, 0],
+      [0.208, 0.005],
+      [0.262, 0.016],
+      [0.292, 0.032],
+      [0.307, 0.05],
+      [0.311, 0.062],
+      [0.296, 0.068],
+      [0.311, 0.075],
+      [0.311, 0.098],
+      [0.295, 0.104],
+      [0.311, 0.111],
+      [0.311, 0.134],
+      [0.296, 0.14],
+      [0.311, 0.146],
+      [0.307, 0.156],
+      [0.292, 0.174],
+      [0.262, 0.19],
+      [0.208, 0.2],
+      [0.188, 0.205],
+    ],
+    22,
+  );
+  tyre.material = tyreMaterial;
+  place(tyre);
+
+  // The rim: a barrel with a lip at each end, closed by the face the spokes
+  // stand on.
+  const rim = revolve(
+    scene,
+    `${name}.rim`,
+    [
+      [0, 0.012],
+      [0.176, 0.012],
+      [0.191, 0.004],
+      [0.191, 0.026],
+      [0.172, 0.05],
+      [0.172, 0.16],
+      [0.191, 0.18],
+      [0.191, 0.201],
+      [0.176, 0.193],
+      [0.13, 0.193],
+    ],
+    22,
+  );
+  rim.material = rimMaterial;
+  place(rim);
+
+  // Five spokes across the face, and a cap over the hub.
+  for (let i = 0; i < 5; i += 1) {
+    const angle = (i / 5) * Math.PI * 2;
+    const spoke = CreateBox(`${name}.spoke${i}`, { width: 0.058, height: 0.026, depth: 0.14 }, scene);
+    spoke.position.set(Math.sin(angle) * 0.095, 0.184, Math.cos(angle) * 0.095);
+    spoke.rotation.y = angle;
+    // Baked, because `place` then overwrites the transform with the wheel's
+    // own: everything below it has to be geometry by that point.
+    spoke.bakeCurrentTransformIntoVertices();
+    spoke.material = rimMaterial;
+    place(spoke);
+  }
+  const cap = revolve(
+    scene,
+    `${name}.hub`,
+    [[0, 0.202], [0.05, 0.2], [0.058, 0.19], [0.058, 0.17], [0, 0.168]],
+    16,
+  );
+  cap.material = rimMaterial;
+  place(cap);
+
+  // The brake disc behind the spokes, just visible through them.
+  const disc = CreateCylinder(`${name}.disc`, { diameter: 0.26, height: 0.02, tessellation: 20 }, scene);
+  disc.position.set(0, 0.13, 0);
+  disc.bakeCurrentTransformIntoVertices();
+  disc.material = discMaterial;
+  place(disc);
+
+  return parts;
 }
 
 export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
@@ -302,21 +419,30 @@ export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
           materials.glass("vehicle"),
         );
         const parts: Mesh[] = [lower, cabin];
+
+        // Rubber, alloy and iron: a tyre is a dielectric and almost matte, a
+        // rim is a polished metal that returns the street, and the disc
+        // behind it is somewhere between the two.
+        const rubber = materials.painted("tyre", new Color3(0.032, 0.032, 0.035), 0.82);
+        const alloy = materials.painted("wheelRim", new Color3(0.84, 0.85, 0.88), 0.14, 1);
+        const brake = materials.painted("brakeDisc", new Color3(0.3, 0.29, 0.3), 0.4, 0.85);
+        const wheelParts: Mesh[] = [];
         for (const [x, z] of [
-          [-0.86, 1.4],
-          [0.86, 1.4],
-          [-0.86, -1.4],
-          [0.86, -1.4],
+          [-0.82, 1.4],
+          [0.82, 1.4],
+          [-0.82, -1.4],
+          [0.82, -1.4],
         ] as const) {
-          const wheel = CreateCylinder(
-            `wheel${x}${z}`,
-            { diameter: 0.62, height: 0.22, tessellation: 12 },
-            scene,
+          wheelParts.push(
+            ...roadWheel(scene, `wheel${x}${z}`, new Vector3(x, 0.311, z), rubber, alloy, brake),
           );
-          wheel.rotation.z = Math.PI / 2;
-          wheel.position.set(x, 0.31, z);
-          wheel.material = materials.painted("tyre", new Color3(0.04, 0.04, 0.05), 0.9);
-          parts.push(wheel);
+        }
+        // One mesh for the set: they never move relative to each other, and
+        // the catalog instances every part of a prefab separately.
+        const wheels = Mesh.MergeMeshes(wheelParts, true, true, undefined, false, true);
+        if (wheels) {
+          wheels.name = "wheels";
+          parts.push(wheels);
         }
         for (const x of [-0.6, 0.6]) {
           const head = box(

@@ -79,6 +79,25 @@ for (const step of script.split(",").filter(Boolean)) {
     await page.mouse.move(640 + Number(a), 360 + Number(b), { steps: 12 });
   } else if (verb === "wait") {
     await page.waitForTimeout(Number(a) * 1000);
+  } else if (verb === "see") {
+    // Development only: frame a named mesh from `b` metres away, slightly
+    // above it. For looking at one prop without chasing it on foot.
+    await page.evaluate(
+      ([match, distance]) => {
+        const s = window.nagori.scenes.active.scene;
+        const mesh = s.meshes.find((m) => m.name.includes(match) && m.isEnabled());
+        if (!mesh) throw new Error(`no enabled mesh matching ${match}`);
+        const at = mesh.getAbsolutePosition().clone();
+        const camera = s.activeCamera;
+        const eye = { x: at.x + distance * 0.78, y: at.y + distance * 0.22, z: at.z + distance * 0.58 };
+        s.onBeforeRenderObservable.add(() => {
+          camera.position.set(eye.x, eye.y, eye.z);
+          camera.setTarget(at);
+        });
+        return mesh.name;
+      },
+      [a, Number(b ?? 4)],
+    );
   } else if (verb === "glint") {
     // Development only: park a free camera where the sun's reflection in a
     // given pane is aimed, so a glint can be looked at deliberately instead

@@ -20,6 +20,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Scene } from "@babylonjs/core/scene";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
+import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
 import { CreateLineSystem } from "@babylonjs/core/Meshes/Builders/linesBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
@@ -32,7 +33,7 @@ import type { Time } from "../core/Time";
 import { Sky } from "../world/Sky";
 import { Lighting } from "../world/Lighting";
 import { Environment } from "../world/Environment";
-import { CityMaterials, NEON } from "../world/CityMaterials";
+import { CityMaterials, NEON, ROAD_TILE } from "../world/CityMaterials";
 import { AssetCatalog } from "../engine/AssetCatalog";
 import { InteractionSystem } from "../world/Interaction";
 import { Citizens, type Doorway } from "../world/Citizens";
@@ -40,6 +41,7 @@ import { Traffic } from "../world/Traffic";
 import { Weather } from "../world/Weather";
 import { LampPool, type LampSite } from "../world/LampPool";
 import { WetGround } from "../world/WetGround";
+import { planarUv, tint } from "../world/Shapes";
 import { buildAlley } from "../world/Alley";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
 import { ShopInteriors } from "../world/ShopInterior";
@@ -160,13 +162,143 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   ctx.progress(0.1, "Laying the road…");
   const roadLength = BLOCK_TO - BLOCK_FROM + 24;
   const roadCentre = (BLOCK_FROM + BLOCK_TO) / 2;
-  const roadMaterial = materials.road(ROAD_HALF * 2, roadLength);
-  slab(
-    "road",
-    { width: ROAD_HALF * 2, height: 0.3, depth: roadLength },
-    new Vector3(0, -0.15, roadCentre),
-    roadMaterial,
+  const roadMaterial = materials.road();
+  planarUv(
+    slab(
+      "road",
+      { width: ROAD_HALF * 2, height: 0.3, depth: roadLength },
+      new Vector3(0, -0.15, roadCentre),
+      roadMaterial,
+    ),
+    ROAD_TILE,
   );
+
+  // Everything laid on the carriageway: the tracks the traffic has polished,
+  // the joints between passes of the paver, the trench patches, and the
+  // ironwork. A road with none of these reads as a grey ribbon; a road with
+  // them reads as a road that has been dug up and mended for forty years.
+  const trackMaterial = materials.road({ polish: 0.24 });
+  const roadSurfaces = [roadMaterial, trackMaterial];
+
+  const onRoad = (
+    name: string,
+    size: { width: number; height: number; depth: number },
+    at: Vector3,
+    material: Material,
+    options: { rotationY?: number; shade?: number } = {},
+  ): Mesh => {
+    const mesh = CreateBox(name, size, scene);
+    mesh.position.copyFrom(at);
+    mesh.rotation.y = options.rotationY ?? 0;
+    mesh.material = material;
+    mesh.isPickable = false;
+    mesh.receiveShadows = true;
+    // Same grain as the road under it, continuous across the join, and a
+    // tone of its own from vertex colour rather than a second material.
+    planarUv(mesh, ROAD_TILE);
+    if (options.shade !== undefined) {
+      tint(mesh, new Color3(options.shade, options.shade, options.shade));
+    }
+    mesh.freezeWorldMatrix();
+    return mesh;
+  };
+
+  // Two wheel tracks a lane, worn smooth by everything that has driven over
+  // them. In the rain they are the brightest thing on the carriageway.
+  for (const lane of [-1, 1] as const) {
+    for (const offset of [-0.78, 0.78]) {
+      onRoad(
+        `wheelTrack${lane}${offset}`,
+        { width: 0.5, height: 0.02, depth: roadLength - 2 },
+        new Vector3(lane * (ROAD_HALF / 2) + offset * 0.5, 0.003, roadCentre),
+        trackMaterial,
+        { shade: 0.88 },
+      );
+    }
+  }
+
+  const seamMaterial = materials.painted("roadSeam", new Color3(0.042, 0.04, 0.04), 0.6);
+  // Backfilled trenches are the same asphalt, laid later and smoother.
+  const patchMaterial = materials.road({ polish: 0.45 });
+  roadSurfaces.push(patchMaterial);
+  // The gutter joint down each kerb, and the transverse joints between the
+  // paver's passes.
+  for (const side of [-1, 1] as const) {
+    onRoad(
+      `gutterSeam${side}`,
+      { width: 0.05, height: 0.02, depth: roadLength },
+      new Vector3(side * (ROAD_HALF - 0.42), 0.004, roadCentre),
+      seamMaterial,
+    );
+  }
+  {
+    const seams = makeRandom(SEED + 61);
+    for (let z = BLOCK_FROM - 8; z < BLOCK_TO + 8; z += 11 + seams() * 6) {
+      if (Math.abs(z - CROSSING_Z) < CROSSING_HALF + 1.5) continue;
+      onRoad(`crossSeam${z.toFixed(1)}`, { width: ROAD_HALF * 2, height: 0.02, depth: 0.06 }, new Vector3(0, 0.004, z), seamMaterial);
+    }
+    // Trench patches: a utility cut, backfilled and never quite matched.
+    for (let i = 0; i < 5; i += 1) {
+      const z = BLOCK_FROM + 4 + seams() * (roadLength - 12);
+      if (Math.abs(z - CROSSING_Z) < CROSSING_HALF + 2) continue;
+      const width = 1.1 + seams() * 2.4;
+      const depth = 0.9 + seams() * 2.2;
+      onRoad(
+        `roadPatch${i}`,
+        { width, height: 0.024, depth },
+        new Vector3((seams() - 0.5) * (ROAD_HALF * 1.4), 0.005, z),
+        patchMaterial,
+        { rotationY: (seams() - 0.5) * 0.08, shade: 0.72 + seams() * 0.12 },
+      );
+    }
+    // Cracks, as meshes rather than as texture: a crack in a tiled map
+    // repeats down the whole street and reads as a stripe. Laid once, they
+    // read as cracks.
+    for (let i = 0; i < 7; i += 1) {
+      const z = BLOCK_FROM + 2 + seams() * (roadLength - 8);
+      const x = (seams() - 0.5) * (ROAD_HALF * 1.7);
+      const length = 1.2 + seams() * 3.5;
+      onRoad(
+        `roadCrack${i}`,
+        { width: 0.05 + seams() * 0.03, height: 0.02, depth: length },
+        new Vector3(x, 0.0045, z),
+        seamMaterial,
+        { rotationY: (seams() - 0.5) * 1.6 },
+      );
+      // A branch off it, so it bends the way a crack does.
+      onRoad(
+        `roadCrackBranch${i}`,
+        { width: 0.04, height: 0.02, depth: length * 0.55 },
+        new Vector3(x + (seams() - 0.5) * 0.6, 0.0045, z + length * 0.35),
+        seamMaterial,
+        { rotationY: (seams() - 0.5) * 2.2 },
+      );
+    }
+
+    // Ironwork. A manhole is the one thing on a road surface with a hard
+    // edge and a highlight, which is why a street without them looks flat.
+    const iron = materials.painted("manhole", new Color3(0.14, 0.135, 0.13), 0.42, 0.75);
+    const ironRim = materials.painted("manholeRim", new Color3(0.1, 0.1, 0.1), 0.7);
+    for (let i = 0; i < 7; i += 1) {
+      const onPavement = i >= 5;
+      const z = BLOCK_FROM + 3 + seams() * (roadLength - 10);
+      const x = onPavement
+        ? (seams() < 0.5 ? -1 : 1) * (ROAD_HALF + 1.2 + seams() * 2)
+        : (seams() - 0.5) * (ROAD_HALF * 1.5);
+      const y = onPavement ? KERB : 0;
+      const diameter = onPavement ? 0.5 : 0.66;
+      const frame = CreateCylinder(`manholeFrame${i}`, { diameter: diameter + 0.1, height: 0.02, tessellation: 20 }, scene);
+      frame.position.set(x, y + 0.006, z);
+      frame.material = ironRim;
+      frame.isPickable = false;
+      frame.freezeWorldMatrix();
+      const cover = CreateCylinder(`manhole${i}`, { diameter, height: 0.03, tessellation: 20 }, scene);
+      cover.position.set(x, y + 0.008, z);
+      cover.material = iron;
+      cover.isPickable = false;
+      cover.freezeWorldMatrix();
+    }
+  }
 
   // A floor under everything. The pavement stops at the building line, the
   // shopfronts are recessed behind it, and the gap between the two was a
@@ -178,15 +310,22 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     materials.surface("concrete", 20),
   );
 
-  const paving = materials.surfaceScaled("paving", PAVE_OUTER - ROAD_HALF + 0.8, roadLength);
+  // One tile every three metres, laid on the ground plane rather than on
+  // each slab's own face, so the pavement reads as paving instead of as
+  // corduroy.
+  const PAVE_TILE = 0.9;
+  const paving = materials.planarSurface("paving", PAVE_TILE);
   const kerbMaterial = materials.painted("kerb", new Color3(0.5, 0.49, 0.46), 0.8);
   for (const side of [-1, 1] as const) {
-    slab(
-      `pavement${side}`,
-      // Run it past the building line so the recessed doorways have floor.
-      { width: PAVE_OUTER - ROAD_HALF + 0.8, height: KERB, depth: roadLength },
-      new Vector3(side * (ROAD_HALF + (PAVE_OUTER - ROAD_HALF + 0.8) / 2), KERB / 2, roadCentre),
-      paving,
+    planarUv(
+      slab(
+        `pavement${side}`,
+        // Run it past the building line so the recessed doorways have floor.
+        { width: PAVE_OUTER - ROAD_HALF + 0.8, height: KERB, depth: roadLength },
+        new Vector3(side * (ROAD_HALF + (PAVE_OUTER - ROAD_HALF + 0.8) / 2), KERB / 2, roadCentre),
+        paving,
+      ),
+      PAVE_TILE,
     );
     slab(
       `kerb${side}`,
@@ -222,12 +361,14 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   // Tactile paving and a dropped kerb at the crossing.
   const tactile = materials.painted("tactile", new Color3(0.82, 0.74, 0.28), 0.85);
   for (const side of [-1, 1] as const) {
-    slab(
+    const ramp = slab(
       `ramp${side}`,
       { width: 1.1, height: KERB, depth: CROSSING_HALF * 2 },
       new Vector3(side * (ROAD_HALF + 0.55), KERB / 2 - 0.035, CROSSING_Z),
       paving,
-    ).rotation.z = side * 0.1;
+    );
+    ramp.rotation.z = side * 0.1;
+    planarUv(ramp, PAVE_TILE);
     const pad = CreateBox(`tactile${side}`, { width: 0.9, height: 0.03, depth: CROSSING_HALF * 1.7 }, scene);
     pad.position.set(side * (ROAD_HALF + 0.75), KERB + 0.005, CROSSING_Z);
     pad.material = tactile;
@@ -975,7 +1116,10 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       weather.update(dt, camera.camera.position);
 
       const wet = weather.wetness;
-      roadMaterial.roughness = 0.78 - wet * 0.66;
+      // Roughness is a multiplier over the asphalt's own map now, so the
+      // patches and the polished wheel tracks keep their relative gloss as
+      // the whole surface wets.
+      for (const surface of roadSurfaces) surface.roughness = 1 - wet * 0.86;
       roadMaterial.albedoColor = new Color3(1 - wet * 0.58, 1 - wet * 0.58, 1 - wet * 0.52);
       player.surface = { hardness: 0.75 + wet * 0.25 };
 

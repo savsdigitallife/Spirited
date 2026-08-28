@@ -17,6 +17,8 @@
  */
 
 import { Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 import { CreateLathe } from "@babylonjs/core/Meshes/Builders/latheBuilder";
 import { ExtrudeShape } from "@babylonjs/core/Meshes/Builders/shapeBuilder";
 import { CreateTube } from "@babylonjs/core/Meshes/Builders/tubeBuilder";
@@ -25,6 +27,48 @@ import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder"
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Material } from "@babylonjs/core/Materials/material";
 import type { Scene } from "@babylonjs/core/scene";
+
+/**
+ * Maps a mesh's vertices onto the ground plane, one texture tile every
+ * `metresPerTile`.
+ *
+ * Box faces are each mapped 0..1, so a patch laid on a road shows the same
+ * texture squeezed into two metres that the road shows over eight, and the
+ * join is visible from across the street. World-plane UVs make every
+ * surface on the ground share one continuous grain, whatever its size.
+ */
+export function planarUv(mesh: Mesh, metresPerTile: number): void {
+  const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+  if (!positions) return;
+  const world = mesh.computeWorldMatrix(true);
+  const uvs = new Float32Array((positions.length / 3) * 2);
+  const point = new Vector3();
+  for (let i = 0; i < positions.length / 3; i += 1) {
+    point.set(positions[i * 3] ?? 0, positions[i * 3 + 1] ?? 0, positions[i * 3 + 2] ?? 0);
+    const at = Vector3.TransformCoordinates(point, world);
+    uvs[i * 2] = at.x / metresPerTile;
+    uvs[i * 2 + 1] = at.z / metresPerTile;
+  }
+  mesh.setVerticesData(VertexBuffer.UVKind, uvs);
+}
+
+/**
+ * Paints one colour into a mesh's vertex colours.
+ *
+ * A way to vary tone across meshes that share a material — a patch of newer
+ * tar, a polished wheel track — without a second copy of its textures.
+ */
+export function tint(mesh: Mesh, colour: Color3): void {
+  const count = mesh.getTotalVertices();
+  const colours = new Float32Array(count * 4);
+  for (let i = 0; i < count; i += 1) {
+    colours[i * 4] = colour.r;
+    colours[i * 4 + 1] = colour.g;
+    colours[i * 4 + 2] = colour.b;
+    colours[i * 4 + 3] = 1;
+  }
+  mesh.setVerticesData(VertexBuffer.ColorKind, colours);
+}
 
 /** A 2D profile in the XY plane, to be revolved or extruded. */
 export type Profile = readonly [number, number][];
