@@ -19,6 +19,9 @@ import type { Settings } from "../core/Settings";
 import type { Time } from "../core/Time";
 import type { InputManager } from "../input/InputManager";
 import type { AssetLoader } from "./AssetLoader";
+import type { AudioManager } from "../audio/AudioManager";
+import type { GameState } from "../core/GameState";
+import type { UI } from "../ui/UI";
 import { events } from "../core/Events";
 
 export interface SceneContext {
@@ -27,6 +30,9 @@ export interface SceneContext {
   assets: AssetLoader;
   input: InputManager;
   time: Time;
+  audio: AudioManager;
+  ui: UI;
+  state: GameState;
   /** True when the backend can render into float/half-float targets. */
   hdr: boolean;
   progress(fraction: number, message: string): void;
@@ -36,6 +42,8 @@ export interface SceneContext {
    * follows the camera instead of being rebuilt.
    */
   setActiveCamera(camera: Camera): void;
+  /** Asks the game to load another region. Regions use it for doorways. */
+  travel(regionId: string): void;
 }
 
 /** What every region must provide back to the game loop. */
@@ -53,6 +61,37 @@ export interface GameScene {
 }
 
 export type SceneFactory = (context: SceneContext) => Promise<GameScene>;
+
+/**
+ * Waits for a scene to be ready, but never forever.
+ *
+ * `scene.whenReadyAsync()` resolves only when every mesh reports ready, and
+ * a single mesh that never will — a material whose texture cannot load —
+ * hangs the load with no error anywhere. Past the deadline this names the
+ * offenders and carries on: a scene missing one surface is recoverable, a
+ * game that never finishes loading is not.
+ */
+export async function awaitSceneReady(scene: Scene, timeoutSeconds = 25): Promise<boolean> {
+  let timer = 0;
+  const timeout = new Promise<false>((resolve) => {
+    timer = window.setTimeout(() => resolve(false), timeoutSeconds * 1000);
+  });
+  const ready = scene.whenReadyAsync().then(() => true);
+  const result = await Promise.race([ready, timeout]);
+  window.clearTimeout(timer);
+
+  if (!result) {
+    const stuck = scene.meshes
+      .filter((mesh) => mesh.isEnabled() && !mesh.isReady(true))
+      .slice(0, 8)
+      .map((mesh) => `${mesh.name} (${mesh.material?.name ?? "no material"})`);
+    console.warn(
+      `[scenes] "${scene.getUniqueId()}" was still not ready after ${timeoutSeconds}s; ` +
+        `starting anyway. Waiting on: ${stuck.join(", ") || "nothing identifiable"}`,
+    );
+  }
+  return result;
+}
 
 export class SceneManager {
   private readonly factories = new Map<string, SceneFactory>();

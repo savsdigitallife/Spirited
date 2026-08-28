@@ -68,6 +68,13 @@ export interface GameEventMap {
   "clock/dayChanged": { day: number };
   "input/action": { action: string; pressed: boolean };
   "debug/toggle": { visible: boolean };
+  "state/changed": { key: string; value: unknown };
+  "state/saved": { at: number };
+  "state/loaded": { chapter: string };
+  "ui/prompt": { text: string | null };
+  "ui/caption": { text: string; seconds: number };
+  "ui/objective": { text: string | null };
+  "audio/unlocked": { context: "user-gesture" };
 }
 
 export const events = new EventBus<GameEventMap>();

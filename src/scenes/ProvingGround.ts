@@ -26,7 +26,7 @@ import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import "@babylonjs/core/Meshes/thinInstanceMesh";
 
-import type { GameScene, SceneContext } from "../engine/SceneManager";
+import { awaitSceneReady, type GameScene, type SceneContext } from "../engine/SceneManager";
 import type { QualitySettings } from "../core/Settings";
 import type { Time } from "../core/Time";
 import { Terrain } from "../world/Terrain";
@@ -286,7 +286,7 @@ export async function createProvingGround(ctx: SceneContext): Promise<GameScene>
   rig.receiveShadows = true;
   lighting.addCaster(rig, false);
 
-  await scene.whenReadyAsync();
+  await awaitSceneReady(scene, 45);
   ctx.progress(1, "Ready.");
 
   let usingFly = false;

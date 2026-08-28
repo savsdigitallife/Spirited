@@ -23,6 +23,7 @@ export type Action =
   | "tool"
   | "cameraToggle"
   | "pause"
+  | "mute"
   | "debug"
   | "cycleQuality";
 
@@ -46,7 +47,8 @@ const DEFAULT_BINDINGS: Record<Action, Binding> = {
   dodge: { keys: ["ControlLeft"], pad: [1] },
   tool: { keys: ["KeyQ"], pad: [3] },
   cameraToggle: { keys: ["KeyV"], pad: [9] },
-  pause: { keys: ["Escape"], pad: [9] },
+  pause: { keys: ["Escape", "KeyP"], pad: [9] },
+  mute: { keys: ["KeyM"] },
   debug: { keys: ["Backquote", "F3"] },
   cycleQuality: { keys: ["F4"] },
 };

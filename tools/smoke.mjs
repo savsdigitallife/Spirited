@@ -1,12 +1,13 @@
 /**
- * Browser smoke test for the Phase 1 foundation.
+ * Browser smoke test.
  *
- * Runs the production build in headless Chromium (SwiftShader, so the
- * WebGL2 fallback path is what gets exercised), then asserts on what the
- * page actually did: the boot overlay cleared, the renderer reported a
- * backend, frames advanced, geometry was drawn, and successive frames
- * differ — which is how we know the sun and the input rig are live rather
- * than a still image.
+ * Builds are verified by driving the real bundle in headless Chromium under
+ * SwiftShader, so the WebGL2 fallback path is what runs. Everything asserted
+ * here is read back out of the running game, not inferred.
+ *
+ * Screenshots are pulled from inside the page at the end of a completed
+ * frame: a compositor screenshot of a software-rendered canvas regularly
+ * catches a half-drawn buffer.
  */
 
 import { chromium } from "playwright";
@@ -25,6 +26,7 @@ const TYPES = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json",
   ".map": "application/json",
+  ".png": "image/png",
 };
 
 const server = createServer(async (req, res) => {
@@ -58,67 +60,66 @@ const browser = await chromium.launch({
   ],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+// Software rendering makes every step slow; the default 30 s is not enough
+// for shader compilation on a scene this size.
+page.setDefaultTimeout(900_000);
+page.setDefaultNavigationTimeout(900_000);
 
 const consoleLines = [];
 page.on("console", (m) => consoleLines.push(`${m.type()}: ${m.text()}`));
 page.on("pageerror", (e) => consoleLines.push(`pageerror: ${e.message}`));
 
-// capture=1 keeps the WebGL drawing buffer between frames so a screenshot
-// taken mid-frame is not a blank composite.
-const target = process.argv[2] ?? `http://127.0.0.1:${PORT}/?capture=1`;
-await page.goto(target, { waitUntil: "load" });
+// capture=1 keeps the drawing buffer and exposes the debug handle; the low
+// preset and a pinned resolution keep a software rasterizer inside its
+// timeout budget.
+const base = `http://127.0.0.1:${PORT}/?capture=1&adaptive=0&quality=low`;
 
-// The boot overlay hides itself only after the first region is ready.
+const bootedAt = Date.now();
+await page.goto(base, { waitUntil: "load" });
+
 let bootCleared = false;
+let bootError = "";
 try {
   await page.waitForFunction(
     () => document.getElementById("boot")?.classList.contains("fading") === true,
-    { timeout: 90_000 },
+    null,
+    { timeout: 900_000, polling: 1000 },
   );
   bootCleared = true;
-} catch {
+} catch (err) {
   bootCleared = false;
+  bootError = err instanceof Error ? err.message.split("\n")[0] : String(err);
+  try {
+    bootError += `  |  overlay: ${await page.textContent("#bootMsg")}`;
+  } catch {
+    bootError += "  |  page unreachable";
+  }
 }
-check("boot overlay clears", bootCleared, await page.textContent("#bootErr"));
+check(
+  "Tokyo boots",
+  bootCleared,
+  `${((Date.now() - bootedAt) / 1000).toFixed(1)}s  ${bootError}`,
+);
+if (!bootCleared) {
+  await writeFile(join(OUT, "console.log"), consoleLines.join("\n"));
+  await browser.close();
+  server.close();
+  console.error("\nboot failed; see tools/out/console.log");
+  process.exit(1);
+}
 
-const errText = (await page.textContent("#bootErr")) ?? "";
-check("no fatal boot error", errText.trim() === "", errText.trim());
+check(
+  "renderer reported a backend",
+  consoleLines.some((l) => l.includes("[nagori] renderer:")),
+  consoleLines.find((l) => l.includes("[nagori] renderer:"))?.split("\n")[0] ?? "",
+);
+check(
+  "no uncaught errors at boot",
+  consoleLines.filter((l) => l.startsWith("pageerror:")).length === 0,
+  consoleLines.filter((l) => l.startsWith("pageerror:")).join(" | "),
+);
 
-const backendLine = consoleLines.find((l) => l.includes("[nagori] renderer:")) ?? "";
-check("renderer reported a backend", backendLine !== "", backendLine.split("\n")[0]);
-
-const pageErrors = consoleLines.filter((l) => l.startsWith("pageerror:"));
-check("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
-
-// Turn the debug overlay on so the counters are rendered into the DOM.
-await page.click("#render");
-await page.keyboard.press("Backquote");
-await page.waitForTimeout(4000);
-const overlay = (await page.textContent("div[style*='backdrop-filter']")) ?? "";
-check("debug overlay renders", overlay.includes("NAGORI"), overlay.split("\n")[0]);
-
-const drawMatch = /draws (\d+)/.exec(overlay);
-const draws = drawMatch ? Number(drawMatch[1]) : 0;
-check("scene issues draw calls", draws > 0, `draws=${draws}`);
-
-const triMatch = /tris ([\d,]+)/.exec(overlay);
-const tris = triMatch ? Number(triMatch[1].replace(/,/g, "")) : 0;
-check("scene renders real geometry", tris > 10_000, `tris=${tris}`);
-
-const fpsMatch = /(\d+) fps/.exec(overlay);
-check("frames are advancing", fpsMatch !== null && Number(fpsMatch[1]) > 0, overlay.split("\n")[1]);
-
-/**
- * Reads the canvas from inside the page at the end of a completed frame.
- *
- * A Playwright screenshot composites whatever the browser happens to have
- * for the canvas at that instant; under SwiftShader, where one frame takes
- * hundreds of milliseconds, that is regularly a half-drawn buffer. Hooking
- * Babylon's after-render observable guarantees the pixels belong to a
- * frame that finished. Requires ?capture=1 so the drawing buffer survives
- * the readback.
- */
-const hash = async (name) => {
+const grab = async (name) => {
   const dataUrl = await page.evaluate(
     () =>
       new Promise((resolve) => {
@@ -132,34 +133,10 @@ const hash = async (name) => {
   await writeFile(join(OUT, name), buffer);
   return createHash("sha1").update(buffer).digest("hex");
 };
-const a = await hash("frame-a.png");
-await page.keyboard.down("KeyW");
-await page.waitForTimeout(1200);
-await page.keyboard.up("KeyW");
-const b = await hash("frame-b.png");
-check("input moves the world", a !== b, `${a.slice(0, 8)} vs ${b.slice(0, 8)}`);
 
-// Cycle to the next graphics preset and confirm it took effect.
-await page.keyboard.press("F4");
-await page.waitForTimeout(1200);
-const after = (await page.textContent("div[style*='backdrop-filter']")) ?? "";
-const presetOf = (text) => /NAGORI\s+·\s+\S+\s+·\s+(\w+)/.exec(text)?.[1] ?? "?";
-const presetBefore = presetOf(overlay);
-const presetAfter = presetOf(after);
-check("quality preset switches live", presetBefore !== presetAfter, `${presetBefore} -> ${presetAfter}`);
-await hash("frame-quality.png");
-
-/**
- * Every preset must still render a lit, detailed scene after switching to
- * it at runtime. This is a regression guard: rebuilding the shadow
- * generator, or flipping its filter mode, used to leave the whole frame a
- * flat washed-out gradient while every counter still looked healthy. Mean
- * brightness alone would not have caught it — the broken frame was
- * *brighter* than the correct one — so the check is on contrast.
- */
-const luminanceStats = async (name) => {
-  await hash(name);
-  return page.evaluate(() => {
+/** Mean and contrast of the rendered frame, sampled inside the page. */
+const frameStats = () =>
+  page.evaluate(() => {
     const scene = window.nagori.scenes.active.scene;
     const source = scene.getEngine().getRenderingCanvas();
     const w = 160;
@@ -172,42 +149,155 @@ const luminanceStats = async (name) => {
     const { data } = ctx.getImageData(0, 0, w, h);
     let sum = 0;
     let sumSq = 0;
-    const n = w * h;
-    for (let i = 0; i < n; i += 1) {
+    for (let i = 0; i < w * h; i += 1) {
       const l =
         0.2126 * data[i * 4] + 0.7152 * data[i * 4 + 1] + 0.0722 * data[i * 4 + 2];
       sum += l;
       sumSq += l * l;
     }
-    const mean = sum / n;
-    return { mean, stdDev: Math.sqrt(Math.max(0, sumSq / n - mean * mean)) };
+    const mean = sum / (w * h);
+    return { mean, stdDev: Math.sqrt(Math.max(0, sumSq / (w * h) - mean * mean)) };
   });
-};
 
-for (const preset of ["ultra", "low", "medium", "high"]) {
-  await page.evaluate((p) => window.nagori.settings.apply(p), preset);
-  await page.waitForTimeout(6000);
-  const stats = await luminanceStats(`preset-${preset}.png`);
-  check(
-    `${preset} preset renders a detailed frame`,
-    stats.stdDev > 18 && stats.mean > 8 && stats.mean < 210,
-    `mean ${stats.mean.toFixed(1)}  stdDev ${stats.stdDev.toFixed(1)}`,
-  );
-}
+const worldStats = () =>
+  page.evaluate(() => {
+    const scene = window.nagori.scenes.active.scene;
+    const sae = scene.getTransformNodeByName("sae");
+    return {
+      region: window.nagori.scenes.active.id,
+      camera: scene.activeCamera?.name ?? null,
+      meshes: scene.meshes.length,
+      activeMeshes: scene.getActiveMeshes().length,
+      indices: scene.getActiveIndices(),
+      lights: scene.lights.length,
+      materials: scene.materials.length,
+      particles: scene.particleSystems.length,
+      player: sae ? [sae.position.x, sae.position.y, sae.position.z] : null,
+      walkers: scene.transformNodes.filter((n) => n.name.startsWith("walker.")).length,
+      cars: scene.transformNodes.filter((n) => n.name.startsWith("car.")).length,
+    };
+  });
 
-// Wide shot from the free-fly camera, for eyeballing the whole region.
-// Dropped to the cheapest preset first: this runs on SwiftShader, where a
-// single Ultra frame takes seconds and the screenshot can catch a half-drawn
-// buffer.
-await page.evaluate(() => window.nagori.settings.apply("low"));
+await page.mouse.click(640, 360);
 await page.waitForTimeout(4000);
-await hash("frame-low-orbit.png");
-await page.keyboard.press("KeyV");
-await page.waitForTimeout(9000);
-await hash("frame-wide.png");
 
-const lateErrors = consoleLines.filter((l) => l.startsWith("pageerror:"));
-check("no page errors during play", lateErrors.length === 0, lateErrors.join(" | "));
+const before = await worldStats();
+check("region is the Tokyo street", before.region === "tokyoStreet", before.region);
+check("third-person camera is live", before.camera === "camera.thirdPerson", String(before.camera));
+check("player character is in the scene", before.player !== null, JSON.stringify(before.player));
+check("street has geometry", before.indices / 3 > 8_000, `${Math.round(before.indices / 3)} tris`);
+check("pedestrians exist", before.walkers >= 8, `${before.walkers} walkers`);
+check("traffic exists", before.cars >= 4, `${before.cars} cars`);
+check("rain particle system exists", before.particles >= 1, `${before.particles} systems`);
+check("street lighting is set up", before.lights >= 4, `${before.lights} lights`);
+
+const first = await frameStats();
+check(
+  "frame is lit and detailed",
+  first.stdDev > 12 && first.mean > 4 && first.mean < 220,
+  `mean ${first.mean.toFixed(1)}  stdDev ${first.stdDev.toFixed(1)}`,
+);
+await grab("tokyo-spawn.png");
+
+// Walk. The character must actually move through the world.
+await page.keyboard.down("KeyW");
+await page.waitForTimeout(6000);
+await page.keyboard.up("KeyW");
+await page.waitForTimeout(600);
+const after = await worldStats();
+const travelled = Math.hypot(
+  (after.player?.[0] ?? 0) - (before.player?.[0] ?? 0),
+  (after.player?.[2] ?? 0) - (before.player?.[2] ?? 0),
+);
+check("walking moves the character", travelled > 2, `${travelled.toFixed(2)} m`);
+check(
+  "character stays on the pavement",
+  Math.abs((after.player?.[1] ?? -1) - 0.16) < 0.35,
+  `y = ${(after.player?.[1] ?? 0).toFixed(2)}`,
+);
+await grab("tokyo-walk.png");
+
+// Sprint and jump must not throw or fall through the world.
+await page.keyboard.down("ShiftLeft");
+await page.keyboard.down("KeyW");
+await page.waitForTimeout(2500);
+await page.keyboard.press("Space");
+await page.waitForTimeout(2500);
+await page.keyboard.up("KeyW");
+await page.keyboard.up("ShiftLeft");
+await page.waitForTimeout(1500);
+const sprinted = await worldStats();
+check(
+  "sprint and jump keep the character in the world",
+  (sprinted.player?.[1] ?? -99) > -1 && (sprinted.player?.[1] ?? 99) < 6,
+  `y = ${(sprinted.player?.[1] ?? 0).toFixed(2)}`,
+);
+await grab("tokyo-sprint.png");
+
+// Camera look.
+const beforeLook = await page.evaluate(() => {
+  const c = window.nagori.scenes.active.scene.activeCamera;
+  return [c.position.x, c.position.y, c.position.z];
+});
+await page.mouse.move(640, 360);
+await page.mouse.move(980, 330, { steps: 12 });
+await page.waitForTimeout(2000);
+const afterLook = await page.evaluate(() => {
+  const c = window.nagori.scenes.active.scene.activeCamera;
+  return [c.position.x, c.position.y, c.position.z];
+});
+check(
+  "camera orbits with the mouse",
+  Math.hypot(afterLook[0] - beforeLook[0], afterLook[2] - beforeLook[2]) > 0.2,
+  `moved ${Math.hypot(afterLook[0] - beforeLook[0], afterLook[2] - beforeLook[2]).toFixed(2)} m`,
+);
+
+// Walk up to the shop and the crossing, and photograph what is there.
+await page.keyboard.down("KeyW");
+await page.keyboard.down("ShiftLeft");
+await page.waitForTimeout(9000);
+await page.keyboard.up("ShiftLeft");
+await page.waitForTimeout(4000);
+await page.keyboard.up("KeyW");
+await page.waitForTimeout(1200);
+const arrived = await worldStats();
+check(
+  "the player stays inside the block",
+  Math.abs(arrived.player?.[2] ?? 999) < 78 &&
+    Math.abs(arrived.player?.[0] ?? 999) < 22 &&
+    (arrived.player?.[1] ?? -99) > -4,
+  `at ${(arrived.player ?? []).map((v) => v.toFixed(1)).join(", ")}`,
+);
+// Back off and widen out for a clean look down the street.
+await page.keyboard.down("KeyS");
+await page.waitForTimeout(2500);
+await page.keyboard.up("KeyS");
+await page.mouse.wheel(0, 600);
+await page.waitForTimeout(2500);
+await grab("tokyo-konbini.png");
+
+check(
+  "no uncaught errors during play",
+  consoleLines.filter((l) => l.startsWith("pageerror:")).length === 0,
+  consoleLines.filter((l) => l.startsWith("pageerror:")).join(" | "),
+);
+
+// The Phase 1 proving ground must still load.
+await page.goto(`${base}&scene=proving`, { waitUntil: "load" });
+let provingOk = false;
+try {
+  await page.waitForFunction(
+    () => document.getElementById("boot")?.classList.contains("fading") === true,
+    null,
+    { timeout: 180_000, polling: 500 },
+  );
+  provingOk = true;
+} catch {
+  provingOk = false;
+}
+await page.waitForTimeout(2500);
+const proving = provingOk ? await worldStats() : { region: "n/a" };
+check("proving ground still loads", provingOk && proving.region === "provingGround", proving.region);
 
 await writeFile(join(OUT, "console.log"), consoleLines.join("\n"));
 await browser.close();

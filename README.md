@@ -33,21 +33,27 @@ npm run dev          # http://localhost:8080
 | `?quality=low\|medium\|high\|ultra` | Start on a given graphics preset |
 | `?adaptive=0` | Pin the resolution (benchmarking, screenshots) |
 | `?capture=1` | Keep the drawing buffer between frames, and expose `window.nagori` |
+| `?scene=proving` | Open the Phase 1 proving ground instead of the city |
 
 ### Controls
 
-`WASD` move · `Shift` sprint · `Alt` walk · mouse drag orbit · wheel zoom ·
-`V` swap camera rig · `` ` `` debug overlay · `F4` cycle graphics preset
+Click the canvas to capture the mouse and start the sound.
+
+`WASD` move · `Shift` run · `Alt` walk · `Space` jump · mouse look · wheel
+zoom · `E` interact · `V` swap shoulder · `P`/`Esc` pause · `M` mute ·
+`` ` `` debug overlay · `F4` cycle graphics preset
 
 ## Layout
 
 ```
-src/core/      engine bootstrap, clock, settings, events, post-processing
+src/core/      engine bootstrap, clock, settings, events, state, post-processing
 src/engine/    scene lifecycle, asset loading, boot screen
 src/input/     hardware input mapped to game actions
-src/world/     terrain, sky, lighting, atmosphere, procedural materials
-src/ui/        debug overlay
-src/scenes/    regions — currently the Phase 1 proving ground
+src/player/    character rig, movement, third-person camera
+src/world/     terrain, sky, lighting, weather, crowds, traffic, prefabs, materials
+src/audio/     Web Audio buses, ambience, footsteps, score
+src/ui/        HUD, prompts, captions, pause, debug overlay
+src/scenes/    regions — the Tokyo street and the Phase 1 proving ground
 tools/         headless browser smoke test
 sandbox/       earlier prototype, kept for its systems tests (not built)
 docs/          design bible and notes
@@ -57,5 +63,11 @@ docs/          design bible and notes
 
 ## Status
 
-Phase 1 (engine foundation) is in. See `docs/PHASE-1.md` for what it covers,
-what was proven in a browser, and what is deliberately still missing.
+The first part of the vertical slice is playable: a wet Tokyo backstreet at
+night, walked in third person, with a station at the end of it.
+
+- `docs/TOKYO-SLICE.md` — the character, the camera, the street, and what was
+  learned building them.
+- `docs/PHASE-1.md` — the engine foundation underneath it.
+
+Next: the train out of the city, and the countryside on the other side.

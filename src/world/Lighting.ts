@@ -33,6 +33,12 @@ export class Lighting {
   private shadows: CascadedShadowGenerator | null = null;
   private casters = new Set<AbstractMesh>();
   private mapSize = 0;
+  /**
+   * Extra ambient a lit environment throws back at night. A field at
+   * midnight really is almost black; a neon street is not, and faking that
+   * bounce with the ambient term is far cheaper than lighting it for real.
+   */
+  private urbanGlow: { sky: Color3; ground: Color3; intensity: number } | null = null;
 
   constructor(private readonly scene: Scene) {
     // Direction is overwritten every frame; the initial value only has to be
@@ -115,6 +121,11 @@ export class Lighting {
     this.key.shadowMaxZ = q.shadowMaxDistance;
   }
 
+  /** Colours the ambient term to match a lit environment after dark. */
+  setUrbanGlow(sky: Color3, ground: Color3, intensity: number): void {
+    this.urbanGlow = { sky, ground, intensity };
+  }
+
   addCaster(mesh: AbstractMesh, includeDescendants = true): void {
     this.casters.add(mesh);
     this.shadows?.addShadowCaster(mesh, includeDescendants);
@@ -145,9 +156,25 @@ export class Lighting {
       this.key.intensity = 0.4 + solar.daylight * 2.9;
     }
 
-    this.ambient.diffuse = Color3.Lerp(SKY_NIGHT, SKY_DAY, solar.daylight);
-    this.ambient.groundColor = Color3.Lerp(GROUND_NIGHT, GROUND_DAY, solar.daylight);
-    this.ambient.intensity = 0.22 + solar.daylight * 0.5;
+    const glow = this.urbanGlow;
+    const night = 1 - solar.daylight;
+    if (glow) {
+      this.ambient.diffuse = Color3.Lerp(
+        Color3.Lerp(SKY_NIGHT, glow.sky, night),
+        SKY_DAY,
+        solar.daylight,
+      );
+      this.ambient.groundColor = Color3.Lerp(
+        Color3.Lerp(GROUND_NIGHT, glow.ground, night),
+        GROUND_DAY,
+        solar.daylight,
+      );
+      this.ambient.intensity = 0.22 + solar.daylight * 0.5 + night * glow.intensity;
+    } else {
+      this.ambient.diffuse = Color3.Lerp(SKY_NIGHT, SKY_DAY, solar.daylight);
+      this.ambient.groundColor = Color3.Lerp(GROUND_NIGHT, GROUND_DAY, solar.daylight);
+      this.ambient.intensity = 0.22 + solar.daylight * 0.5;
+    }
   }
 
   private disposeShadows(): void {

@@ -20,6 +20,7 @@ export interface LoadProgress {
 
 export class AssetLoader {
   private readonly cache = new Map<string, Promise<AssetContainer>>();
+  private readonly presence = new Map<string, Promise<boolean>>();
   private loaders: Promise<void> | null = null;
 
   /** Root the game's own assets live under, relative to the site root. */
@@ -34,6 +35,26 @@ export class AssetLoader {
    * Loads (or returns a cached) container. Containers are per-scene in
    * Babylon, so the cache key includes the scene's uid.
    */
+  /**
+   * Is this asset actually there?
+   *
+   * Ask before loading anything optional. A failed `LoadAssetContainerAsync`
+   * leaves an entry in the scene's pending-data set that is never cleared,
+   * and `scene.isReady()` consults that set — so one 404 on an optional
+   * model wedges the whole scene in "not ready" forever, with no error to
+   * show for it. A HEAD request costs nothing and avoids the trap entirely.
+   */
+  exists(path: string): Promise<boolean> {
+    const url = this.resolve(path);
+    const cached = this.presence.get(url);
+    if (cached) return cached;
+    const probe = fetch(url, { method: "HEAD" })
+      .then((response) => response.ok)
+      .catch(() => false);
+    this.presence.set(url, probe);
+    return probe;
+  }
+
   /** Registers the glTF plugin once, on the first load that needs it. */
   private ensureLoaders(): Promise<void> {
     this.loaders ??= import("@babylonjs/loaders/glTF/2.0").then(() => undefined);

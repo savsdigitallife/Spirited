@@ -25,6 +25,17 @@ import "@babylonjs/core/Rendering/geometryBufferRendererSceneComponent";
 // Occlusion / timer queries used by the perf counters in the debug overlay.
 import "@babylonjs/core/Engines/Extensions/engine.query";
 
+// Mesh-vs-mesh collision: what the character controller moves against.
+import "@babylonjs/core/Collisions/collisionCoordinator";
+
+// scene.pickWithRay, used by the camera's occlusion probe.
+import "@babylonjs/core/Culling/ray";
+
+// Babylon falls back to `scene.defaultMaterial` for any mesh built without
+// one — line systems and particle helpers among them — and that fallback is
+// a StandardMaterial.
+import "@babylonjs/core/Materials/standardMaterial";
+
 // The glTF loader is NOT registered here: AssetLoader imports it on first
 // use, so a scene built only from procedural geometry never downloads it.
 

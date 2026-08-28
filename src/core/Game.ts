@@ -11,6 +11,7 @@ import "./babylonSideEffects";
 
 import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
+import type { Scene } from "@babylonjs/core/scene";
 
 import { createEngine } from "./EngineFactory";
 import { detectPreset, Settings } from "./Settings";
@@ -22,7 +23,18 @@ import { AssetLoader } from "../engine/AssetLoader";
 import { SceneManager } from "../engine/SceneManager";
 import { InputManager } from "../input/InputManager";
 import { DebugOverlay } from "../ui/DebugOverlay";
+import { UI } from "../ui/UI";
+import { GameState } from "./GameState";
+import { AudioManager } from "../audio/AudioManager";
 import { createProvingGround, PROVING_GROUND_ID } from "../scenes/ProvingGround";
+import { createTokyoStreet, TOKYO_STREET_ID } from "../scenes/TokyoStreet";
+
+/** `?scene=proving` opens the Phase 1 test region instead of the city. */
+function startingRegion(): string {
+  const requested = new URLSearchParams(location.search).get("scene");
+  if (requested === "proving") return PROVING_GROUND_ID;
+  return TOKYO_STREET_ID;
+}
 
 /** How far adaptive resolution may drop below the preset's own scaling. */
 const MAX_ADAPTIVE_SCALE = 1.6;
@@ -44,7 +56,11 @@ export class Game {
   private readonly boot = new BootScreen();
   private readonly overlay = new DebugOverlay();
   private readonly assets = new AssetLoader();
+  private readonly ui = new UI();
+  private readonly state = new GameState();
+  private readonly audio = new AudioManager();
   private hdr = false;
+  private paused = false;
 
   private adaptiveScale = 1;
   private fpsAverage = 60;
@@ -86,17 +102,28 @@ export class Game {
     input.attach();
     this.input = input;
 
+    this.state.load();
+
     const scenes = new SceneManager({
       engine,
       settings,
       assets: this.assets,
       input,
       time: this.time,
+      audio: this.audio,
+      ui: this.ui,
+      state: this.state,
       hdr: this.hdr,
       setActiveCamera: (camera: Camera) => this.pipeline?.setCamera(camera),
+      travel: (regionId: string) => void this.travel(regionId),
     });
     scenes.register(PROVING_GROUND_ID, createProvingGround);
+    scenes.register(TOKYO_STREET_ID, createTokyoStreet);
     this.scenes = scenes;
+
+    // Browsers will not start audio until the player interacts, and a
+    // third-person camera wants the pointer. One click does both.
+    this.canvas.addEventListener("pointerdown", this.onCanvasPointerDown);
 
     events.on("scene/loadProgress", ({ fraction, message }) => {
       // The first 10% of the bar belongs to engine start-up.
@@ -105,11 +132,10 @@ export class Game {
     events.on("settings/changed", () => this.onSettingsChanged());
 
     this.boot.status("Building the region…", 0.1);
-    const region = await scenes.goTo(PROVING_GROUND_ID);
+    const region = await scenes.goTo(startingRegion());
     if (this.disposed) return;
 
-    this.pipeline = new RenderPipeline(region.scene, region.camera, this.hdr);
-    this.pipeline.apply(settings.value);
+    this.attachPipeline(region.scene, region.camera);
     await region.scene.whenReadyAsync();
 
     // A handle for the browser console and for the automated smoke test.
@@ -121,6 +147,9 @@ export class Game {
         settings,
         scenes,
         time: this.time,
+        state: this.state,
+        audio: this.audio,
+        ui: this.ui,
         pipeline: () => this.pipeline,
       };
     }
@@ -129,6 +158,40 @@ export class Game {
     engine.runRenderLoop(this.frame);
     this.canvas.focus();
     this.boot.hideLoadingUI();
+  }
+
+  /**
+   * The post chain belongs to a scene, so travelling to a new region needs a
+   * new one. Rebuilding here keeps that fact in one place.
+   */
+  private attachPipeline(scene: Scene, camera: Camera): void {
+    this.pipeline?.dispose();
+    this.pipeline = new RenderPipeline(scene, camera, this.hdr);
+    if (this.settings) this.pipeline.apply(this.settings.value);
+  }
+
+  /** Loads another region, fading through black so the swap is not a jolt. */
+  async travel(regionId: string): Promise<void> {
+    const scenes = this.scenes;
+    if (!scenes || scenes.isLoading) return;
+    await this.ui.fade(1, 0.6);
+    const region = await scenes.goTo(regionId);
+    this.attachPipeline(region.scene, region.camera);
+    await region.scene.whenReadyAsync();
+    await this.ui.fade(0, 0.9);
+  }
+
+  private readonly onCanvasPointerDown = (): void => {
+    void this.audio.unlock();
+    if (!this.paused) this.input?.requestPointerLock();
+  };
+
+  private setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    this.time.scale = paused ? 0 : 1;
+    this.ui.setPaused(paused);
+    if (paused) this.input?.exitPointerLock();
   }
 
   private readonly frame = (): void => {
@@ -146,6 +209,12 @@ export class Game {
     }
     if (input.justPressed("cycleQuality")) {
       settings.cycle();
+    }
+    if (input.justPressed("pause")) {
+      this.setPaused(!this.paused);
+    }
+    if (input.justPressed("mute")) {
+      this.ui.say(this.audio.toggleMute() ? "Sound off" : "Sound on", 1.6);
     }
 
     scenes.render(this.time);
@@ -227,7 +296,11 @@ export class Game {
 
   dispose(): void {
     this.disposed = true;
+    this.state.save();
     window.removeEventListener("resize", this.onResize);
+    this.canvas.removeEventListener("pointerdown", this.onCanvasPointerDown);
+    this.audio.dispose();
+    this.ui.dispose();
     this.engine?.stopRenderLoop();
     this.pipeline?.dispose();
     this.scenes?.dispose();

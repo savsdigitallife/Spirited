@@ -95,7 +95,7 @@ export class DebugOverlay {
       `cam ${this.describeCamera(scene)}`,
       `day ${time.day}   ${time.formatTimeOfDay()}`,
       this.capsLine,
-      `[\`] overlay   [F4] quality   [V] camera   [WASD] move   [shift] sprint`,
+      `[\`] overlay   [F4] quality   [V] shoulder   [P] pause   [M] mute`,
     ].join("\n");
   }
 
