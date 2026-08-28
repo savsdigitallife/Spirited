@@ -79,9 +79,11 @@ export class Crowd {
       new Color3(0.09, 0.15, 0.18),
       new Color3(0.28, 0.26, 0.24),
     ].map((colour, index) => {
+      // Narrower and taller than the first pass, which made pill-shaped
+      // people. A torso is about 0.3 m across, not 0.4.
       const body = CreateCapsule(
         `crowd.body${index}`,
-        { radius: 0.19, height: 0.92, tessellation: 8 },
+        { radius: 0.145, height: 1.02, tessellation: 8 },
         scene,
       );
       body.material = materials.painted(`coat${index}`, colour, 0.85);
@@ -91,11 +93,27 @@ export class Crowd {
       return body;
     });
 
-    const head = CreateSphere("crowd.head", { diameter: 0.2, segments: 8 }, scene);
+    const head = CreateSphere("crowd.head", { diameter: 0.19, segments: 8 }, scene);
     head.material = materials.painted("crowdSkin", new Color3(0.62, 0.5, 0.43), 0.7);
     head.setEnabled(false);
     head.isPickable = false;
     this.templates.push(head);
+
+    // A hair cap and a pair of arms. Three more instances per walker, and
+    // between them they are most of the difference between a person and a
+    // skittle at the distance these are seen from.
+    const hair = CreateSphere("crowd.hair", { diameter: 0.205, segments: 8 }, scene);
+    hair.material = materials.painted("crowdHair", new Color3(0.07, 0.06, 0.07), 0.4);
+    hair.scaling.set(1, 1.02, 1.06);
+    hair.setEnabled(false);
+    hair.isPickable = false;
+    this.templates.push(hair);
+
+    const arm = CreateCapsule("crowd.arm", { radius: 0.052, height: 0.6, tessellation: 6 }, scene);
+    arm.material = materials.painted("crowdSleeve", new Color3(0.12, 0.12, 0.15), 0.85);
+    arm.setEnabled(false);
+    arm.isPickable = false;
+    this.templates.push(arm);
 
     const leg = CreateBox("crowd.leg", { width: 0.13, height: 0.8, depth: 0.15 }, scene);
     // The template hangs below its origin so a parent node rotates it at the hip.
@@ -114,11 +132,26 @@ export class Crowd {
 
       const body = coat.createInstance(`walker.${i}.body`);
       body.parent = root;
-      body.position.y = 1.29;
+      body.position.y = 1.3;
+      body.scaling.z = 0.72;
 
       const skull = head.createInstance(`walker.${i}.head`);
       skull.parent = root;
-      skull.position.y = 1.8;
+      skull.position.y = 1.79;
+
+      const cap = hair.createInstance(`walker.${i}.hair`);
+      cap.parent = root;
+      cap.position.set(0, 1.815, -0.005);
+
+      for (const side of [-1, 1] as const) {
+        const limb = arm.createInstance(`walker.${i}.arm${side}`);
+        limb.parent = root;
+        limb.position.set(side * 0.175, 1.42, 0);
+        limb.rotation.z = side * 0.06;
+      }
+
+      // People are not all one height.
+      root.scaling.setAll(0.93 + random() * 0.13);
 
       const hipL = new TransformNode(`walker.${i}.hipL`, scene);
       hipL.parent = root;

@@ -27,7 +27,8 @@ import type { Camera } from "@babylonjs/core/Cameras/camera";
 import { awaitSceneReady, type GameScene, type SceneContext } from "../engine/SceneManager";
 import type { Time } from "../core/Time";
 import type { QualitySettings } from "../core/Settings";
-import { PlayerCharacter } from "../player/PlayerCharacter";
+import { Character } from "../player/Character";
+import { aikoSpec } from "../player/rig/CharacterSpec";
 import { makeRandom } from "../world/Noise";
 import { HAZAMA_VALLEY_ID } from "./HazamaValley";
 
@@ -40,7 +41,7 @@ const CAR_LENGTH = 19;
 const CAR_WIDTH = 2.9;
 const CAR_HEIGHT = 2.35;
 /**
- * Where Sae is sitting: on the right-hand bench, facing across the aisle.
+ * Where Aiko is sitting: on the right-hand bench, facing across the aisle.
  *
  * Her feet are on the floor, so the rig's root is at floor level and the
  * seated pose puts her hips at bench height. Nobody sits facing the wall —
@@ -217,11 +218,12 @@ export async function createTrainInterlude(ctx: SceneContext): Promise<GameScene
   keyLight.intensity = 14;
   keyLight.range = 12;
 
-  // ------------------------------------------------------------------ Sae
-  const sae = new PlayerCharacter(scene, "sae");
-  sae.root.position.copyFrom(SEAT);
-  sae.root.rotation.y = -Math.PI / 2;
-  sae.poseSeated();
+  // ----------------------------------------------------------------- Aiko
+  const aiko = new Character(scene, aikoSpec());
+  aiko.root.position.copyFrom(SEAT);
+  aiko.root.rotation.y = -Math.PI / 2;
+  aiko.settle();
+  aiko.play("sit");
 
   // -------------------------------------------------------------- outside
   ctx.progress(0.55, "Leaving…");
@@ -366,6 +368,10 @@ export async function createTrainInterlude(ctx: SceneContext): Promise<GameScene
       camera.setTarget(Vector3.Lerp(a.target, b.target, k));
       camera.fov = a.fov + (b.fov - a.fov) * k;
       // The carriage is never quite still.
+      // Sitting still, but her hair is not: the carriage sways and so does
+      // she, and that is most of what stops the shot looking like a photo.
+      aiko.update(dt, { speed: 0, runSpeed: 4, grounded: true, verticalSpeed: 0, turnRate: 0 }, SEAT.y);
+
       const sway = Math.sin(elapsed * 2.3) * 0.012 + Math.sin(elapsed * 7.1) * 0.004;
       camera.position.y += sway;
       camera.position.x += Math.sin(elapsed * 1.7) * 0.01;
@@ -413,7 +419,7 @@ export async function createTrainInterlude(ctx: SceneContext): Promise<GameScene
       ui.setCinematic(false);
       rumble?.stop();
       cue?.stop();
-      sae.dispose();
+      aiko.dispose();
       for (const item of passing) item.node.dispose(false, true);
       massTemplate.dispose();
       litTemplate.dispose();

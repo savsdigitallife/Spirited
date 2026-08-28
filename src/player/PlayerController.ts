@@ -17,7 +17,9 @@ import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { InputManager } from "../input/InputManager";
 import type { AudioManager } from "../audio/AudioManager";
-import { PlayerCharacter } from "./PlayerCharacter";
+import { Character } from "./Character";
+import { aikoSpec, type CharacterSpec } from "./rig/CharacterSpec";
+import type { AnimationState } from "./AnimationController";
 import type { ThirdPersonCamera } from "./ThirdPersonCamera";
 
 export interface MovementTuning {
@@ -106,7 +108,7 @@ export interface PlayerBounds {
 }
 
 export class PlayerController {
-  readonly character: PlayerCharacter;
+  readonly character: Character;
   /** Invisible ellipsoid that does the colliding. */
   readonly collider: Mesh;
 
@@ -119,6 +121,7 @@ export class PlayerController {
   private facing = 0;
   private turnRate = 0;
   private locked = false;
+  private airborne = false;
 
   surface: PlayerSurface = { hardness: 1 };
   private bounds: PlayerBounds | null = null;
@@ -131,8 +134,9 @@ export class PlayerController {
     private readonly camera: ThirdPersonCamera,
     private readonly audio: AudioManager,
     spawn: Vector3,
+    spec: CharacterSpec = aikoSpec(),
   ) {
-    this.character = new PlayerCharacter(scene);
+    this.character = new Character(scene, spec);
 
     // The collider is a capsule a little narrower than the body, so brushing
     // a wall does not stop the character dead.
@@ -150,7 +154,18 @@ export class PlayerController {
     this.collider = collider;
 
     this.character.root.position.copyFrom(spawn);
+    this.character.settle();
     this.lastSafe = spawn.clone();
+  }
+
+  /** Plays a one-shot or enters a held pose; movement locks while it runs. */
+  playAnimation(state: AnimationState): void {
+    this.character.play(state);
+  }
+
+  /** Leaves a held pose. */
+  releaseAnimation(): void {
+    this.character.release();
   }
 
   /**
@@ -224,13 +239,17 @@ export class PlayerController {
   teleport(to: Vector3, facing = this.facing): void {
     this.collider.position.copyFrom(to).addInPlace(new Vector3(0, 0.85, 0));
     this.character.root.position.copyFrom(to);
+    this.character.root.rotation.y = facing;
     this.facing = facing;
     this.velocity.setAll(0);
     this.verticalSpeed = 0;
+    this.character.settle();
   }
 
   update(dt: number): void {
-    const axis = this.locked ? { x: 0, y: 0 } : this.input.moveAxis();
+    // A one-shot or a held pose takes the controls; she is doing something.
+    const busy = this.character.isBusy;
+    const axis = this.locked || busy ? { x: 0, y: 0 } : this.input.moveAxis();
     const wants = Math.hypot(axis.x, axis.y) > 0.02;
 
     // Camera-relative desired direction.
@@ -275,7 +294,7 @@ export class PlayerController {
 
     // Jump, with a little forgiveness at both ends of the timing.
     this.sinceGrounded = this.grounded ? 0 : this.sinceGrounded + dt;
-    this.jumpQueued = this.input.justPressed("jump") && !this.locked
+    this.jumpQueued = this.input.justPressed("jump") && !this.locked && !busy
       ? 0
       : this.jumpQueued + dt;
     if (this.jumpQueued < JUMP_BUFFER && this.sinceGrounded < COYOTE_TIME) {
@@ -295,7 +314,12 @@ export class PlayerController {
     this.character.root.position.copyFrom(feet);
     this.character.root.rotation.y = this.facing;
 
-    const footfall = this.character.pose(
+    const wasAirborne = this.airborne;
+    this.airborne = !this.isSupported;
+    if (wasAirborne && !this.airborne) this.character.play("land");
+
+    const footfall = this.character.update(
+      dt,
       {
         speed: new Vector3(this.velocity.x, 0, this.velocity.z).length(),
         runSpeed: this.tuning.jog,
@@ -303,11 +327,16 @@ export class PlayerController {
         verticalSpeed: this.verticalSpeed,
         turnRate: this.turnRate,
       },
-      dt,
+      feet.y,
     );
     if (footfall) {
       this.audio.footstep(this.surface.hardness, Math.min(1, this.speed / this.tuning.jog));
     }
+
+    // On a street this narrow the camera is regularly forced against a wall
+    // and ends up inside her. Hiding her at that range is what every
+    // third-person game does, and it is far less jarring than the alternative.
+    this.character.setVisible(this.camera.distanceToTarget > 1.75);
   }
 
   /** Moves in steps small enough for the collider to stay reliable. */

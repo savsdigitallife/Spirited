@@ -26,15 +26,43 @@ export interface ThirdPersonCameraOptions {
   minDistance: number;
   maxDistance: number;
   distance: number;
+  /** Vertical field of view, radians. */
+  fov: number;
+  /** Extra distance at full sprint, so speed opens the frame out. */
+  sprintPullback: number;
 }
 
+/**
+ * Street framing.
+ *
+ * A 1.63 m character at 3.5 m through a 47-degree lens fills a little over
+ * half the frame height. That is roughly where a third-person action game
+ * puts its protagonist: close enough that her hair and her hands read, far
+ * enough that the pavement in front of her is legible. The previous 4.4 m
+ * through 53 degrees put her at a third of the frame, which is what made her
+ * look disconnected from the street.
+ */
 const DEFAULTS: ThirdPersonCameraOptions = {
-  pivotHeight: 1.5,
-  shoulder: 0.55,
+  pivotHeight: 1.42,
+  shoulder: 0.52,
   minDistance: 1.6,
-  maxDistance: 8,
-  distance: 4.4,
+  maxDistance: 7,
+  distance: 3.5,
+  fov: 0.82,
+  sprintPullback: 0.8,
 };
+
+/** Tighter, lower and closer, for rooms where 3.5 m is a wall. */
+const INTERIOR: Partial<ThirdPersonCameraOptions> = {
+  pivotHeight: 1.34,
+  shoulder: 0.4,
+  distance: 2.4,
+  maxDistance: 3.4,
+  fov: 0.92,
+  sprintPullback: 0,
+};
+
+export type CameraProfile = "street" | "interior";
 
 /** Radians. Stops short of straight up and straight down. */
 const PITCH_MIN = -0.62;
@@ -54,8 +82,11 @@ export class ThirdPersonCamera {
   private readonly pivot = new Vector3();
   private readonly smoothedPivot = new Vector3();
   private readonly desired = new Vector3();
+  private readonly aim = new Vector3();
   private readonly probe = new Ray(new Vector3(), new Vector3(), 1);
   private initialised = false;
+  private profile: CameraProfile = "street";
+  private baseDistance: number;
 
   constructor(
     private readonly scene: Scene,
@@ -64,13 +95,14 @@ export class ThirdPersonCamera {
   ) {
     this.options = { ...DEFAULTS, ...options };
     this.distance = this.options.distance;
+    this.baseDistance = this.options.distance;
     this.currentDistance = this.distance;
     this.currentShoulder = this.options.shoulder;
 
     this.camera = new UniversalCamera("camera.thirdPerson", new Vector3(0, 2, -5), scene);
-    this.camera.minZ = 0.15;
+    this.camera.minZ = 0.12;
     this.camera.maxZ = 500;
-    this.camera.fov = 0.92;
+    this.camera.fov = this.options.fov;
     // No input attachment: this camera is driven entirely by update().
     this.camera.inputs.clear();
   }
@@ -88,8 +120,45 @@ export class ThirdPersonCamera {
     return this.yaw;
   }
 
+  /** How far the camera actually ended up, after occlusion pulled it in. */
+  get distanceToTarget(): number {
+    return this.currentDistance;
+  }
+
   swapShoulder(): void {
     this.shoulderSide *= -1;
+  }
+
+  /**
+   * Swaps framing wholesale.
+   *
+   * Indoors the street framing puts the camera through the back wall, so the
+   * occlusion probe jams it into her shoulders. A separate profile is far
+   * better than fighting the probe.
+   */
+  setProfile(profile: CameraProfile): void {
+    if (this.profile === profile) return;
+    this.profile = profile;
+    Object.assign(this.options, profile === "interior" ? INTERIOR : DEFAULTS);
+    this.baseDistance = this.options.distance;
+    this.distance = this.options.distance;
+  }
+
+  /**
+   * Marks a mesh as something the camera must not pass through.
+   *
+   * Only real occluders — buildings, walls, the ends of the block. The probe
+   * used to test everything collidable, and on a two-and-a-half metre
+   * pavement that meant a bollard or a lamp post yanked the camera into the
+   * back of her head every few steps. A pole should be something you see
+   * past, not something the camera fights.
+   */
+  addOccluder(mesh: AbstractMesh): void {
+    mesh.metadata = { ...(mesh.metadata ?? {}), cameraOccluder: true };
+  }
+
+  addOccluders(meshes: Iterable<AbstractMesh>): void {
+    for (const mesh of meshes) this.addOccluder(mesh);
   }
 
   /** Points the camera along a compass heading, in radians. */
@@ -113,11 +182,15 @@ export class ThirdPersonCamera {
 
     const wheel = this.input.wheel();
     if (wheel !== 0) {
-      this.distance = Math.max(
+      this.baseDistance = Math.max(
         this.options.minDistance,
-        Math.min(this.options.maxDistance, this.distance + wheel * 0.55),
+        Math.min(this.options.maxDistance, this.baseDistance + wheel * 0.45),
       );
     }
+    // Running eases the camera back and widens the lens a little. Both are
+    // small; the point is that speed should feel different, not look it.
+    const wanted = this.baseDistance + speed01 * this.options.sprintPullback;
+    this.distance += (wanted - this.distance) * Math.min(1, dt * 2.2);
 
     // Pivot: shoulder height, offset to whichever side is active.
     const right = this.right;
@@ -135,9 +208,11 @@ export class ThirdPersonCamera {
     } else {
       // The pivot lags slightly, which is what stops the camera feeling
       // welded to the character while still tracking a sprint.
-      const follow = 1 - Math.pow(0.0016, dt);
+      // Horizontal tracking is tight so she never drifts off her mark;
+      // vertical is looser so a kerb or a stair tread does not jolt the frame.
+      const follow = 1 - Math.pow(0.0006, dt);
       this.smoothedPivot.x += (this.pivot.x - this.smoothedPivot.x) * follow;
-      this.smoothedPivot.y += (this.pivot.y - this.smoothedPivot.y) * follow * 0.7;
+      this.smoothedPivot.y += (this.pivot.y - this.smoothedPivot.y) * follow * 0.45;
       this.smoothedPivot.z += (this.pivot.z - this.smoothedPivot.z) * follow;
     }
 
@@ -155,7 +230,10 @@ export class ThirdPersonCamera {
     this.probe.direction.copyFrom(offset);
     this.probe.length = this.distance + 0.4;
     const hit = this.scene.pickWithRay(this.probe, (mesh: AbstractMesh) =>
-      Boolean(mesh.checkCollisions && mesh.isEnabled() && mesh.isVisible),
+      Boolean(
+        (mesh.metadata as { cameraOccluder?: boolean } | undefined)?.cameraOccluder &&
+          mesh.isEnabled(),
+      ),
     );
     if (hit?.hit && hit.distance > 0) {
       allowed = Math.max(this.options.minDistance * 0.55, hit.distance - 0.35);
@@ -170,11 +248,18 @@ export class ThirdPersonCamera {
       this.smoothedPivot.z + offset.z * this.currentDistance,
     );
     this.camera.position.copyFrom(this.desired);
-    this.camera.setTarget(this.smoothedPivot);
+    // Aim a little above the pivot so she sits in the lower middle of the
+    // frame with the street ahead of her, rather than dead centre.
+    this.aim.set(
+      this.smoothedPivot.x,
+      this.smoothedPivot.y + 0.12,
+      this.smoothedPivot.z,
+    );
+    this.camera.setTarget(this.aim);
 
     // A touch of extra field of view at speed reads as effort.
-    const targetFov = 0.92 + speed01 * 0.1;
-    this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 3);
+    const targetFov = this.options.fov + speed01 * 0.07;
+    this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 2.5);
   }
 
   setFarPlane(far: number): void {

@@ -24,6 +24,7 @@ npm run dev          # http://localhost:8080
 | `npm run typecheck` | TypeScript only, no emit |
 | `npm test` | Type-check plus the headless design-sandbox suite |
 | `npm run test:browser` | Build, then drive the real build in headless Chromium |
+| `node tools/shot.mjs <name> [scene] [settle] [script]` | One frame from the running build, for looking at a change |
 
 ### URL switches
 
@@ -49,8 +50,9 @@ zoom · `E` interact · `V` swap shoulder · `P`/`Esc` pause · `M` mute ·
 src/core/      engine bootstrap, clock, settings, events, state, post-processing
 src/engine/    scene lifecycle, asset loading, boot screen
 src/input/     hardware input mapped to game actions
-src/player/    character rig, movement, third-person camera
-src/world/     terrain, sky, lighting, weather, crowds, traffic, prefabs, materials
+src/player/    character rig, hair simulation, animation, movement, camera
+src/world/     terrain, sky, lighting, weather, facades, interiors, crowds,
+               traffic, prefabs, materials
 src/audio/     Web Audio buses, ambience, footsteps, score
 src/ui/        HUD, prompts, captions, pause, debug overlay
 src/scenes/    regions — the Tokyo street and the Phase 1 proving ground
@@ -66,8 +68,11 @@ docs/          design bible and notes
 Playable from the city to the valley: a wet Tokyo backstreet at night, the
 last train south, and the countryside it puts her down in.
 
+- `docs/TOKYO-REBUILD.md` — Aiko, the third-person presentation, and the
+  street rebuilt as a real environment.
 - `docs/JOURNEY.md` — the train interlude and Hazama valley.
-- `docs/TOKYO-SLICE.md` — the character, the camera, and the street.
+- `docs/TOKYO-SLICE.md` — the first pass at the character and the street.
 - `docs/PHASE-1.md` — the engine foundation underneath it all.
 
-Next: the farm at the end of the track east.
+Next: pedestrians that look and behave like people, then interiors you can
+walk into.

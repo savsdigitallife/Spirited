@@ -550,6 +550,12 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   });
   scene.activeCamera = camera.camera;
   ctx.setActiveCamera(camera.camera);
+  // Buildings and the platform block the camera; trees and poles do not.
+  camera.addOccluders(
+    scene.meshes.filter(
+      (m) => m.name.startsWith("platform.") || m.name.startsWith("prefab.farmhouse") || m.name.startsWith("prefab.barn"),
+    ),
+  );
 
   lighting.applySettings(quality);
   for (const mesh of player.character.meshes) lighting.addCaster(mesh, false);

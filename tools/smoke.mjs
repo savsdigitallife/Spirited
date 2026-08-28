@@ -164,7 +164,7 @@ const frameStats = () =>
 const worldStats = () =>
   page.evaluate(() => {
     const scene = window.nagori.scenes.active.scene;
-    const sae = scene.getTransformNodeByName("sae");
+    const aiko = scene.getTransformNodeByName("aiko.root");
     return {
       region: window.nagori.scenes.active.id,
       camera: scene.activeCamera?.name ?? null,
@@ -174,7 +174,7 @@ const worldStats = () =>
       lights: scene.lights.length,
       materials: scene.materials.length,
       particles: scene.particleSystems.length,
-      player: sae ? [sae.position.x, sae.position.y, sae.position.z] : null,
+      player: aiko ? [aiko.position.x, aiko.position.y, aiko.position.z] : null,
       walkers: scene.transformNodes.filter((n) => n.name.startsWith("walker.")).length,
       cars: scene.transformNodes.filter((n) => n.name.startsWith("car.")).length,
     };
@@ -187,8 +187,16 @@ const before = await worldStats();
 check("region is the Tokyo street", before.region === "tokyoStreet", before.region);
 check("third-person camera is live", before.camera === "camera.thirdPerson", String(before.camera));
 check("player character is in the scene", before.player !== null, JSON.stringify(before.player));
-check("street has geometry", before.indices / 3 > 8_000, `${Math.round(before.indices / 3)} tris`);
+check("street has geometry", before.indices / 3 > 30_000, `${Math.round(before.indices / 3)} tris`);
 check("pedestrians exist", before.walkers >= 8, `${before.walkers} walkers`);
+const composition = await page.evaluate(() => {
+  const scene = window.nagori.scenes.active.scene;
+  const count = (prefix) => scene.meshes.filter((m) => m.name.startsWith(prefix)).length;
+  return { buildings: count("building."), interiors: count("interior."), skyline: count("skyline.") };
+});
+check("the street has varied frontages", composition.buildings >= 12, `${composition.buildings} buildings`);
+check("shops can be seen into", composition.interiors >= 8, `${composition.interiors} visible interiors`);
+check("the city continues past the block", composition.skyline >= 40, `${composition.skyline} distant towers`);
 check("traffic exists", before.cars >= 4, `${before.cars} cars`);
 check("rain particle system exists", before.particles >= 1, `${before.particles} systems`);
 check("street lighting is set up", before.lights >= 4, `${before.lights} lights`);

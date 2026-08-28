@@ -206,10 +206,13 @@ export class CityMaterials {
     const cached = this.cache.get(key);
     if (cached) return cached;
     const material = new PBRMaterial("city.glass", this.scene);
-    material.albedoColor = new Color3(0.05, 0.07, 0.09);
-    material.metallic = 0.15;
-    material.roughness = 0.08;
-    material.alpha = 0.55;
+    // Clear enough to see a room through. At 0.55 alpha over a dark albedo
+    // every shopfront was a black mirror, which defeats the entire point of
+    // building interiors behind them.
+    material.albedoColor = new Color3(0.09, 0.11, 0.13);
+    material.metallic = 0.25;
+    material.roughness = 0.05;
+    material.alpha = 0.26;
     material.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
     material.backFaceCulling = false;
     this.cache.set(key, material);

@@ -375,6 +375,271 @@ export function tokyoPrefabs(materials: CityMaterials): PrefabDefinition[] {
         return [plate, rim];
       },
     },
+
+    {
+      id: "bollard",
+      model: `${MODEL_ROOT}bollard.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const post = CreateCylinder("post", { diameter: 0.11, height: 0.85, tessellation: 10 }, scene);
+        post.position.y = 0.42;
+        post.material = materials.painted("bollard", new Color3(0.72, 0.72, 0.7), 0.55, 0.3);
+        const band = box(
+          scene,
+          "band",
+          { width: 0.13, height: 0.07, depth: 0.13 },
+          new Vector3(0, 0.72, 0),
+          materials.emissive("bollardBand", new Color3(1, 0.55, 0.15), 0.9),
+        );
+        const cap = CreateSphere("cap", { diameter: 0.115, segments: 8 }, scene);
+        cap.position.y = 0.85;
+        cap.material = materials.painted("bollard", new Color3(0.72, 0.72, 0.7), 0.55, 0.3);
+        return [post, band, cap];
+      },
+    },
+    {
+      id: "guardrail",
+      model: `${MODEL_ROOT}guardrail.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const steel = materials.painted("railSteel", new Color3(0.62, 0.63, 0.62), 0.45, 0.7);
+        const parts: Mesh[] = [];
+        for (const z of [-1.1, 1.1]) {
+          const post = CreateCylinder(`post${z}`, { diameter: 0.075, height: 0.8, tessellation: 8 }, scene);
+          post.position.set(0, 0.4, z);
+          post.material = steel;
+          parts.push(post);
+        }
+        for (const y of [0.78, 0.45]) {
+          const rail = CreateCylinder(`rail${y}`, { diameter: 0.06, height: 2.2, tessellation: 8 }, scene);
+          rail.rotation.x = Math.PI / 2;
+          rail.position.set(0, y, 0);
+          rail.material = steel;
+          parts.push(rail);
+        }
+        return parts;
+      },
+    },
+    {
+      id: "utilityBox",
+      model: `${MODEL_ROOT}utility-box.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const shell = box(
+          scene,
+          "shell",
+          { width: 0.55, height: 1.15, depth: 0.42 },
+          new Vector3(0, 0.58, 0),
+          materials.painted("utilityGrey", new Color3(0.46, 0.47, 0.45), 0.7),
+        );
+        const plinth = box(
+          scene,
+          "plinth",
+          { width: 0.62, height: 0.1, depth: 0.5 },
+          new Vector3(0, 0.05, 0),
+          materials.painted("kerb", new Color3(0.5, 0.49, 0.46), 0.8),
+        );
+        const label = box(
+          scene,
+          "label",
+          { width: 0.22, height: 0.16, depth: 0.02 },
+          new Vector3(0.1, 0.86, -0.22),
+          materials.painted("labelPlate", new Color3(0.8, 0.78, 0.7), 0.7),
+        );
+        return [plinth, shell, label];
+      },
+    },
+    {
+      id: "drainGrate",
+      model: `${MODEL_ROOT}drain-grate.glb`,
+      collides: false,
+      castsShadow: false,
+      build: ({ scene }) => {
+        const frame = box(
+          scene,
+          "frame",
+          { width: 0.42, height: 0.04, depth: 0.62 },
+          new Vector3(0, 0.02, 0),
+          materials.painted("ironDark", new Color3(0.13, 0.13, 0.14), 0.6, 0.7),
+        );
+        const parts: Mesh[] = [frame];
+        for (let i = 0; i < 5; i += 1) {
+          parts.push(
+            box(
+              scene,
+              `slot${i}`,
+              { width: 0.3, height: 0.05, depth: 0.05 },
+              new Vector3(0, 0.015, -0.22 + i * 0.11),
+              materials.painted("ironVoid", new Color3(0.03, 0.03, 0.035), 0.9),
+            ),
+          );
+        }
+        return parts;
+      },
+    },
+    {
+      id: "bikeRack",
+      model: `${MODEL_ROOT}bike-rack.glb`,
+      collides: false,
+      build: ({ scene }) => {
+        const steel = materials.painted("railSteel", new Color3(0.62, 0.63, 0.62), 0.45, 0.7);
+        const parts: Mesh[] = [];
+        for (let i = 0; i < 4; i += 1) {
+          const hoop = CreateBox(`hoop${i}`, { width: 0.05, height: 0.5, depth: 0.05 }, scene);
+          hoop.position.set(-0.25, 0.25, -0.9 + i * 0.6);
+          hoop.material = steel;
+          parts.push(hoop);
+          const arm = CreateBox(`arm${i}`, { width: 0.55, height: 0.05, depth: 0.05 }, scene);
+          arm.position.set(0, 0.48, -0.9 + i * 0.6);
+          arm.material = steel;
+          parts.push(arm);
+        }
+        return parts;
+      },
+    },
+    {
+      id: "crate",
+      model: `${MODEL_ROOT}crate.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const a = box(
+          scene,
+          "a",
+          { width: 0.52, height: 0.32, depth: 0.38 },
+          new Vector3(0, 0.16, 0),
+          materials.painted("crateBlue", new Color3(0.12, 0.24, 0.4), 0.85),
+        );
+        const b = box(
+          scene,
+          "b",
+          { width: 0.5, height: 0.3, depth: 0.36 },
+          new Vector3(0.04, 0.47, 0.03),
+          materials.painted("crateGrey", new Color3(0.35, 0.35, 0.33), 0.85),
+        );
+        b.rotation.y = 0.22;
+        return [a, b];
+      },
+    },
+    {
+      id: "cone",
+      model: `${MODEL_ROOT}cone.glb`,
+      collides: false,
+      build: ({ scene }) => {
+        const body = CreateCylinder(
+          "body",
+          { diameterTop: 0.04, diameterBottom: 0.26, height: 0.62, tessellation: 10 },
+          scene,
+        );
+        body.position.y = 0.31;
+        body.material = materials.painted("coneOrange", new Color3(0.72, 0.24, 0.06), 0.75);
+        const base = box(
+          scene,
+          "base",
+          { width: 0.34, height: 0.04, depth: 0.34 },
+          new Vector3(0, 0.02, 0),
+          materials.painted("coneOrange", new Color3(0.72, 0.24, 0.06), 0.75),
+        );
+        const stripe = CreateCylinder(
+          "stripe",
+          { diameterTop: 0.14, diameterBottom: 0.18, height: 0.1, tessellation: 10 },
+          scene,
+        );
+        stripe.position.y = 0.4;
+        stripe.material = materials.painted("coneStripe", new Color3(0.82, 0.82, 0.8), 0.7);
+        return [base, body, stripe];
+      },
+    },
+    {
+      id: "scooter",
+      model: `${MODEL_ROOT}scooter.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const paint = materials.painted("scooterPaint", new Color3(0.5, 0.5, 0.52), 0.35, 0.5);
+        const dark = materials.painted("tyre", new Color3(0.04, 0.04, 0.05), 0.9);
+        const parts: Mesh[] = [];
+        const body = box(scene, "body", { width: 0.34, height: 0.4, depth: 1.0 }, new Vector3(0, 0.55, -0.1), paint);
+        parts.push(body);
+        parts.push(box(scene, "deck", { width: 0.32, height: 0.1, depth: 0.55 }, new Vector3(0, 0.32, 0.35), paint));
+        parts.push(box(scene, "seat", { width: 0.3, height: 0.12, depth: 0.5 }, new Vector3(0, 0.78, -0.2), dark));
+        const column = CreateCylinder("column", { diameter: 0.07, height: 0.75, tessellation: 8 }, scene);
+        column.position.set(0, 0.75, 0.62);
+        column.rotation.x = -0.22;
+        column.material = paint;
+        parts.push(column);
+        parts.push(box(scene, "bars", { width: 0.6, height: 0.06, depth: 0.06 }, new Vector3(0, 1.08, 0.55), dark));
+        for (const [z, d] of [[0.7, 0.42], [-0.55, 0.42]] as const) {
+          const wheel = CreateCylinder(`wheel${z}`, { diameter: d, height: 0.11, tessellation: 12 }, scene);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(0, d / 2, z);
+          wheel.material = dark;
+          parts.push(wheel);
+        }
+        return parts;
+      },
+    },
+    {
+      id: "benchSeat",
+      model: `${MODEL_ROOT}bench.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const wood = materials.painted("benchWood", new Color3(0.3, 0.22, 0.15), 0.85);
+        const steel = materials.painted("railSteel", new Color3(0.62, 0.63, 0.62), 0.45, 0.7);
+        const parts: Mesh[] = [
+          box(scene, "seat", { width: 0.42, height: 0.07, depth: 1.6 }, new Vector3(0, 0.44, 0), wood),
+          box(scene, "back", { width: 0.07, height: 0.42, depth: 1.6 }, new Vector3(0.18, 0.68, 0), wood),
+        ];
+        for (const z of [-0.65, 0.65]) {
+          parts.push(box(scene, `leg${z}`, { width: 0.06, height: 0.44, depth: 0.06 }, new Vector3(-0.14, 0.22, z), steel));
+          parts.push(box(scene, `leg2${z}`, { width: 0.06, height: 0.44, depth: 0.06 }, new Vector3(0.16, 0.22, z), steel));
+        }
+        return parts;
+      },
+    },
+    {
+      id: "streetCondenser",
+      model: `${MODEL_ROOT}street-condenser.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const shell = box(
+          scene,
+          "shell",
+          { width: 0.4, height: 0.72, depth: 0.95 },
+          new Vector3(0, 0.42, 0),
+          materials.painted("acShell", new Color3(0.6, 0.6, 0.58), 0.7),
+        );
+        const grille = box(
+          scene,
+          "grille",
+          { width: 0.05, height: 0.55, depth: 0.7 },
+          new Vector3(-0.2, 0.42, 0),
+          materials.painted("acGrille", new Color3(0.2, 0.2, 0.2), 0.8),
+        );
+        const frame = box(
+          scene,
+          "frame",
+          { width: 0.5, height: 0.12, depth: 1.02 },
+          new Vector3(0, 0.06, 0),
+          materials.painted("ironDark", new Color3(0.13, 0.13, 0.14), 0.6, 0.7),
+        );
+        return [frame, shell, grille];
+      },
+    },
+    {
+      id: "gasBottles",
+      model: `${MODEL_ROOT}gas-bottles.glb`,
+      collides: true,
+      build: ({ scene }) => {
+        const steel = materials.painted("bottleSteel", new Color3(0.55, 0.5, 0.42), 0.5, 0.6);
+        const parts: Mesh[] = [];
+        for (let i = 0; i < 3; i += 1) {
+          const bottle = CreateCylinder(`bottle${i}`, { diameter: 0.3, height: 0.9, tessellation: 10 }, scene);
+          bottle.position.set((i % 2) * 0.32, 0.45, i * 0.3);
+          bottle.material = steel;
+          parts.push(bottle);
+        }
+        return parts;
+      },
+    },
     {
       id: "awning",
       model: `${MODEL_ROOT}awning.glb`,
