@@ -20,6 +20,7 @@ import { fbm, makeRandom } from "./Noise";
 import { makeGlass, type GlassKind } from "./Glass";
 import { japaneseAvailable, signTexture, type SignStyle } from "./Signage";
 import { makeCycleMark, makePaving, type PavingKind } from "./Paving";
+import { concreteShade, makeConcrete } from "./Concrete";
 
 const RECIPES = {
   asphalt: {
@@ -144,6 +145,22 @@ export class CityMaterials {
       texture.anisotropicFilteringLevel = this.anisotropy;
     }
     this.cache.set(key, material);
+    return material;
+  }
+
+  /**
+   * Poured concrete: formwork panels, their joints and tie holes, staining,
+   * and aggregate up close. Paired with `boxUv` at `CONCRETE_TILE`.
+   */
+  concrete(): PBRMaterial {
+    const cached = this.cache.get("concrete");
+    if (cached) return cached;
+    const material = makeConcrete(
+      this.scene,
+      Math.min(1024, Math.max(256, this.textureSize)),
+      this.anisotropy,
+    );
+    this.cache.set("concrete", material);
     return material;
   }
 
@@ -510,12 +527,15 @@ export class CityMaterials {
     const cached = this.cache.get(key);
     if (cached) return cached;
 
-    const size = Math.min(1024, Math.max(256, this.textureSize));
+    // Capped at 512: a facade texture covers one three-metre floor band, and
+    // five variants of four 1024-pixel maps cost more frame than they are
+    // worth on a wall nobody stands closer than five metres to.
+    const size = Math.min(512, Math.max(256, this.textureSize));
     const random = makeRandom(options.seed);
 
-    // The grid is decided once and then drawn three times. Rolling it inside
-    // each pass would give the albedo, the emissive and the gloss map three
-    // different sets of lit windows.
+    // The grid is decided once and then drawn several times. Rolling it
+    // inside each pass would give the albedo, the emissive, the gloss and
+    // the relief four different sets of lit windows.
     const cells: { lit: boolean; brightness: number; cold: boolean; shade: number }[] = [];
     for (let i = 0; i < options.rows * options.columns; i += 1) {
       cells.push({
@@ -526,62 +546,151 @@ export class CityMaterials {
       });
     }
 
-    const draw = (pass: "albedo" | "emissive" | "gloss"): DynamicTexture => {
-      const emissive = pass === "emissive";
+    const cellW = size / options.columns;
+    const cellH = size / options.rows;
+    const inset = Math.max(1, Math.min(cellW, cellH) * 0.17);
+    /** Is this texel inside a window opening, and how far into it? */
+    const opening = (x: number, y: number): { cell: number; inside: boolean; reveal: number } => {
+      const col = Math.min(options.columns - 1, Math.floor(x / cellW));
+      const row = Math.min(options.rows - 1, Math.floor(y / cellH));
+      const left = col * cellW + inset;
+      const topEdge = row * cellH + inset;
+      const right = (col + 1) * cellW - inset;
+      const bottom = (row + 1) * cellH - inset;
+      const inside = x >= left && x < right && y >= topEdge && y < bottom;
+      const edge = Math.min(x - left, right - x, y - topEdge, bottom - y);
+      return { cell: row * options.columns + col, inside, reveal: inside ? Math.min(1, edge / inset) : 0 };
+    };
+
+    // The wall itself is concrete, so it is drawn as concrete: the panel
+    // joints of the pour, the tie holes the formwork left, and the mottling
+    // and streaking that stop it reading as grey card. A floor band is
+    // about three metres tall, which is what sets the scale here.
+    const metresAcross = options.columns * 2.1;
+    const metresUp = 3;
+    const wall = new Float32Array(size * size);
+    const relief = new Float32Array(size * size);
+    const wallGloss = new Float32Array(size * size);
+    for (let y = 0; y < size; y += 1) {
+      const wy = (1 - y / size) * metresUp;
+      for (let x = 0; x < size; x += 1) {
+        const wx = (x / size) * metresAcross;
+        const { tone, gloss } = concreteShade(wx, wy);
+        // One pour joint per floor at top and bottom, and a vertical joint
+        // between each pair of window columns.
+        const columnJoint = Math.abs(((x / cellW) % 1) - 0) < 0.012 ? 1 : 0;
+        const floorJoint = y < size * 0.012 || y > size * 0.988 ? 1 : 0;
+        const joint = Math.max(columnJoint, floorJoint);
+        // Tie holes: two a panel, clear of the openings.
+        const tieX = Math.abs(((x / cellW) % 1) - 0.5) < 0.02;
+        const tieY = Math.abs(((y / cellH) % 1) - 0.08) < 0.014 || Math.abs(((y / cellH) % 1) - 0.94) < 0.014;
+        const tie = tieX && tieY ? 1 : 0;
+        const i = y * size + x;
+        wall[i] = Math.max(0, tone - joint * 0.28 - tie * 0.45);
+        relief[i] = -joint * 0.5 - tie * 0.4 + (tone - 0.5) * 0.12;
+        wallGloss[i] = gloss;
+      }
+    }
+
+    const write = (
+      pass: "albedo" | "emissive" | "gloss" | "normal",
+    ): DynamicTexture => {
       const texture = new DynamicTexture(
         `facade.${name}.${pass}`,
         { width: size, height: size },
         this.scene,
         true,
         Texture.TRILINEAR_SAMPLINGMODE,
+        undefined,
+        false,
       );
       const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
-      // The gloss map is read as metallic-roughness: green is roughness,
-      // blue is metalness. The wall is rough and dielectric; the panes are
-      // smooth and part-metal, which is how a window catches the sun while
-      // the concrete around it does not.
-      // Pale by day, because that is what these buildings are: tile, panel
-      // and painted concrete. At night almost none of it is lit and the
-      // windows carry the frame, so a light wall costs nothing there.
-      ctx.fillStyle = emissive ? "#000000" : pass === "gloss" ? "#00c010" : "#6d7076";
-      ctx.fillRect(0, 0, size, size);
+      const image = ctx.createImageData(size, size);
+      const px = image.data;
+      const height = new Float32Array(pass === "normal" ? size * size : 0);
+      const warm: [number, number, number][] = [
+        [1, 0.85, 0.63],
+        [1, 0.76, 0.48],
+        [1, 0.89, 0.74],
+      ];
+      const cold: [number, number, number][] = [
+        [0.81, 0.9, 1],
+        [0.9, 0.95, 1],
+      ];
 
-      const cellW = size / options.columns;
-      const cellH = size / options.rows;
-      const inset = Math.max(1, Math.min(cellW, cellH) * 0.17);
-      // Warm interiors, a few cold fluorescents; both fade with depth.
-      const warm = ["#ffd8a0", "#ffc27a", "#ffe4bd"];
-      const cold = ["#cfe6ff", "#e6f2ff"];
-
-      for (let row = 0; row < options.rows; row += 1) {
-        for (let col = 0; col < options.columns; col += 1) {
-          const x = col * cellW + inset;
-          const y = row * cellH + inset;
-          const w = cellW - inset * 2;
-          const h = cellH - inset * 2;
-          const cell = cells[row * options.columns + col]!;
-          if (pass === "gloss") {
-            // Roughness 0.09, metalness 0.55 over the pane, with a little
-            // variation so a facade is not one uniform sheet of mirror.
-            const rough = Math.round((0.07 + cell.shade * 0.06) * 255);
-            ctx.fillStyle = `rgb(0,${rough},140)`;
-            ctx.fillRect(x, y, w, h);
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const i = y * size + x;
+          const o = i * 4;
+          const { cell, inside, reveal } = opening(x, y);
+          const state = cells[cell] ?? { lit: false, brightness: 0.6, cold: false, shade: 0.5 };
+          if (pass === "emissive") {
+            if (inside && state.lit) {
+              const palette = state.cold ? cold : warm;
+              const rgb = palette[Math.floor(state.shade * palette.length)] ?? warm[0]!;
+              const level = state.brightness * (0.55 + reveal * 0.45);
+              px[o] = Math.round(255 * (rgb[0] ?? 1) * level);
+              px[o + 1] = Math.round(255 * (rgb[1] ?? 1) * level);
+              px[o + 2] = Math.round(255 * (rgb[2] ?? 1) * level);
+            } else {
+              px[o] = 0;
+              px[o + 1] = 0;
+              px[o + 2] = 0;
+            }
+            px[o + 3] = 255;
             continue;
           }
-          if (emissive) {
-            if (!cell.lit) continue;
-            const palette = cell.cold ? cold : warm;
-            ctx.fillStyle = palette[Math.floor(cell.shade * palette.length)] ?? "#ffd8a0";
-            ctx.globalAlpha = cell.brightness;
-            ctx.fillRect(x, y, w, h);
-            ctx.globalAlpha = 1;
+          if (pass === "gloss") {
+            // Rough dielectric across the concrete, smooth and part-metal
+            // over each pane, so a window catches the sun and the wall does
+            // not.
+            const rough = inside ? 0.07 + state.shade * 0.06 : 0.72 + (wallGloss[i] ?? 0.8) * 0.2;
+            px[o] = 0;
+            px[o + 1] = Math.round(255 * Math.min(1, rough));
+            px[o + 2] = inside ? 140 : 12;
+            px[o + 3] = 255;
+            continue;
+          }
+          if (pass === "normal") {
+            // Windows sit back in their reveals; joints and tie holes are
+            // shallow. Built as a height field and differentiated below.
+            height[i] = inside ? -1.1 - reveal * 0.2 : (relief[i] ?? 0);
+            continue;
+          }
+          // Albedo.
+          if (inside) {
+            const glass = state.lit ? 0.2 + state.shade * 0.06 : 0.13 + state.shade * 0.05;
+            px[o] = Math.round(255 * glass * 0.95);
+            px[o + 1] = Math.round(255 * glass);
+            px[o + 2] = Math.round(255 * glass * 1.12);
           } else {
-            // Glazing reads darker than the wall around it in daylight.
-            ctx.fillStyle = cell.lit ? "#39404a" : "#252a31";
-            ctx.fillRect(x, y, w, h);
+            const tone = wall[i] ?? 0.5;
+            px[o] = Math.round(255 * (0.58 + 0.2 * tone));
+            px[o + 1] = Math.round(255 * (0.585 + 0.2 * tone));
+            px[o + 2] = Math.round(255 * (0.58 + 0.195 * tone));
+          }
+          px[o + 3] = 255;
+        }
+      }
+
+      if (pass === "normal") {
+        const at = (x: number, y: number): number =>
+          height[(((y % size) + size) % size) * size + (((x % size) + size) % size)] ?? 0;
+        for (let y = 0; y < size; y += 1) {
+          for (let x = 0; x < size; x += 1) {
+            const dx = (at(x + 1, y) - at(x - 1, y)) * 0.9;
+            const dy = (at(x, y + 1) - at(x, y - 1)) * 0.9;
+            const length = Math.hypot(-dx, -dy, 1);
+            const o = (y * size + x) * 4;
+            px[o] = Math.round(((-dx / length) * 0.5 + 0.5) * 255);
+            px[o + 1] = Math.round(((-dy / length) * 0.5 + 0.5) * 255);
+            px[o + 2] = Math.round((1 / length) * 0.5 * 255 + 127);
+            px[o + 3] = 255;
           }
         }
       }
+
+      ctx.putImageData(image, 0, 0);
       texture.update(false);
       texture.wrapU = Texture.WRAP_ADDRESSMODE;
       texture.wrapV = Texture.WRAP_ADDRESSMODE;
@@ -590,19 +699,22 @@ export class CityMaterials {
     };
 
     const material = new PBRMaterial(`city.facade.${name}`, this.scene);
-    material.albedoTexture = draw("albedo");
-    material.emissiveTexture = draw("emissive");
+    material.albedoTexture = write("albedo");
+    material.emissiveTexture = write("emissive");
     material.emissiveColor = new Color3(1, 1, 1);
     material.emissiveIntensity = 1.1;
     this.lit.push({ material, albedo: null, emissive: 1.1 });
-    // Metalness and roughness now come per-pixel from the gloss map; the
-    // factors above it stay at 1 so the map is what decides.
-    material.metallicTexture = draw("gloss");
+    material.bumpTexture = write("normal");
+    material.invertNormalMapY = false;
+    // Metalness and roughness come per-pixel from the gloss map; the factors
+    // above it stay at 1 so the map is what decides.
+    material.metallicTexture = write("gloss");
     material.useRoughnessFromMetallicTextureAlpha = false;
     material.useRoughnessFromMetallicTextureGreen = true;
     material.useMetallnessFromMetallicTextureBlue = true;
     material.metallic = 1;
     material.roughness = 1;
+    material.enableSpecularAntiAliasing = true;
     // Windows are the only part of a facade that should out-reflect the
     // street, and the map has already limited that to the panes.
     material.environmentIntensity = 1.5;
@@ -624,6 +736,7 @@ export class CityMaterials {
     colour: Color3,
     aspect: number,
     style: SignStyle = "neon",
+    invert = false,
   ): PBRMaterial {
     const key = `words:${name}`;
     const cached = this.cache.get(key);
@@ -631,7 +744,7 @@ export class CityMaterials {
     if (!japaneseAvailable()) return this.signboard(name, colour, name.length * 31 + 7);
 
     const material = new PBRMaterial(`city.sign.${name}`, this.scene);
-    const texture = signTexture(this.scene, name, { lines, colour, aspect, style });
+    const texture = signTexture(this.scene, name, { lines, colour, aspect, style, invert });
     material.albedoTexture = texture;
     if (style === "tenant") {
       // A light box: lit by the street by day and from inside after dark,

@@ -22,7 +22,8 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Material } from "@babylonjs/core/Materials/material";
 import type { Scene } from "@babylonjs/core/scene";
 import { CityMaterials } from "./CityMaterials";
-import { pipe, corrugatedSheet, railingRun, revolve } from "./Shapes";
+import { pipe, corrugatedSheet, railingRun, revolve, boxUv } from "./Shapes";
+import { CONCRETE_TILE } from "./Concrete";
 import { makeRandom } from "./Noise";
 
 export interface AlleySpec {
@@ -102,12 +103,12 @@ export function buildAlley(scene: Scene, materials: CityMaterials, spec: AlleySp
 
   // Tighter world scales than the street uses: an alley is read from a metre
   // away, where the frontage textures go soft.
-  const concrete = materials.surface("concrete", 2.5);
+  const concrete = materials.concrete();
   const tile = materials.surface("tileWall", 2);
-  // These two are the alley's own cached materials (the cache keys carry the
-  // world scale), so softening their relief does not touch the street's.
-  for (const material of [concrete, tile]) {
-    const bump = material.bumpTexture as { level?: number } | null;
+  // The tile wall is the alley's own cached material (the cache key carries
+  // the world scale), so softening its relief does not touch the street's.
+  {
+    const bump = tile.bumpTexture as { level?: number } | null;
     if (bump && typeof bump.level === "number") bump.level = 0.4;
   }
   const paint = (name: string, colour: Color3, roughness = 0.7, metallic = 0) =>
@@ -349,6 +350,10 @@ export function buildAlley(scene: Scene, materials: CityMaterials, spec: AlleySp
 
   const steam = ventSteam(scene, new Vector3(spec.faceX + inward * (spec.depth * 0.62), 0.05, spec.z + 0.2));
   put("vent", { width: 0.9, height: 0.04, depth: 1.2 }, new Vector3(spec.faceX + inward * (spec.depth * 0.62), 0.02, spec.z + 0.2), grille, false);
+
+  for (const part of parts) {
+    if (part.material === concrete) boxUv(part, CONCRETE_TILE);
+  }
 
   const minX = Math.min(spec.faceX, backX);
   const maxX = Math.max(spec.faceX, backX);

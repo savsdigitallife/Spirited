@@ -64,6 +64,10 @@ await page.waitForFunction(
 await page.mouse.click(640, 360);
 await page.waitForTimeout(Number(settle) * 1000);
 
+// A one-off expression run after boot, for experiments whose code contains
+// commas and so cannot go in the comma-separated step list.
+if (process.env.SETUP) await page.evaluate(process.env.SETUP);
+
 for (const step of script.split(",").filter(Boolean)) {
   const [verb, a, b] = step.split(":");
   if (verb === "hold") {
@@ -79,6 +83,10 @@ for (const step of script.split(",").filter(Boolean)) {
     await page.mouse.move(640 + Number(a), 360 + Number(b), { steps: 12 });
   } else if (verb === "wait") {
     await page.waitForTimeout(Number(a) * 1000);
+  } else if (verb === "js") {
+    // Development only: run an expression in the page, for A/B experiments
+    // (turn a map off, wait, read the frame rate back).
+    await page.evaluate(step.slice(3));
   } else if (verb === "eye") {
     // Development only: put the camera at x:y:z looking at tx:ty:tz.
     const n = step.split(":").slice(1).map(Number);
@@ -187,6 +195,7 @@ console.log(
         meshes: s.meshes.length,
         active: s.getActiveMeshes().length,
         tris: Math.round(s.getActiveIndices() / 3),
+        fps: Math.round(s.getEngine().getFps()),
         player: p ? [p.position.x, p.position.y, p.position.z].map((v) => Math.round(v * 100) / 100) : null,
         camera: Math.round((s.activeCamera?.position.x ?? 0) * 10) / 10,
       };

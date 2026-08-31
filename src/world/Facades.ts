@@ -29,6 +29,9 @@ import type { Scene } from "@babylonjs/core/scene";
 import { CityMaterials, NEON, type NeonColour } from "./CityMaterials";
 import { makeRandom } from "./Noise";
 import { SIGN_COPY, TENANT_COPY } from "./Signage";
+import { ramenHouse, type RamenHouse } from "./Ramen";
+import { boxUv, chamferedBlock, revolve } from "./Shapes";
+import { CONCRETE_TILE } from "./Concrete";
 
 /** What is on the ground floor. Decides the whole frontage's character. */
 export type BusinessKind =
@@ -56,6 +59,8 @@ export interface BuildingSpec {
   /** -1 for the west side, +1 for the east. */
   side: -1 | 1;
   business: BusinessKind;
+  /** Which ramen house this plot is fitted out as, if it is one. */
+  house?: string;
   /** Chooses facade tone, window rhythm and trim. */
   variant: number;
   seed: number;
@@ -331,6 +336,19 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
 
   // Sign band over the opening, then the trade's own signage.
   const colour = NEON[SIGN_COLOUR[spec.business]];
+  // A ramen house with a signboard or a lit fascia carries its own name on
+  // it; a second band under that would be one sign too many.
+  const houseFront = spec.business === "ramen" ? ramenHouse(spec.house).front : null;
+  if (houseFront === "signboard" || houseFront === "openCounter") {
+    return {
+      centre: new Vector3(kit.into(RECESS + 0.05), 0, spec.z),
+      width: openWidth,
+      depth: spec.depth * 0.44,
+      height: glassHeight + 0.42,
+      doorZ,
+    };
+  }
+
   const bandDepth = w - 0.3;
   slab(
     kit,
@@ -346,8 +364,12 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
     new Vector3(kit.toward(0.12), SHOPFRONT_HEIGHT - 0.42, spec.z),
     new Vector3(kit.out, 0, 0),
     materials.sign(
-      `band.${spec.business}.${spec.variant}`,
-      SIGN_COPY[spec.business]?.band ?? [],
+      spec.business === "ramen"
+        ? `band.ramen.${spec.house ?? "kanade"}`
+        : `band.${spec.business}.${spec.variant}`,
+      spec.business === "ramen"
+        ? ramenHouse(spec.house).band
+        : (SIGN_COPY[spec.business]?.band ?? []),
       colour,
       bandDepth / 0.62,
     ),
@@ -371,18 +393,186 @@ function shopfront(kit: Kit, spec: BuildingSpec): BuiltBuilding["interior"] {
   };
 }
 
+/**
+ * A ramen shop's own frontage.
+ *
+ * Three houses, three quite different fronts: a timber shopfront with one
+ * lantern and nothing shouted; a standing shop with a lit signboard, a
+ * ticket machine at the door and every dish photographed beside it; and a
+ * tonkotsu place with its counter open to the pavement, stools out on the
+ * street and a yellow fascia lit from inside.
+ */
+function ramenFront(kit: Kit, spec: BuildingSpec, house: RamenHouse): void {
+  const { materials } = kit;
+  const timber = materials.painted(`ramenTrim.${house.id}`, house.trim, 0.85);
+  const noren = materials.painted(`noren.${house.id}`, house.noren, 0.92);
+
+  // The curtain over the doorway. Every house has one; they differ in colour,
+  // in how many panels, and in how high they are hung.
+  const norenY = house.front === "signboard" ? 2.12 : 1.98;
+  for (let i = 0; i < house.norenPanels; i += 1) {
+    const spread = house.norenPanels * 0.5;
+    slab(
+      kit,
+      `noren${i}`,
+      { width: 0.04, height: house.front === "signboard" ? 0.58 : 0.72, depth: 0.46 },
+      new Vector3(kit.into(RECESS - 0.08), norenY, spec.z - spread / 2 + (i + 0.5) * (spread / house.norenPanels)),
+      noren,
+    );
+  }
+  for (let i = 0; i < house.lanterns; i += 1) {
+    const lantern = revolve(
+      kit.scene,
+      `lantern${i}`,
+      [[0, 0], [0.08, 0.02], [0.14, 0.1], [0.15, 0.18], [0.14, 0.26], [0.08, 0.33], [0, 0.35]],
+      12,
+    );
+    lantern.position.set(
+      kit.toward(0.34),
+      2.6,
+      spec.z + (house.lanterns === 1 ? 0 : -1.1 + i * (2.2 / Math.max(1, house.lanterns - 1))),
+    );
+    lantern.material = materials.emissive(`lantern.${house.id}`, new Color3(1, 0.52, 0.26), 0.95);
+    kit.parts.push(lantern);
+  }
+
+  if (house.front === "timber") {
+    // Posts and a lattice screen either side of the opening: the whole
+    // frontage is joinery, and there is no menu outside at all.
+    for (const side of [-1, 1] as const) {
+      const z = spec.z + side * (spec.width / 2 - 0.5);
+      slab(kit, `ramenPost${side}`, { width: 0.24, height: SHOPFRONT_HEIGHT - 0.5, depth: 0.24 }, new Vector3(kit.toward(0.3), (SHOPFRONT_HEIGHT - 0.5) / 2, z), timber);
+      for (let i = 0; i < 7; i += 1) {
+        slab(
+          kit,
+          `lattice${side}.${i}`,
+          { width: 0.06, height: 1.5, depth: 0.05 },
+          new Vector3(kit.toward(0.24), 1.5, z + side * (0.28 + i * 0.12)),
+          timber,
+        );
+      }
+    }
+    slab(kit, "ramenBeam", { width: 0.3, height: 0.26, depth: spec.width - 0.4 }, new Vector3(kit.toward(0.28), SHOPFRONT_HEIGHT - 0.55, spec.z), timber);
+  }
+
+  if (house.front === "signboard") {
+    // A deep lit box over the whole opening, angled out over the pavement,
+    // with the house's name across it. This is the one you read from the
+    // crossing.
+    const boardDepth = spec.width - 0.5;
+    slab(kit, "ramenBoardBody", { width: 1.05, height: 0.92, depth: boardDepth }, new Vector3(kit.toward(0.6), SHOPFRONT_HEIGHT + 0.25, spec.z), materials.painted(`ramenFascia.${house.id}`, house.fascia, 0.7));
+    signFace(
+      kit,
+      "ramenBoardFace",
+      { width: boardDepth, height: 0.86 },
+      new Vector3(kit.toward(1.13), SHOPFRONT_HEIGHT + 0.25, spec.z),
+      new Vector3(kit.out, 0, 0),
+      materials.sign(`ramenBoard.${house.id}`, house.band, NEON[house.sign], boardDepth / 0.86, "tenant"),
+    );
+    slab(kit, "ramenBoardSoffit", { width: 1.1, height: 0.08, depth: boardDepth + 0.1 }, new Vector3(kit.toward(0.62), SHOPFRONT_HEIGHT - 0.22, spec.z), timber);
+  }
+
+  if (house.front === "openCounter") {
+    // The fascia, lit from inside, and the counter that runs out through the
+    // opening so the pavement itself is where you stand and eat.
+    const fasciaDepth = spec.width - 0.4;
+    slab(
+      kit,
+      "ramenFascia",
+      { width: 0.16, height: 0.78, depth: fasciaDepth },
+      new Vector3(kit.toward(0.5), SHOPFRONT_HEIGHT + 0.1, spec.z),
+      materials.painted(`ramenFasciaBody.${house.id}`, house.fascia.scale(0.5), 0.6),
+    );
+    // The house's name across the lit box, which is the only sign it has.
+    signFace(
+      kit,
+      "ramenFasciaFace",
+      { width: fasciaDepth, height: 0.72 },
+      new Vector3(kit.toward(0.59), SHOPFRONT_HEIGHT + 0.1, spec.z),
+      new Vector3(kit.out, 0, 0),
+      materials.sign(
+        `ramenFascia.${house.id}`,
+        house.band,
+        house.fascia,
+        fasciaDepth / 0.72,
+        "tenant",
+        true,
+      ),
+    );
+    slab(kit, "ramenFasciaFrame", { width: 0.22, height: 0.14, depth: spec.width - 0.3 }, new Vector3(kit.toward(0.48), SHOPFRONT_HEIGHT + 0.56, spec.z), timber);
+    slab(kit, "ramenFasciaSill", { width: 0.22, height: 0.14, depth: spec.width - 0.3 }, new Vector3(kit.toward(0.48), SHOPFRONT_HEIGHT - 0.36, spec.z), timber);
+
+    const counterTop = materials.painted(`ramenStreetTop.${house.id}`, house.interior.counterTop, 0.4);
+    slab(kit, "streetCounter", { width: 0.62, height: 0.08, depth: spec.width - 1.6 }, new Vector3(kit.toward(0.55), 1.02, spec.z), counterTop);
+    slab(kit, "streetCounterBody", { width: 0.5, height: 0.98, depth: spec.width - 1.7 }, new Vector3(kit.toward(0.55), 0.5, spec.z), timber);
+    for (let i = 0; i < house.streetStools; i += 1) {
+      const z = spec.z - (spec.width - 2.4) / 2 + i * ((spec.width - 2.4) / Math.max(1, house.streetStools - 1));
+      const seat = revolve(kit.scene, `streetStool${i}`, [[0, 0], [0.17, 0.01], [0.18, 0.06], [0, 0.07]], 12);
+      seat.position.set(kit.toward(1.15), 0.66, z);
+      seat.material = materials.painted(`ramenStool.${house.id}`, house.interior.stool, 0.6);
+      kit.parts.push(seat);
+      const leg = CreateCylinder(`streetStoolLeg${i}`, { diameter: 0.07, height: 0.64, tessellation: 8 }, kit.scene);
+      leg.position.set(kit.toward(1.15), 0.32, z);
+      leg.material = materials.painted("stoolLeg", new Color3(0.55, 0.56, 0.58), 0.35, 0.8);
+      kit.parts.push(leg);
+    }
+  }
+
+  if (house.photoMenu) {
+    // A column of photographed dishes with their prices, which is how a shop
+    // with no window tells the street what it sells.
+    const panelZ = spec.z - spec.width / 2 + 0.75;
+    for (let i = 0; i < 5; i += 1) {
+      const y = 0.75 + i * 0.42;
+      slab(kit, `dishPanel${i}`, { width: 0.07, height: 0.36, depth: 0.62 }, new Vector3(kit.toward(0.72), y, panelZ), materials.painted("dishBoard", new Color3(0.9, 0.89, 0.86), 0.65));
+      const bowl = revolve(
+        kit.scene,
+        `dishBowl${i}`,
+        [[0, 0], [0.1, 0.004], [0.115, 0.05], [0.11, 0.055], [0.085, 0.015], [0, 0.012]],
+        10,
+      );
+      bowl.rotation.z = Math.PI / 2;
+      bowl.position.set(kit.toward(0.78), y + 0.04, panelZ - 0.14);
+      bowl.material = materials.painted(`dishBowl${i % 3}`, i % 3 === 0 ? new Color3(0.86, 0.84, 0.78) : i % 3 === 1 ? new Color3(0.6, 0.14, 0.12) : new Color3(0.16, 0.16, 0.18), 0.4);
+      kit.parts.push(bowl);
+    }
+  }
+
+  if (house.ticketMachine) {
+    // The machine you buy your bowl from before you go in.
+    const at = new Vector3(kit.toward(0.62), 0.72, spec.z + spec.width / 2 - 0.85);
+    const body = chamferedBlock(kit.scene, "ticketMachine", { width: 0.58, height: 1.44, depth: 0.66 }, 0.04);
+    body.position.copyFrom(at);
+    body.material = materials.painted("ticketBody", new Color3(0.14, 0.15, 0.18), 0.5, 0.3);
+    kit.parts.push(body);
+    slab(kit, "ticketPanel", { width: 0.05, height: 0.5, depth: 0.5 }, new Vector3(kit.toward(0.92), at.y + 0.4, at.z), materials.emissive("ticketPanel", new Color3(1, 0.86, 0.42), 1.2));
+    // The rows of buttons under it, which is most of what one of these is.
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 4; col += 1) {
+        slab(
+          kit,
+          `ticketButton${row}.${col}`,
+          { width: 0.04, height: 0.07, depth: 0.09 },
+          new Vector3(kit.toward(0.92), at.y + 0.02 - row * 0.11, at.z - 0.2 + col * 0.12),
+          materials.painted(row === 0 ? "ticketTop" : "ticketRow", row === 0 ? new Color3(0.8, 0.2, 0.16) : new Color3(0.86, 0.85, 0.82), 0.55),
+        );
+      }
+    }
+  }
+}
+
 /** Whatever the trade hangs off its own frontage. */
 function tradeDressing(kit: Kit, spec: BuildingSpec): void {
   const { materials } = kit;
   const colour = NEON[SIGN_COLOUR[spec.business]];
 
-  if (spec.business === "ramen" || spec.business === "izakaya") {
+  if (spec.business === "ramen") {
+    ramenFront(kit, spec, ramenHouse(spec.house));
+  }
+
+  if (spec.business === "izakaya") {
     // A curtain across the top of the doorway, split into panels.
-    const noren = materials.painted(
-      spec.business === "ramen" ? "norenRed" : "norenIndigo",
-      spec.business === "ramen" ? new Color3(0.32, 0.06, 0.06) : new Color3(0.06, 0.09, 0.2),
-      0.92,
-    );
+    const noren = materials.painted("norenIndigo", new Color3(0.06, 0.09, 0.2), 0.92);
     for (let i = 0; i < 4; i += 1) {
       slab(
         kit,
@@ -392,7 +582,7 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
         noren,
       );
     }
-    // Paper lanterns on a rail: the unmistakable read for both trades.
+    // Paper lanterns on a rail: the unmistakable read for the trade.
     for (let i = 0; i < 3; i += 1) {
       const lantern = CreateCylinder(
         `lantern${i}`,
@@ -430,8 +620,10 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
       new Vector3(boardAt.x + kit.out * 0.06, boardAt.y, boardAt.z + 0.011),
       new Vector3(kit.out, 0, 0),
       materials.sign(
-        `menu.${spec.business}`,
-        SIGN_COPY[spec.business]?.note ?? ["本日の", "おすすめ"],
+        spec.business === "ramen" ? `menu.ramen.${spec.house ?? "kanade"}` : `menu.${spec.business}`,
+        spec.business === "ramen"
+          ? ramenHouse(spec.house).note
+          : (SIGN_COPY[spec.business]?.note ?? ["本日の", "おすすめ"]),
         NEON.gold,
         0.62 / 1.1,
         "plate",
@@ -499,7 +691,10 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
   if (spec.business !== "shutter" && spec.business !== "lobby") {
     // Sized to its words: two characters a line, so the board is as tall as
     // the name is long and the text stays horizontal on it.
-    const bladeLines = SIGN_COPY[spec.business]?.blade ?? [];
+    const bladeLines =
+      spec.business === "ramen"
+        ? ramenHouse(spec.house).blade
+        : (SIGN_COPY[spec.business]?.blade ?? []);
     const height = Math.max(1.2, 0.62 * bladeLines.length + 0.5);
     const bladeAt = new Vector3(
       kit.toward(0.75),
@@ -513,7 +708,12 @@ function tradeDressing(kit: Kit, spec: BuildingSpec): void {
       bladeAt,
       materials.painted("signPlate", new Color3(0.03, 0.035, 0.04), 0.6),
     );
-    const bladeMaterial = materials.sign(`blade.${spec.business}`, bladeLines, colour, 0.9 / height);
+    const bladeMaterial = materials.sign(
+      spec.business === "ramen" ? `blade.ramen.${spec.house ?? "kanade"}` : `blade.${spec.business}`,
+      bladeLines,
+      colour,
+      0.9 / height,
+    );
     // Both sides: a projecting sign is read from up the street and down it.
     for (const towards of [-1, 1] as const) {
       signFace(
@@ -547,6 +747,18 @@ function tenantStack(kit: Kit, spec: BuildingSpec, top: number): void {
 
   const frame = materials.painted("tenantFrame", new Color3(0.09, 0.09, 0.1), 0.6, 0.3);
   const stripes: NeonColour[] = ["rose", "gold", "lime", "ice", "violet", "peach"];
+  // Draw from a shuffled bag, so one building never lists the same dentist
+  // on three floors.
+  const bag = [...TENANT_COPY];
+  for (let i = bag.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(kit.random() * (i + 1));
+    const swap = bag[i]!;
+    bag[i] = bag[j]!;
+    bag[j] = swap;
+  }
+  let next = 0;
+  const takeCopy = (): readonly string[] => bag[next++ % bag.length] ?? ["営業中"];
+
   const base = SHOPFRONT_HEIGHT + 0.55;
   const panel = 0.62;
   const gap = 0.12;
@@ -557,7 +769,7 @@ function tenantStack(kit: Kit, spec: BuildingSpec, top: number): void {
   const wallWidth = 1.9;
   for (let i = 0; i < rows; i += 1) {
     const y = base + i * (panel + gap) + panel / 2;
-    const copy = TENANT_COPY[Math.floor(kit.random() * TENANT_COPY.length)] ?? ["営業中"];
+    const copy = takeCopy();
     const colour = NEON[stripes[Math.floor(kit.random() * stripes.length)] ?? "ice"];
     slab(kit, `tenantBox${i}`, { width: 0.22, height: panel, depth: wallWidth }, new Vector3(kit.toward(0.11), y, wallZ), frame);
     signFace(
@@ -576,7 +788,7 @@ function tenantStack(kit: Kit, spec: BuildingSpec, top: number): void {
   const bladeDepth = 1.15;
   for (let i = 0; i < bladeRows; i += 1) {
     const y = base + 0.3 + i * (panel + gap) + panel / 2;
-    const copy = TENANT_COPY[Math.floor(kit.random() * TENANT_COPY.length)] ?? ["営業中"];
+    const copy = takeCopy();
     const colour = NEON[stripes[Math.floor(kit.random() * stripes.length)] ?? "gold"];
     const at = new Vector3(kit.toward(0.45 + bladeDepth / 2), y, bladeZ);
     slab(kit, `tenantBlade${i}`, { width: bladeDepth, height: panel, depth: 0.16 }, at, frame);
@@ -632,7 +844,7 @@ function floorBand(kit: Kit, spec: BuildingSpec, level: number, y: number): void
 
   const balcony = spec.variant % 3 === 0 && level > 0;
   if (balcony) {
-    slab(kit, `balcony${level}`, { width: 1.1, height: 0.11, depth: spec.width - 0.6 }, new Vector3(kit.toward(0.55), y + 0.9, spec.z), materials.surface("concrete", 3));
+    slab(kit, `balcony${level}`, { width: 1.1, height: 0.11, depth: spec.width - 0.6 }, new Vector3(kit.toward(0.55), y + 0.9, spec.z), materials.concrete());
     // Railing: posts and two rails, because a solid parapet at this scale
     // just reads as another wall.
     const posts = Math.max(3, Math.round((spec.width - 0.6) / 0.55));
@@ -659,7 +871,7 @@ function floorBand(kit: Kit, spec: BuildingSpec, level: number, y: number): void
 /** Parapet, tanks, condensers and aerials. */
 function roofscape(kit: Kit, spec: BuildingSpec, top: number): void {
   const { materials } = kit;
-  const concrete = materials.surface("concrete", 4);
+  const concrete = materials.concrete();
   const metal = materials.painted("roofMetal", new Color3(0.42, 0.43, 0.44), 0.45, 0.75);
 
   slab(kit, "parapet", { width: 0.3, height: 0.85, depth: spec.width }, new Vector3(kit.toward(0.05), top + 0.42, spec.z), concrete);
@@ -743,7 +955,7 @@ export function buildBuilding(
   // inside the mass, entirely enclosed in concrete. The upper storeys get
   // their mass; the ground floor only gets it behind wherever the shop's own
   // room ends.
-  const concrete = materials.surface("concrete", 8);
+  const concrete = materials.concrete();
   const upper = top - SHOPFRONT_HEIGHT;
   slab(
     kit,
@@ -765,6 +977,14 @@ export function buildBuilding(
       ),
       concrete,
     );
+  }
+
+  // Concrete is mapped onto the world grid rather than onto each face, so
+  // the formwork panels line up across a wall, around a corner and along
+  // the street instead of restarting at every box.
+  const poured = materials.concrete();
+  for (const part of kit.parts) {
+    if (part.material === poured) boxUv(part, CONCRETE_TILE);
   }
 
   // One mesh per building, sub-meshed by material: thirty pieces of frontage

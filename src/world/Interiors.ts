@@ -27,6 +27,7 @@ import { Character } from "../player/Character";
 import type { CharacterSpec } from "../player/rig/CharacterSpec";
 import { revolve, chamferedBlock } from "./Shapes";
 import { makeGlass } from "./Glass";
+import { ramenHouse, type RamenHouse } from "./Ramen";
 
 export type InteriorKind = "ramen" | "konbini" | "cafe";
 
@@ -46,6 +47,8 @@ export interface EnterableSpec {
   /** Room depth into the building. */
   depth: number;
   height: number;
+  /** Which house a ramen shop is fitted out as. */
+  house?: RamenHouse;
 }
 
 export interface Seat {
@@ -58,6 +61,8 @@ export interface Seat {
 export interface EnterableRoom {
   id: string;
   kind: InteriorKind;
+  /** A standing shop: there is nowhere to sit, and nobody expects to. */
+  standing: boolean;
   /** Just outside the door, on the pavement. */
   entrance: Vector3;
   /** Just inside the door. */
@@ -66,7 +71,7 @@ export interface EnterableRoom {
   /** Where the person who works here stands. */
   counterAt: Vector3;
   contains(point: Vector3): boolean;
-  update(dt: number): void;
+  update(dt: number, playerPosition: Vector3): void;
   dispose(): void;
 }
 
@@ -228,6 +233,9 @@ function steamSystem(scene: Scene, at: Vector3): ParticleSystem {
   return steam;
 }
 
+/** Past this, a room's staff and customers are switched off entirely. */
+const CROWD_RANGE = 24;
+
 export function buildEnterable(
   scene: Scene,
   spec: EnterableSpec,
@@ -269,7 +277,18 @@ export function buildEnterable(
   };
 
   const midX = spec.faceX + inward * spec.depth * 0.5;
-  const palette = PALETTE[spec.kind];
+  const house = spec.house;
+  const palette = house
+    ? {
+        wall: house.interior.wall,
+        wallGlow: 0.3,
+        dado: house.interior.counterTop.scale(0.6),
+        floor: house.interior.floor,
+        floorGlow: 0.3,
+        lamp: house.interior.lamp,
+        intensity: house.interior.lampIntensity,
+      }
+    : PALETTE[spec.kind];
   const wall = surface("wall", palette.wall, 0.86, 0, palette.wallGlow);
 
   put("floor", { width: spec.depth, height: 0.12, depth: spec.width }, new Vector3(midX, -0.06, spec.z), surface("floor", palette.floor, 0.6, 0, palette.floorGlow), true);
@@ -311,16 +330,21 @@ export function buildEnterable(
   let counterAt = new Vector3(midX, 0, spec.z);
 
   if (spec.kind === "ramen") {
-    // A counter across the room, stools facing it, the kitchen behind.
-    const counterX = spec.faceX + inward * (spec.depth * 0.55);
-    const wood = surface("counterTop", new Color3(0.36, 0.23, 0.13), 0.4, 0, 0.5);
+    // Every house is fitted out differently: a straight counter with stools,
+    // a standing shop with nowhere to sit, or a horseshoe with the kitchen
+    // in the middle of it. What they share is the back line — pots, hood,
+    // steam — because that is the part the trade decides, not the owner.
+    const shop = house ?? ramenHouse(undefined);
+    const plan = shop.interior.plan;
+    const wood = surface("counterTop", shop.interior.counterTop, 0.4, 0, 0.5);
+    const body = surface("counterSide", shop.interior.counterTop.scale(0.6), 0.75);
     const steel = surface("steel", new Color3(0.55, 0.56, 0.58), 0.32, 0.8, 0.35);
+    const stoolColour = surface("stool", shop.interior.stool, 0.65);
+    const counterHeight = plan === "standing" ? 1.08 : 1.02;
 
-    put("counter", { width: 0.8, height: 0.08, depth: spec.width - 0.6 }, new Vector3(counterX, 1.02, spec.z), wood, true);
-    put("counterBody", { width: 0.7, height: 1, depth: spec.width - 0.6 }, new Vector3(counterX, 0.5, spec.z), surface("counterSide", new Color3(0.24, 0.16, 0.11), 0.75), true);
+    // The kitchen line, and what is boiling on it.
     put("kitchen", { width: 0.75, height: 0.95, depth: spec.width - 0.5 }, new Vector3(backX - inward * 0.5, 0.47, spec.z), steel, true);
     put("hood", { width: 0.9, height: 0.5, depth: spec.width - 0.5 }, new Vector3(backX - inward * 0.5, spec.height - 0.5, spec.z), steel);
-
     for (let i = 0; i < 3; i += 1) {
       const pot = revolve(
         scene,
@@ -335,114 +359,229 @@ export function buildEnterable(
     }
     steam = steamSystem(scene, new Vector3(backX - inward * 0.5, 1.3, spec.z));
 
-    const stools = Math.max(4, Math.round((spec.width - 1.2) / 0.68));
-    for (let i = 0; i < stools; i += 1) {
-      const z = spec.z - (spec.width - 1.4) / 2 + (i / Math.max(1, stools - 1)) * (spec.width - 1.4);
-      const x = counterX - inward * 0.85;
-      const seat = revolve(scene, `room.${spec.id}.stool${i}`, [[0, 0], [0.16, 0.01], [0.17, 0.05], [0, 0.06]], 12);
+    /** Lays a run of counter, and returns where a person at it would stand. */
+    const counterRun = (
+      name: string,
+      size: { width: number; depth: number },
+      at: Vector3,
+    ): void => {
+      put(`${name}Top`, { width: size.width, height: 0.08, depth: size.depth }, new Vector3(at.x, counterHeight, at.z), wood, true);
+      put(`${name}Body`, { width: size.width - 0.1, height: counterHeight - 0.02, depth: size.depth - 0.02 }, new Vector3(at.x, (counterHeight - 0.02) / 2, at.z), body, true);
+    };
+
+    const stool = (x: number, z: number, index: number): void => {
+      const seat = revolve(scene, `room.${spec.id}.stool${index}`, [[0, 0], [0.16, 0.01], [0.17, 0.05], [0, 0.06]], 12);
       seat.position.set(x, 0.66, z);
-      seat.material = surface("stool", new Color3(0.42, 0.12, 0.1), 0.65);
+      seat.material = stoolColour;
       parts.push(seat);
       register(seat);
-      const leg = CreateCylinder(`room.${spec.id}.stoolLeg${i}`, { diameter: 0.07, height: 0.63, tessellation: 8 }, scene);
+      const leg = CreateCylinder(`room.${spec.id}.stoolLeg${index}`, { diameter: 0.07, height: 0.63, tessellation: 8 }, scene);
       leg.position.set(x, 0.32, z);
-      leg.material = surface("steel", new Color3(0.55, 0.56, 0.58), 0.32, 0.8, 0.35);
+      leg.material = steel;
       parts.push(leg);
       register(leg);
-      seats.push({ at: new Vector3(x, 0, z), facing: spec.out > 0 ? -Math.PI / 2 : Math.PI / 2, taken: false });
+    };
+
+    const counterX = spec.faceX + inward * (spec.depth * (plan === "standing" ? 0.46 : 0.55));
+    const facingCounter = spec.out > 0 ? -Math.PI / 2 : Math.PI / 2;
+
+    if (plan === "horseshoe") {
+      // A counter round three sides, so half the room is looking at the
+      // cook and the other half at each other.
+      counterRun("counter", { width: 0.8, depth: spec.width - 0.6 }, new Vector3(counterX, 0, spec.z));
+      for (const side of [-1, 1] as const) {
+        const z = spec.z + side * (spec.width / 2 - 0.75);
+        counterRun(`counterWing${side}`, { width: spec.depth * 0.34, depth: 0.7 }, new Vector3(counterX - inward * (spec.depth * 0.19), 0, z));
+      }
+      const stools = Math.max(4, Math.round((spec.width - 1.6) / 0.72));
+      for (let i = 0; i < stools; i += 1) {
+        const z = spec.z - (spec.width - 1.8) / 2 + (i / Math.max(1, stools - 1)) * (spec.width - 1.8);
+        const x = counterX - inward * 0.9;
+        stool(x, z, i);
+        seats.push({ at: new Vector3(x, 0, z), facing: facingCounter, taken: false });
+      }
+      // And two along each wing, facing across the room.
+      for (const side of [-1, 1] as const) {
+        for (let i = 0; i < 2; i += 1) {
+          const x = counterX - inward * (spec.depth * 0.12 + i * 0.72);
+          const z = spec.z + side * (spec.width / 2 - 1.45);
+          stool(x, z, 20 + side * 5 + i);
+          seats.push({ at: new Vector3(x, 0, z), facing: side > 0 ? 0 : Math.PI, taken: false });
+        }
+      }
+    } else if (plan === "standing") {
+      // No stools at all: a high counter, a shelf along the wall, and
+      // everybody out again in ten minutes.
+      counterRun("counter", { width: 0.62, depth: spec.width - 0.5 }, new Vector3(counterX, 0, spec.z));
+      counterRun("shelf", { width: spec.depth * 0.3, depth: 0.42 }, new Vector3(spec.faceX + inward * (spec.depth * 0.22), 0, spec.z + spec.width / 2 - 0.45));
+      const spots = Math.max(4, Math.round((spec.width - 1) / 0.72));
+      for (let i = 0; i < spots; i += 1) {
+        const z = spec.z - (spec.width - 1.2) / 2 + (i / Math.max(1, spots - 1)) * (spec.width - 1.2);
+        seats.push({ at: new Vector3(counterX - inward * 0.72, 0, z), facing: facingCounter, taken: false });
+      }
+      // The tray return, and the water jug everyone helps themselves to.
+      put("trayShelf", { width: 0.4, height: 0.06, depth: 0.9 }, new Vector3(spec.faceX + inward * 0.55, 1.15, spec.z - spec.width / 2 + 0.7), steel);
+      for (let i = 0; i < 3; i += 1) {
+        put(`tray${i}`, { width: 0.34, height: 0.03, depth: 0.28 }, new Vector3(spec.faceX + inward * 0.55, 1.2 + i * 0.035, spec.z - spec.width / 2 + 0.45 + i * 0.02), surface("tray", new Color3(0.35, 0.12, 0.1), 0.5));
+      }
+    } else {
+      counterRun("counter", { width: 0.8, depth: spec.width - 0.6 }, new Vector3(counterX, 0, spec.z));
+      const stools = Math.max(4, Math.round((spec.width - 1.2) / 0.68));
+      for (let i = 0; i < stools; i += 1) {
+        const z = spec.z - (spec.width - 1.4) / 2 + (i / Math.max(1, stools - 1)) * (spec.width - 1.4);
+        const x = counterX - inward * 0.85;
+        stool(x, z, i);
+        seats.push({ at: new Vector3(x, 0, z), facing: facingCounter, taken: false });
+      }
     }
 
-    // Menu strips over the counter.
-    for (let i = 0; i < 6; i += 1) {
+    // Menu strips over the counter: every house has them, and every house
+    // has a different number of things it will admit to selling.
+    const strips = shop.interior.decor === "spartan" ? 8 : 6;
+    for (let i = 0; i < strips; i += 1) {
       put(
         `menu${i}`,
         { width: 0.05, height: 0.46, depth: 0.16 },
-        new Vector3(backX - inward * 0.12, spec.height - 0.78, spec.z - spec.width * 0.32 + i * (spec.width * 0.64) / 5),
+        new Vector3(backX - inward * 0.12, spec.height - 0.78, spec.z - spec.width * 0.34 + i * (spec.width * 0.68) / (strips - 1)),
         surface("menu", new Color3(1, 0.94, 0.76), 0.5, 0, 1.2),
       );
     }
 
+    // The cook, at the pots, working. And in the busier houses, a second
+    // pair of hands on the other end of the line.
     counterAt = new Vector3(counterX + inward * 0.55, 0, spec.z);
-    const cook = new Character(scene, STAFF_RAMEN);
+    const cook = new Character(scene, { ...STAFF_RAMEN, name: `cook.${shop.id}` });
     cook.root.position.copyFrom(counterAt);
     cook.root.rotation.y = spec.out > 0 ? Math.PI / 2 : -Math.PI / 2;
     cook.settle();
+    cook.play("cook");
     people.push(cook);
+    if (shop.interior.assistant) {
+      const hand = new Character(scene, {
+        ...STAFF_RAMEN,
+        name: `hand.${shop.id}`,
+        height: 1.62,
+        build: 0.4,
+        hairStyle: "tied",
+      });
+      hand.root.position.set(counterAt.x, 0, spec.z + spec.width * 0.3);
+      hand.root.rotation.y = cook.root.rotation.y;
+      hand.settle();
+      hand.play("cook");
+      people.push(hand);
+    }
 
-    // Two people eating, and the bowls in front of them.
-    for (const index of [1, Math.max(2, seats.length - 2)]) {
+    // Whoever is eating, and the bowls in front of them.
+    const takenCount = Math.min(shop.interior.patrons, seats.length);
+    for (let n = 0; n < takenCount; n += 1) {
+      const index = Math.min(seats.length - 1, 1 + Math.round(n * (seats.length - 2) / Math.max(1, takenCount)));
       const seat = seats[index];
-      if (!seat) continue;
+      if (!seat || seat.taken) continue;
       seat.taken = true;
-      const patron = new Character(scene, PATRON);
+      const patron = new Character(scene, { ...PATRON, name: `patron.${shop.id}.${n}` });
       patron.root.position.copyFrom(seat.at);
       patron.root.rotation.y = seat.facing;
       patron.settle();
-      patron.play("eat");
+      patron.play(plan === "standing" ? "eatStanding" : "eat");
       people.push(patron);
       const bowl = revolve(scene, `room.${spec.id}.bowl${index}`, [[0, 0], [0.11, 0.005], [0.13, 0.07], [0.125, 0.075], [0.1, 0.02], [0, 0.015]], 12);
-      bowl.position.set(counterX, 1.06, seat.at.z);
+      bowl.position.set(counterX, counterHeight + 0.04, seat.at.z);
       bowl.material = surface("bowl", new Color3(0.86, 0.84, 0.78), 0.35, 0, 0.5);
       parts.push(bowl);
       register(bowl);
     }
 
-    // Noren over the doorway, hung on the inside. Half of what makes a door
-    // read as a ramen shop is the cloth you push through to get in.
-    const norenCloth = surface("noren", new Color3(0.4, 0.08, 0.07), 0.9, 0, 0.6);
-    put("norenRail", { width: 0.07, height: 0.07, depth: 1.8 }, new Vector3(spec.faceX + inward * 0.4, 2.3, spec.doorZ), surface("counterSide", new Color3(0.24, 0.16, 0.11), 0.75));
-    for (let i = 0; i < 5; i += 1) {
+    // Noren over the doorway, hung on the inside, in the house's colour.
+    const norenCloth = surface(`noren.${shop.id}`, shop.noren, 0.9, 0, 0.6);
+    put("norenRail", { width: 0.07, height: 0.07, depth: 1.8 }, new Vector3(spec.faceX + inward * 0.4, 2.3, spec.doorZ), body);
+    for (let i = 0; i < shop.norenPanels; i += 1) {
       put(
         `noren${i}`,
         { width: 0.04, height: 0.62, depth: 0.3 },
-        new Vector3(spec.faceX + inward * 0.4, 1.95, spec.doorZ - 0.68 + i * 0.34),
+        new Vector3(spec.faceX + inward * 0.4, 1.95, spec.doorZ - 0.68 + i * (1.36 / Math.max(1, shop.norenPanels - 1))),
         norenCloth,
       );
     }
 
-    // Paper lanterns down the room. Their glow is the light the eye reads;
-    // the point light only stops the geometry going flat.
-    // Bright enough to read as lit paper, not so bright it clips to a white
-    // balloon: a 0.34 m lantern two metres from the camera blows out above
-    // about 0.9.
-    const lanternPaper = surface("lantern", new Color3(0.95, 0.34, 0.17), 0.7, 0, 0.85);
-    const cordColour = surface("cord", new Color3(0.09, 0.08, 0.08), 0.8);
-    for (let i = 0; i < 3; i += 1) {
-      const z = spec.z - spec.width * 0.3 + i * (spec.width * 0.3);
-      const lantern = revolve(
-        scene,
-        `room.${spec.id}.lantern${i}`,
-        [[0, 0], [0.09, 0.015], [0.16, 0.11], [0.17, 0.2], [0.16, 0.3], [0.09, 0.38], [0, 0.395]],
-        12,
-      );
-      lantern.position.set(spec.faceX + inward * 1.15, 2.05, z);
-      lantern.material = lanternPaper;
-      parts.push(lantern);
-      register(lantern);
-      put(`lanternCord${i}`, { width: 0.03, height: 0.5, depth: 0.03 }, new Vector3(spec.faceX + inward * 1.15, 2.68, z), cordColour);
+    // Decor. The quiet house has a couple of lanterns and a calendar; the
+    // loud one has lanterns, a shelf of bottles and posters everywhere; the
+    // standing shop has a clock and a price list and nothing else at all.
+    if (shop.interior.decor !== "spartan") {
+      const lanternPaper = surface(`lanternIn.${shop.id}`, new Color3(0.95, 0.34, 0.17), 0.7, 0, 0.85);
+      const cordColour = surface("cord", new Color3(0.09, 0.08, 0.08), 0.8);
+      const lanterns = shop.interior.decor === "loud" ? 4 : 3;
+      for (let i = 0; i < lanterns; i += 1) {
+        const z = spec.z - spec.width * 0.32 + i * ((spec.width * 0.64) / Math.max(1, lanterns - 1));
+        const lantern = revolve(
+          scene,
+          `room.${spec.id}.lantern${i}`,
+          [[0, 0], [0.09, 0.015], [0.16, 0.11], [0.17, 0.2], [0.16, 0.3], [0.09, 0.38], [0, 0.395]],
+          12,
+        );
+        lantern.position.set(spec.faceX + inward * 1.15, 2.05, z);
+        lantern.material = lanternPaper;
+        parts.push(lantern);
+        register(lantern);
+        put(`lanternCord${i}`, { width: 0.03, height: 0.5, depth: 0.03 }, new Vector3(spec.faceX + inward * 1.15, 2.68, z), cordColour);
+      }
     }
 
-    // Menu sheets pasted up the side walls, which is where a real shop puts
-    // the things it has run out of.
-    for (let i = 0; i < 4; i += 1) {
-      const side = i < 2 ? -1 : 1;
+    const posters = shop.interior.decor === "loud" ? 7 : shop.interior.decor === "homely" ? 4 : 2;
+    for (let i = 0; i < posters; i += 1) {
+      const side = i % 2 === 0 ? -1 : 1;
       put(
         `poster${i}`,
         { width: 0.46, height: 0.6, depth: 0.03 },
-        new Vector3(spec.faceX + inward * (2.2 + (i % 2) * 1.7), 1.85, spec.z + side * (spec.width / 2 - 0.13)),
-        surface(`poster${i}`, new Color3(0.94, 0.9 - i * 0.14, 0.55 + i * 0.09), 0.7, 0, 0.5),
+        new Vector3(spec.faceX + inward * (2.2 + Math.floor(i / 2) * 1.5), 1.85 + (i % 3) * 0.12, spec.z + side * (spec.width / 2 - 0.13)),
+        surface(`poster${i}`, new Color3(0.94, 0.9 - (i % 4) * 0.14, 0.55 + (i % 4) * 0.09), 0.7, 0, 0.5),
       );
     }
 
-    // The ticket machine by the door: you buy the bowl before you sit down.
-    const machineZ = spec.z + (spec.doorZ > spec.z ? -1 : 1) * (spec.width / 2 - 0.55);
-    const machine = chamferedBlock(scene, `room.${spec.id}.ticketMachine`, { width: 0.5, height: 1.42, depth: 0.6 }, 0.04);
-    machine.position.set(spec.faceX + inward * 0.65, 0.71, machineZ);
-    machine.material = surface("machineBody", new Color3(0.14, 0.15, 0.18), 0.55, 0.3, 0.3);
-    machine.checkCollisions = true;
-    parts.push(machine);
-    register(machine);
-    put("ticketPanel", { width: 0.04, height: 0.52, depth: 0.46 }, new Vector3(spec.faceX + inward * 0.38, 1.14, machineZ), surface("ticketPanel", new Color3(1, 0.86, 0.42), 0.4, 0, 1.1));
+    if (shop.interior.decor === "loud") {
+      // A shelf of bottles the regulars keep, and a television nobody
+      // watches, which is what the back wall of one of these looks like.
+      put("bottleShelf", { width: 0.26, height: 0.06, depth: spec.width * 0.5 }, new Vector3(backX - inward * 0.16, 1.95, spec.z), body);
+      for (let i = 0; i < 9; i += 1) {
+        const bottle = CreateCylinder(`room.${spec.id}.bottle${i}`, { diameter: 0.09, height: 0.3, tessellation: 8 }, scene);
+        bottle.position.set(backX - inward * 0.16, 2.13, spec.z - spec.width * 0.22 + i * (spec.width * 0.44) / 8);
+        bottle.material = surface(i % 2 ? "bottleGreen" : "bottleAmber", i % 2 ? new Color3(0.12, 0.28, 0.16) : new Color3(0.45, 0.28, 0.09), 0.3, 0, 0.5);
+        parts.push(bottle);
+        register(bottle);
+      }
+      put("tv", { width: 0.09, height: 0.44, depth: 0.76 }, new Vector3(spec.faceX + inward * 0.5, 2.35, spec.z - spec.width / 2 + 0.9), surface("tvScreen", new Color3(0.55, 0.7, 0.85), 0.35, 0, 0.9));
+    }
+
+    if (shop.interior.decor === "homely") {
+      // A calendar and a radio on a shelf, which is what a shop run by one
+      // person for twenty years actually accumulates.
+      put("calendar", { width: 0.04, height: 0.5, depth: 0.34 }, new Vector3(spec.faceX + inward * 1.6, 2.05, spec.z - spec.width / 2 + 0.2), surface("calendar", new Color3(0.92, 0.9, 0.85), 0.7, 0, 0.5));
+      put("radioShelf", { width: 0.28, height: 0.05, depth: 0.6 }, new Vector3(backX - inward * 0.2, 1.85, spec.z + spec.width * 0.3), body);
+      put("radio", { width: 0.18, height: 0.14, depth: 0.32 }, new Vector3(backX - inward * 0.22, 1.95, spec.z + spec.width * 0.3), surface("radio", new Color3(0.3, 0.26, 0.22), 0.6));
+    }
+
+    if (shop.interior.decor === "spartan") {
+      // A clock and a price list. Nothing else: this is a shop you are in
+      // for nine minutes.
+      const clock = revolve(scene, `room.${spec.id}.clock`, [[0, 0], [0.17, 0], [0.18, 0.03], [0, 0.035]], 14);
+      clock.rotation.z = Math.PI / 2;
+      clock.position.set(spec.faceX + inward * 0.3, 2.42, spec.z);
+      clock.material = surface("clock", new Color3(0.94, 0.93, 0.9), 0.4, 0, 0.7);
+      parts.push(clock);
+      register(clock);
+      put("priceList", { width: 0.04, height: 0.68, depth: 1.1 }, new Vector3(spec.faceX + inward * 0.3, 2.42, spec.z + spec.width / 2 - 1.1), surface("priceList", new Color3(0.96, 0.95, 0.9), 0.6, 0, 0.8));
+    }
+
+    if (shop.ticketMachine) {
+      // Bought at the door, handed over at the counter.
+      const machineZ = spec.z + (spec.doorZ > spec.z ? -1 : 1) * (spec.width / 2 - 0.55);
+      const machine = chamferedBlock(scene, `room.${spec.id}.ticketMachine`, { width: 0.5, height: 1.42, depth: 0.6 }, 0.04);
+      machine.position.set(spec.faceX + inward * 0.65, 0.71, machineZ);
+      machine.material = surface("machineBody", new Color3(0.14, 0.15, 0.18), 0.55, 0.3, 0.3);
+      machine.checkCollisions = true;
+      parts.push(machine);
+      register(machine);
+      put("ticketPanel", { width: 0.04, height: 0.52, depth: 0.46 }, new Vector3(spec.faceX + inward * 0.38, 1.14, machineZ), surface("ticketPanel", new Color3(1, 0.86, 0.42), 0.4, 0, 1.1));
+    }
   } else if (spec.kind === "konbini") {
     // Konbini: cold cabinets across the back, gondolas, a till by the door.
     const steel = surface("fridgeFrame", new Color3(0.24, 0.25, 0.27), 0.45, 0.5, 0.3);
@@ -684,6 +823,34 @@ export function buildEnterable(
     }
   }
 
+  // One mesh for everything that does not move.
+  //
+  // A room is sixty small boxes — counter, stools, pots, posters, bottles —
+  // and sixty draw calls a room, five rooms deep, was the frame time. They
+  // never move relative to each other, so they are merged into one mesh with
+  // its materials as sub-meshes: five draw calls become one.
+  const collidable = parts.filter((mesh) => mesh.checkCollisions);
+  const fittings = parts.filter((mesh) => !mesh.checkCollisions);
+  const merged: Mesh[] = [];
+  const fold = (group: Mesh[], name: string, collides: boolean): void => {
+    if (group.length === 0) return;
+    const mesh = Mesh.MergeMeshes(group, true, true, undefined, false, true);
+    if (!mesh) return;
+    mesh.name = `room.${spec.id}.${name}`;
+    mesh.checkCollisions = collides;
+    mesh.isPickable = collides;
+    mesh.receiveShadows = false;
+    mesh.freezeWorldMatrix();
+    merged.push(mesh);
+    register(mesh);
+  };
+  fold(collidable, "shell", true);
+  fold(fittings, "fittings", false);
+
+  const centre = new Vector3(midX, 1, spec.z);
+  const steamRate = steam?.emitRate ?? 0;
+  let peopleShown = true;
+
   const halfWidth = spec.width / 2;
   const minX = Math.min(spec.faceX, backX);
   const maxX = Math.max(spec.faceX, backX);
@@ -693,6 +860,7 @@ export function buildEnterable(
   return {
     id: spec.id,
     kind: spec.kind,
+    standing: spec.house?.interior.plan === "standing",
     entrance: new Vector3(spec.faceX + spec.out * 1.1, 0, spec.doorZ),
     threshold: new Vector3(spec.faceX + inward * 1.0, 0, spec.doorZ),
     seats,
@@ -705,14 +873,27 @@ export function buildEnterable(
         point.z < spec.z + halfWidth
       );
     },
-    update(dt: number): void {
+    update(dt: number, playerPosition: Vector3): void {
+      // A room you cannot make out is a room that does not need drawing.
+      //
+      // The fittings are one merged mesh, so they cost a draw call and can
+      // stay; the people are forty meshes each and an animation update, and
+      // past twenty-odd metres they are three pixels. This is most of what
+      // the street's frame time was going on.
+      const near = Vector3.DistanceSquared(playerPosition, centre) < CROWD_RANGE * CROWD_RANGE;
+      if (near !== peopleShown) {
+        peopleShown = near;
+        for (const person of people) person.root.setEnabled(near);
+        if (steam) steam.emitRate = near ? steamRate : 0;
+      }
+      if (!near) return;
       // Staff and customers breathe, and the one who is eating keeps eating.
       for (const person of people) person.update(dt, idle, 0);
     },
     dispose(): void {
       steam?.dispose(true);
       for (const person of people) person.dispose();
-      for (const mesh of parts) mesh.dispose();
+      for (const mesh of merged) mesh.dispose();
       lamp.dispose();
     },
   };

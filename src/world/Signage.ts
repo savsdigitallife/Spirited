@@ -48,6 +48,11 @@ export interface SignRequest {
   /** Width ÷ height of the face this texture lands on. */
   aspect: number;
   style: SignStyle;
+  /**
+   * Colour-block the panel instead of leaving it cream: a yellow box with
+   * black type, the way a ramen house lights its fascia.
+   */
+  invert?: boolean;
 }
 
 let available: boolean | null = null;
@@ -154,12 +159,12 @@ export function signTexture(scene: Scene, name: string, request: SignRequest): D
     // the same panel wherever it appears.
     let hash = 0;
     for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) % 9973;
-    inverted = hash % 3 === 0;
+    inverted = request.invert ?? hash % 3 === 0;
     ctx.fillStyle = inverted ? hex : "#eae7e0";
     ctx.fillRect(0, 0, width, height);
     // The stripe down the leading edge, which is how a stack of these reads
     // as a stack rather than as one white slab.
-    ctx.fillStyle = inverted ? "#f4f2ec" : hex;
+    ctx.fillStyle = inverted ? "#1b1b1d" : hex;
     ctx.fillRect(0, 0, Math.max(4, width * 0.045), height);
     ctx.fillStyle = "#1b1b1d";
     ctx.fillRect(0, height - Math.max(3, height * 0.035), width, Math.max(3, height * 0.035));
@@ -195,7 +200,9 @@ export function signTexture(scene: Scene, name: string, request: SignRequest): D
       ctx.strokeText(line, width / 2, y);
     } else if (request.style === "tenant") {
       ctx.shadowBlur = 0;
-      ctx.fillStyle = inverted ? "#f7f5ef" : "#17181a";
+      // Dark type on a bright panel, pale type on a dark one.
+      const bright = request.colour.r * 0.3 + request.colour.g * 0.6 + request.colour.b * 0.1;
+      ctx.fillStyle = inverted && bright < 0.55 ? "#f7f5ef" : "#17181a";
       ctx.fillText(line, width / 2 + width * 0.02, y);
     } else {
       ctx.shadowBlur = 0;

@@ -53,6 +53,55 @@ export function planarUv(mesh: Mesh, metresPerTile: number): void {
 }
 
 /**
+ * Box-unwraps a mesh onto the world grid, one texture tile every
+ * `metresPerTile`.
+ *
+ * Babylon maps each face of a box 0..1 with its own idea of which way U
+ * runs, so a nine-metre wall and a two-metre one show the same texture at
+ * different sizes, and a panel pattern comes out as rectangles of two
+ * different shapes on the same building. This projects every vertex along
+ * whichever axis its normal points down, which is what a triplanar shader
+ * does — done once here on the CPU, since none of this geometry ever moves.
+ *
+ * Every surface treated this way shares one continuous grid, so the panel
+ * lines on a wall line up with the panel lines on the wall beside it.
+ */
+export function boxUv(mesh: Mesh, metresPerTile: number): void {
+  const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+  const normals = mesh.getVerticesData(VertexBuffer.NormalKind);
+  if (!positions || !normals) return;
+  const world = mesh.computeWorldMatrix(true);
+  const uvs = new Float32Array((positions.length / 3) * 2);
+  const point = new Vector3();
+  const normal = new Vector3();
+  for (let i = 0; i < positions.length / 3; i += 1) {
+    point.set(positions[i * 3] ?? 0, positions[i * 3 + 1] ?? 0, positions[i * 3 + 2] ?? 0);
+    normal.set(normals[i * 3] ?? 0, normals[i * 3 + 1] ?? 0, normals[i * 3 + 2] ?? 0);
+    const at = Vector3.TransformCoordinates(point, world);
+    const face = Vector3.TransformNormal(normal, world);
+    const ax = Math.abs(face.x);
+    const ay = Math.abs(face.y);
+    const az = Math.abs(face.z);
+    // The two axes that are not the face's own become its U and V.
+    let u: number;
+    let v: number;
+    if (ay >= ax && ay >= az) {
+      u = at.x;
+      v = at.z;
+    } else if (ax >= az) {
+      u = at.z;
+      v = at.y;
+    } else {
+      u = at.x;
+      v = at.y;
+    }
+    uvs[i * 2] = u / metresPerTile;
+    uvs[i * 2 + 1] = v / metresPerTile;
+  }
+  mesh.setVerticesData(VertexBuffer.UVKind, uvs);
+}
+
+/**
  * Paints one colour into a mesh's vertex colours.
  *
  * A way to vary tone across meshes that share a material — a patch of newer

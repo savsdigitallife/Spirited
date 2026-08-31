@@ -185,6 +185,14 @@ const worldStats = () =>
 await page.mouse.click(640, 360);
 await page.waitForTimeout(4000);
 
+/**
+ * Seconds of simulated time. The renderer here is a software rasteriser on a
+ * shared machine, so wall-clock seconds buy an unpredictable number of
+ * frames; what these checks are actually about is that she moves through the
+ * world at a walking pace, which is a question about the game's own clock.
+ */
+const clock = () => page.evaluate(() => window.nagori.time.elapsedSeconds);
+
 const before = await worldStats();
 check("region is the Tokyo street", before.region === "tokyoStreet", before.region);
 check("third-person camera is live", before.camera === "camera.thirdPerson", String(before.camera));
@@ -211,17 +219,24 @@ check(
 );
 await grab("tokyo-spawn.png");
 
-// Walk. The character must actually move through the world.
+// Walk. The character must actually move through the world, at a pace.
+const walkFrom = await clock();
 await page.keyboard.down("KeyW");
 await page.waitForTimeout(6000);
 await page.keyboard.up("KeyW");
 await page.waitForTimeout(600);
 const after = await worldStats();
+const walkSeconds = Math.max(0.001, (await clock()) - walkFrom);
 const travelled = Math.hypot(
   (after.player?.[0] ?? 0) - (before.player?.[0] ?? 0),
   (after.player?.[2] ?? 0) - (before.player?.[2] ?? 0),
 );
-check("walking moves the character", travelled > 2, `${travelled.toFixed(2)} m`);
+const pace = travelled / walkSeconds;
+check(
+  "walking moves the character",
+  travelled > 0.5 && pace > 0.7,
+  `${travelled.toFixed(2)} m in ${walkSeconds.toFixed(1)}s of game time (${pace.toFixed(2)} m/s)`,
+);
 // She may legitimately be on a kerb ramp or a step; what she may never be
 // is below the road surface.
 check(
@@ -369,6 +384,7 @@ if (trainBooted) {
     await grab("valley-arrival.png");
 
     const beforeWalk = valley.player ?? [0, 0, 0];
+    const runFrom = await clock();
     await page.keyboard.down("KeyW");
     await page.keyboard.down("ShiftLeft");
     await page.waitForTimeout(9000);
@@ -376,11 +392,17 @@ if (trainBooted) {
     await page.keyboard.up("KeyW");
     await page.waitForTimeout(1200);
     const walked = await worldStats();
+    const runSeconds = Math.max(0.001, (await clock()) - runFrom);
     const moved = Math.hypot(
       (walked.player?.[0] ?? 0) - beforeWalk[0],
       (walked.player?.[2] ?? 0) - beforeWalk[2],
     );
-    check("the valley can be walked", moved > 4, `${moved.toFixed(1)} m`);
+    const runPace = moved / runSeconds;
+    check(
+      "the valley can be walked",
+      moved > 1.5 && runPace > 1.2,
+      `${moved.toFixed(1)} m in ${runSeconds.toFixed(1)}s of game time (${runPace.toFixed(2)} m/s)`,
+    );
     check(
       "the ground holds her up",
       (walked.player?.[1] ?? -99) > 0 && (walked.player?.[1] ?? 99) < 40,

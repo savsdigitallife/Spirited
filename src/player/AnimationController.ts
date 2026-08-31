@@ -26,6 +26,8 @@ export type AnimationState =
   | "interact"
   | "sit"
   | "eat"
+  | "eatStanding"
+  | "cook"
   | "phone"
   | "openDoor"
   | "pickUp";
@@ -56,7 +58,7 @@ const ONE_SHOTS: Partial<Record<AnimationState, number>> = {
 };
 
 /** States that hold until something clears them. */
-const HELD: ReadonlySet<AnimationState> = new Set(["sit", "eat", "phone"]);
+const HELD: ReadonlySet<AnimationState> = new Set(["sit", "eat", "eatStanding", "cook", "phone"]);
 
 function v(x = 0, y = 0, z = 0): Vector3 {
   return new Vector3(x, y, z);
@@ -196,6 +198,12 @@ export class AnimationController {
         break;
       case "eat":
         this.poseEat();
+        break;
+      case "eatStanding":
+        this.poseEatStanding();
+        break;
+      case "cook":
+        this.poseCook();
         break;
       case "phone":
         this.posePhone();
@@ -347,6 +355,63 @@ export class AnimationController {
     this.set("elbowR", -1.26 - lift * 0.75);
     this.set("head", 0.1 + lift * 0.12);
     this.blend = 9;
+  }
+
+  /**
+   * Eating at a standing counter.
+   *
+   * The same reach as `eat`, over a standing base rather than a seated one:
+   * weight on one leg, both elbows on the counter, head down over the bowl.
+   * A standing shop full of people in a sitting pose was the giveaway that
+   * this state was missing.
+   */
+  private poseEatStanding(): void {
+    const b = this.breathe();
+    const t = (performance.now() / 1000) % 3.4;
+    const lift = t < 1.5 ? Math.sin((t / 1.5) * Math.PI) : 0;
+    this.set("spine", 0.2 + b, 0, 0);
+    this.set("chest", 0.08, 0.03, 0);
+    this.set("head", 0.34 - lift * 0.1, 0.02, 0);
+    this.set("shoulderL", -0.34, 0.16, 0.2);
+    this.set("elbowL", -1.3);
+    this.set("shoulderR", 0.14 - lift * 0.46, 0, -0.14);
+    this.set("elbowR", -1.24 - lift * 0.7);
+    // Weight on one leg, the other foot back a little: nobody stands square.
+    this.set("thighL", -0.06, 0, 0.03);
+    this.set("thighR", 0.1, 0, -0.02);
+    this.set("kneeL", 0.05);
+    this.set("kneeR", 0.12);
+    this.blend = 9;
+  }
+
+  /**
+   * Working a ramen counter.
+   *
+   * Two motions on different periods so it never looks like a metronome: the
+   * left arm holds a basket down in the water while the right stirs, and
+   * every few seconds he lifts and shakes it off. The feet stay planted —
+   * nobody behind a counter that narrow moves them.
+   */
+  private poseCook(): void {
+    const t = performance.now() / 1000;
+    const stir = Math.sin(t * 2.3);
+    const cycle = t % 6;
+    const lift = cycle < 1.6 ? Math.sin((cycle / 1.6) * Math.PI) : 0;
+    const shake = lift > 0.3 ? Math.sin(t * 22) * 0.09 * lift : 0;
+
+    this.set("spine", 0.12, 0, 0);
+    this.set("chest", 0.06, 0.06 * stir, 0);
+    this.set("head", 0.3 - lift * 0.22, 0.05 * stir, 0);
+    // The right hand stirs; the left lifts the basket clear of the water.
+    this.set("shoulderR", -0.5 + stir * 0.12, -0.2, -0.3);
+    this.set("elbowR", -1.15 + stir * 0.22);
+    this.set("shoulderL", -0.62 - lift * 0.45, 0.24, 0.34);
+    this.set("elbowL", -1.35 - lift * 0.3 + shake);
+    this.set("thighL", -0.05);
+    this.set("thighR", -0.05);
+    this.set("kneeL", 0.08);
+    this.set("kneeR", 0.08);
+    this.blend = 8;
   }
 
   private posePhone(): void {

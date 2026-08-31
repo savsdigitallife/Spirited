@@ -45,6 +45,7 @@ import { WetGround } from "../world/WetGround";
 import { planarUv, tint } from "../world/Shapes";
 import { PAVING_TILE, type PavingKind } from "../world/Paving";
 import { STATION_COPY } from "../world/Signage";
+import { ramenHouse } from "../world/Ramen";
 import { buildAlley } from "../world/Alley";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
 import { ShopInteriors } from "../world/ShopInterior";
@@ -92,6 +93,8 @@ interface Plot {
   business: BusinessKind;
   /** Shops with a real room behind the door rather than a view of one. */
   enterable?: boolean;
+  /** Which house a ramen shop is fitted out as. */
+  house?: string;
 }
 
 /**
@@ -106,7 +109,7 @@ const WEST: Plot[] = [
   { z: -28, width: 7.5, floors: 4, depth: 11, business: "lobby" },
   { z: -20, width: 6.5, floors: 3, depth: 10, business: "laundry" },
   { z: -13, width: 7, floors: 5, depth: 12, business: "izakaya" },
-  { z: -5.5, width: 8, floors: 2, depth: 12, business: "ramen", enterable: true },
+  { z: -5.5, width: 8, floors: 2, depth: 12, business: "ramen", enterable: true, house: "kanade" },
   // Two narrow shuttered units either side of the alley mouth, which is what
   // is left when a lane takes the middle of a plot.
   { z: -0.8, width: 1.8, floors: 4, depth: 10, business: "shutter" },
@@ -117,12 +120,14 @@ const WEST: Plot[] = [
 ];
 
 const EAST: Plot[] = [
-  { z: -27, width: 7, floors: 3, depth: 10, business: "salon" },
+  // A standing shop by the crossing, and a tonkotsu place up the far end:
+  // three ramen shops on one street is not many, in this part of the city.
+  { z: -27, width: 7, floors: 3, depth: 10, business: "ramen", enterable: true, house: "minato" },
   { z: -19.5, width: 7.5, floors: 5, depth: 12, business: "izakaya" },
   { z: -12, width: 6.5, floors: 2, depth: 10, business: "shutter" },
   { z: -4, width: 9, floors: 3, depth: 13, business: "konbini", enterable: true },
   { z: 5.5, width: 6.5, floors: 4, depth: 11, business: "lobby" },
-  { z: 13, width: 7, floors: 3, depth: 11, business: "cafe" },
+  { z: 13, width: 7.5, floors: 3, depth: 12, business: "ramen", enterable: true, house: "iroha" },
   { z: 20.5, width: 7, floors: 5, depth: 12, business: "bookshop" },
 ];
 
@@ -312,7 +317,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     "base",
     { width: 60, height: 0.4, depth: roadLength + 20 },
     new Vector3(0, -0.35, roadCentre),
-    materials.surface("concrete", 20),
+    materials.concrete(),
   );
 
   // One tile every three metres, laid on the ground plane rather than on
@@ -499,6 +504,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
         z: plot.z,
         side,
         business: plot.business,
+        house: plot.house,
         variant: plotSeed % 5,
         seed: plotSeed,
         enterable: plot.enterable,
@@ -515,8 +521,14 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
           buildEnterable(
             scene,
             {
-              id: plot.business === "maidcafe" ? "maid_cafe_01" : `${plot.business}_shop_01`,
+              id:
+                plot.business === "maidcafe"
+                  ? "maid_cafe_01"
+                  : plot.business === "ramen"
+                    ? `ramen_${plot.house ?? "kanade"}`
+                    : `${plot.business}_shop_01`,
               kind: plot.business === "maidcafe" ? "cafe" : plot.business,
+              house: plot.business === "ramen" ? ramenHouse(plot.house) : undefined,
               faceX: side * PAVE_OUTER,
               out: -side,
               z: plot.z,
@@ -539,7 +551,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   const station = new TransformNode("station", scene);
   const stationMouth = new Vector3(PAVE_OUTER - 2, KERB, STATION_Z);
   {
-    const concrete = materials.surface("concrete", 8);
+    const concrete = materials.concrete();
     slab("station.wall", { width: 10, height: 8, depth: 12 }, new Vector3(PAVE_OUTER + 5, 4, STATION_Z), concrete).parent = station;
     slab("station.canopy", { width: 4.6, height: 0.3, depth: 7 }, new Vector3(PAVE_OUTER - 1, 3.3, STATION_Z), concrete, false).parent = station;
     for (const z of [STATION_Z - 3.2, STATION_Z + 3.2]) {
@@ -1024,21 +1036,26 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
           id: `${room.id}.sit`,
           position: seat.at.clone(),
           radius: 1.3,
-          label: seatedAt === room ? "Get up" : "Sit at the counter",
+          label: seatedAt === room ? "Get up" : room.standing ? "Stand at the counter" : "Sit at the counter",
           activate: () => {
             if (seatedAt === room) {
               seatedAt = null;
               player.releaseAnimation();
               player.setLocked(false);
-              ui.say("She leaves the stool spinning.", 3);
+              ui.say(room.standing ? "She sets the bowl on the return shelf." : "She leaves the stool spinning.", 3);
               return;
             }
             seatedAt = room;
             player.teleport(new Vector3(seat.at.x, KERB, seat.at.z), seat.facing);
             player.setLocked(true);
-            player.playAnimation("sit");
+            if (!room.standing) player.playAnimation("sit");
             audio.blip(300, 0.14);
-            ui.say("The stool is still warm. The cook does not look up.", 4);
+            ui.say(
+              room.standing
+                ? "No stools. Nobody here is staying long."
+                : "The stool is still warm. The cook does not look up.",
+              4,
+            );
           },
         });
       }
@@ -1237,7 +1254,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       // The alley is three metres wide, which is closer than the street
       // camera can hold without ending up in a wall.
       camera.setProfile(room || alley.contains(feet) ? "interior" : "street");
-      for (const each of rooms) each.update(dt);
+      for (const each of rooms) each.update(dt, feet);
       alley.update(dt, feet);
       cityAmbience?.setIntensity(room ? 0.28 : 0.8);
       rainAmbience?.setIntensity(room ? 0.14 : 0.62);

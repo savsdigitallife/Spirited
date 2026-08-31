@@ -250,6 +250,58 @@ can be read from along the street as well as from in front: 整体 6F,
 rather than cream, decided from the business's name so it keeps the same
 panel wherever it appears. Every business is invented.
 
+## Concrete
+
+The buildings are concrete, and now look it. `src/world/Concrete.ts` draws
+the wall in two layers: the formwork panels, their joints and the tie holes
+the shuttering bolts left, with the mottling and streaking of a wall that has
+cured and weathered, at three and a half metres a tile; and the aggregate
+itself as a detail map at about forty centimetres, which is the stone in the
+concrete when you are standing next to it.
+
+Everything using it carries `boxUv`, which projects each vertex along
+whichever axis its normal points down — a triplanar map baked once on the
+CPU, since none of this geometry moves. That is what makes the panel lines
+run continuously along a wall, around its corner and onto the next building,
+instead of restarting at every box and coming out a different size on a
+nine-metre wall than on a two-metre one.
+
+The facades use the same surface between their windows: the wall is drawn
+from the concrete sampler with a pour joint at each floor, vertical joints
+between the window columns, and tie holes, and the windows are cut into it as
+recessed openings with their own reveals. It stays at 512 pixels a map and
+skips the aggregate layer — five texture fetches a pixel across every
+building in the frame cost more than grain nobody can see from the pavement.
+
+## The ramen shops
+
+Three of them, and no two alike, because a ramen shop is one owner's premises
+rather than a chain unit. `src/world/Ramen.ts` describes a house — its
+frontage, its signs, its fit-out, its staff — and both the facade builder and
+the interior builder read it.
+
+- **麺屋 かなで** — the quiet one. Timber posts and lattice, one beam, two
+  lanterns, no menu outside at all. Inside: a straight counter, eight red
+  stools, warm light, a calendar and a radio on a shelf.
+- **立喰 みなと** — a standing shop. A lit signboard across the whole
+  frontage that you can read from the crossing, a ticket machine at the door
+  with its rows of buttons, and a column of photographed dishes beside it.
+  Inside: a high counter, no stools whatsoever, a tray return, a clock, and
+  people eating standing up in nine minutes.
+- **豚骨 いろは** — the loud one. A yellow fascia lit from inside, the counter
+  running out through the opening with stools on the pavement, red lanterns.
+  Inside: a horseshoe counter with the kitchen in the middle, a second pair
+  of hands, a shelf of regulars' bottles and a television nobody watches.
+
+Every house is invented — names, marks, fit-out. What is borrowed is the
+grammar: noren, ticket machine, photo menu, counter, pots, steam.
+
+The chef is now actually cooking. `AnimationController` gained two states:
+`cook`, which holds a basket down in the water with one hand while the other
+stirs and lifts and shakes it off every few seconds, and `eatStanding`, since
+a standing shop full of people in a sitting pose was the giveaway that the
+state was missing.
+
 ## What is next
 
 Modelled characters and props to drop in behind the ids that are already
