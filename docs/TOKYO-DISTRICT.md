@@ -302,8 +302,45 @@ stirs and lifts and shakes it off every few seconds, and `eatStanding`, since
 a standing shop full of people in a sitting pose was the giveaway that the
 state was missing.
 
+## Behind the shops: the lane and the park
+
+The main street only reads as a main street if there is something quieter
+immediately behind it. `src/world/Residential.ts` builds that: a lane two
+streets back, entered through the alley, which now has a gate rather than a
+dead end — `buildAlley` takes a `gate` and puts a pier each side and a head
+over it instead of a wall.
+
+The lane is five metres of asphalt with a gutter each side, a strip of
+concrete paving against the backs of the shops, and six two-storey houses
+along it. Each house is its own dimensions and its own render — cement
+plaster, a second plaster, or metal siding — under a pitched roof extruded as
+one prism, so it has a ridge, two slopes and real gable ends. Two slabs
+tilted towards each other was the first attempt and it read as sheets laid
+over the box.
+
+Every house has the same four things outside it, because these houses do: a
+door under a canopy, a meter box, a mailbox on a leg, and pot plants on a
+low boundary wall. The windows are aluminium sashes — head, sill, two jambs
+and a centre mullion, and behind the glass a dark reveal so the pane has
+something to sit against and its reflection reads. The wall is a solid box,
+so the opening is built in front of its face; set the glass back into the
+mass instead and it disappears inside it. Above, a concrete balcony deck
+just under the upper sill, a railing, and the pole the washing goes on.
+Between the houses, poles carrying more cable than the buildings look worth.
+
+At the end of the lane is the pocket park, the size of a tennis court, which
+is what these are: block paving, a low wall round it, a sandpit with a timber
+kerb, a swing frame, a slide, a drinking tap on a post, a bench, a bin, three
+trees and a board reading 「羽澄第二公園」. Two lamps, on the same `LampSite`
+pool as the street.
+
+The backdrop had to be told to keep off it. The skyline fill leaves the main
+street's own corridor clear, and now also `LANE_CLEAR` — the rectangle the
+lane and park stand on. Without that, a 33-metre tower lands on the park and
+the first view down the lane is a wall of curtain glass.
+
 ## What is next
 
 Modelled characters and props to drop in behind the ids that are already
-addressing them; the residential street and the small park; and the interiors
-of the remaining frontages, which are still views rather than rooms.
+addressing them, and the interiors of the remaining frontages, which are
+still views rather than rooms.

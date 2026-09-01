@@ -39,6 +39,8 @@ export interface AlleySpec {
   depth: number;
   /** Height of the walls either side. */
   wallHeight: number;
+  /** An opening through the dead end, wide and high, to whatever is beyond. */
+  gate?: { width: number; height: number };
   seed: number;
 }
 
@@ -143,7 +145,29 @@ export function buildAlley(scene: Scene, materials: CityMaterials, spec: AlleySp
   // ------------------------------------------------------------- the shell
   // Collidable: without it she walks in off the kerb and drops through.
   put("floor", { width: spec.depth + 0.4, height: 0.12, depth: spec.width }, new Vector3(midX, -0.05, spec.z), concrete, true);
-  put("back", { width: 0.4, height: spec.wallHeight, depth: spec.width + 1.6 }, new Vector3(backX, spec.wallHeight / 2, spec.z), concrete);
+  if (spec.gate) {
+    // The lane behind the shops comes through here, so the dead end is built
+    // as two piers and a head rather than as a wall.
+    const clear = Math.min(spec.gate.width, spec.width - 0.6);
+    const pier = (spec.width + 1.6 - clear) / 2;
+    for (const side of [-1, 1] as const) {
+      put(
+        `backPier${side}`,
+        { width: 0.4, height: spec.wallHeight, depth: pier },
+        new Vector3(backX, spec.wallHeight / 2, spec.z + side * (clear + pier) / 2),
+        concrete,
+      );
+    }
+    const head = spec.wallHeight - spec.gate.height;
+    put(
+      "backHead",
+      { width: 0.4, height: head, depth: clear },
+      new Vector3(backX, spec.gate.height + head / 2, spec.z),
+      concrete,
+    );
+  } else {
+    put("back", { width: 0.4, height: spec.wallHeight, depth: spec.width + 1.6 }, new Vector3(backX, spec.wallHeight / 2, spec.z), concrete);
+  }
   for (const side of [-1, 1] as const) {
     put(
       `wall${side}`,

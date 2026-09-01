@@ -47,6 +47,7 @@ import { PAVING_TILE, type PavingKind } from "../world/Paving";
 import { STATION_COPY } from "../world/Signage";
 import { ramenHouse } from "../world/Ramen";
 import { buildAlley } from "../world/Alley";
+import { buildResidential } from "../world/Residential";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
 import { ShopInteriors } from "../world/ShopInterior";
 import { buildEnterable, type EnterableRoom } from "../world/Interiors";
@@ -79,6 +80,15 @@ const CROSSING_HALF = 2.6;
 const STATION_Z = 27;
 /** The alley mouth, on the west side between the two shuttered units. */
 const ALLEY_Z = 2.5;
+/**
+ * The lane of houses and the pocket park behind the west shopfronts. Held
+ * here because the backdrop is filled in before the lane is built and has to
+ * leave its ground clear.
+ */
+const LANE_X = -23;
+const LANE_FROM = -16;
+const LANE_TO = 30;
+const LANE_CLEAR = { minX: -35, maxX: -18, minZ: LANE_FROM - 4, maxZ: LANE_TO + 4 };
 const SEED = 91733;
 /** The hanging banners, which differ only in what they say. */
 const BANNERS = ["neon_banner_01", "neon_banner_02", "neon_banner_03"] as const;
@@ -768,6 +778,17 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
         // Leave the street's own corridor clear.
         if (Math.abs(x) < 22 && Math.abs(z - roadCentre) < 60) continue;
         const width = 8 + random() * maxWidth;
+        // And the lane and park behind the west shops, which is walkable
+        // ground: a backdrop tower dropped on it swallows the whole block.
+        const reach = width * 0.75;
+        if (
+          x > LANE_CLEAR.minX - reach &&
+          x < LANE_CLEAR.maxX + reach &&
+          z > LANE_CLEAR.minZ - reach &&
+          z < LANE_CLEAR.maxZ + reach
+        ) {
+          continue;
+        }
         const height = 18 + random() * (radius * 0.55);
         const tower = CreateBox(`skyline.${i}.${radius.toFixed(0)}`, { width, height, depth: width * (0.7 + random() * 0.6) }, scene);
         tower.position.set(x, height / 2, z);
@@ -801,9 +822,33 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     width: 4.2,
     depth: 11,
     wallHeight: 9,
+    // It is not a dead end any more: it goes through to the lane behind.
+    gate: { width: 2.6, height: 2.8 },
     seed: SEED + 21,
   });
   lampSites.push({ position: alley.lampAt, colour: alley.lampColour, intensity: 15, range: 11 });
+
+  // ------------------------------------------------- behind the shopfronts
+  // Two streets back the city goes quiet: a lane of two-storey houses with
+  // their bicycles and pot plants, and a park at the end of it the size of a
+  // tennis court. It is what makes the main street read as a main street.
+  const residential = buildResidential(
+    scene,
+    materials,
+    (id, at, rotationY) => {
+      catalog.spawn(id, { position: at, rotationY: rotationY ?? 0 });
+    },
+    {
+      gateX: -PAVE_OUTER - 11.4,
+      gateZ: ALLEY_Z,
+      laneX: LANE_X,
+      from: LANE_FROM,
+      to: LANE_TO,
+      parkFrom: 14,
+      seed: SEED + 43,
+    },
+  );
+  lampSites.push(...residential.lamps);
 
   const sky = new Sky(scene, quality.drawDistance);
   const lighting = new Lighting(scene);
@@ -896,7 +941,8 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     x > PAVE_OUTER && Math.abs(z - STATION_Z) < 7 ? -3 : 0,
   );
   player.setBounds({
-    minX: -18,
+    // Wide enough to take in the lane behind the shops and its park.
+    minX: -34,
     maxX: 18,
     minZ: BLOCK_FROM - 6,
     maxZ: BLOCK_TO + 2,
@@ -909,6 +955,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   for (const built of buildings) camera.addOccluders(built.meshes);
   camera.addOccluders(scene.meshes.filter((m) => m.name.startsWith("station.")));
   camera.addOccluders(alley.shell);
+  camera.addOccluders(residential.shell);
 
   // ----------------------------------------------------------- inhabitants
   ctx.progress(0.88, "Letting people out…");
@@ -1310,6 +1357,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
       for (const room of rooms) room.dispose();
       wetGround.dispose();
       alley.dispose();
+      residential.dispose();
       lamps.dispose();
       skyline.dispose(false, true);
       station.dispose(false, true);
