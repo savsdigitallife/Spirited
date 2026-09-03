@@ -19,6 +19,7 @@
 import { Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import { CreateLathe } from "@babylonjs/core/Meshes/Builders/latheBuilder";
 import { ExtrudeShape } from "@babylonjs/core/Meshes/Builders/shapeBuilder";
 import { CreateTube } from "@babylonjs/core/Meshes/Builders/tubeBuilder";
@@ -172,6 +173,181 @@ export function extrude(
     },
     scene,
   );
+}
+
+/** Twice the signed area of a closed outline. Positive is counter-clockwise. */
+function signedArea(points: readonly [number, number][]): number {
+  let area = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i]!;
+    const b = points[(i + 1) % points.length]!;
+    area += a[0] * b[1] - b[0] * a[1];
+  }
+  return area / 2;
+}
+
+/**
+ * Triangulates a simple polygon by clipping ears.
+ *
+ * Babylon caps an extrusion with a fan from the outline's barycenter, which
+ * is correct only while the outline is convex. A car body with a wheel arch
+ * cut into it is not, and a fan fills the arch back in — which is the whole
+ * difference between a wheel in an opening and a wheel behind a skirt.
+ *
+ * Returns index triples wound counter-clockwise.
+ */
+function triangulate(points: readonly [number, number][]): number[] {
+  const n = points.length;
+  if (n < 3) return [];
+  const order = [...Array(n).keys()];
+  if (signedArea(points) < 0) order.reverse();
+  const cross = (o: readonly [number, number], a: readonly [number, number], b: readonly [number, number]): number =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const inside = (
+    p: readonly [number, number],
+    a: readonly [number, number],
+    b: readonly [number, number],
+    c: readonly [number, number],
+  ): boolean => {
+    const d1 = cross(a, b, p);
+    const d2 = cross(b, c, p);
+    const d3 = cross(c, a, p);
+    return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+  };
+
+  const out: number[] = [];
+  let guard = n * n;
+  while (order.length > 3 && guard > 0) {
+    guard -= 1;
+    let clipped = false;
+    for (let i = 0; i < order.length; i += 1) {
+      const ia = order[(i + order.length - 1) % order.length]!;
+      const ib = order[i]!;
+      const ic = order[(i + 1) % order.length]!;
+      const a = points[ia]!;
+      const b = points[ib]!;
+      const c = points[ic]!;
+      if (cross(a, b, c) <= 0) continue; // reflex, so not an ear
+      let clear = true;
+      for (const j of order) {
+        if (j === ia || j === ib || j === ic) continue;
+        if (inside(points[j]!, a, b, c)) {
+          clear = false;
+          break;
+        }
+      }
+      if (!clear) continue;
+      out.push(ia, ib, ic);
+      order.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    // A self-intersecting outline has no ear left: stop rather than spin.
+    if (!clipped) break;
+  }
+  if (order.length === 3) out.push(order[0]!, order[1]!, order[2]!);
+  return out;
+}
+
+/**
+ * A closed prism: an outline swept along Z, capped at both ends.
+ *
+ * What `extrude` does, except that the outline may be concave and the result
+ * is single-sided with correct winding, which matters once a shape is a solid
+ * object rather than a piece of scenery. Folds gentler than `smoothAngle` are
+ * shaded smooth and sharper ones are left as creases, so one call gives both
+ * a rounded arch and a crisp shoulder line.
+ */
+export function prism(
+  scene: Scene,
+  name: string,
+  profile: Profile,
+  from: number,
+  to: number,
+  smoothAngle = 0.75,
+): Mesh {
+  const points = profile.map(([x, y]) => [x, y] as [number, number]);
+  const n = points.length;
+  const ccw = signedArea(points) >= 0;
+
+  // Outward normal of each edge, in the outline's own plane.
+  const edgeNormals: [number, number][] = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = points[i]!;
+    const b = points[(i + 1) % n]!;
+    let nx = b[1] - a[1];
+    let ny = -(b[0] - a[0]);
+    if (!ccw) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const length = Math.hypot(nx, ny) || 1;
+    edgeNormals.push([nx / length, ny / length]);
+  }
+  const limit = Math.cos(smoothAngle);
+  const blend = (edge: number, neighbour: number): [number, number] => {
+    const a = edgeNormals[edge]!;
+    const b = edgeNormals[neighbour]!;
+    if (a[0] * b[0] + a[1] * b[1] < limit) return a;
+    const x = a[0] + b[0];
+    const y = a[1] + b[1];
+    const length = Math.hypot(x, y) || 1;
+    return [x / length, y / length];
+  };
+
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const push = (x: number, y: number, z: number, nx: number, ny: number, nz: number, u: number, v: number): number => {
+    positions.push(x, y, z);
+    normals.push(nx, ny, nz);
+    uvs.push(u, v);
+    return positions.length / 3 - 1;
+  };
+
+  // The sides. Each edge is its own quad, so the shading is carried entirely
+  // by the normals rather than by which vertices happen to be shared.
+  let run = 0;
+  for (let e = 0; e < n; e += 1) {
+    const a = points[e]!;
+    const b = points[(e + 1) % n]!;
+    const na = blend(e, (e + n - 1) % n);
+    const nb = blend(e, (e + 1) % n);
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const i0 = push(a[0], a[1], from, na[0], na[1], 0, run, 0);
+    const i1 = push(b[0], b[1], from, nb[0], nb[1], 0, run + length, 0);
+    const i2 = push(b[0], b[1], to, nb[0], nb[1], 0, run + length, to - from);
+    const i3 = push(a[0], a[1], to, na[0], na[1], 0, run, to - from);
+    // Wound so the outward face is the front one Babylon draws.
+    indices.push(i0, i2, i1, i0, i3, i2);
+    run += length;
+  }
+
+  // The caps, wound outward at each end.
+  const fan = triangulate(points);
+  const far: number[] = [];
+  const near: number[] = [];
+  for (const point of points) {
+    far.push(push(point[0], point[1], to, 0, 0, 1, point[0], point[1]));
+    near.push(push(point[0], point[1], from, 0, 0, -1, point[0], point[1]));
+  }
+  for (let i = 0; i < fan.length; i += 3) {
+    const a = fan[i]!;
+    const b = fan[i + 1]!;
+    const c = fan[i + 2]!;
+    indices.push(far[c]!, far[b]!, far[a]!);
+    indices.push(near[a]!, near[b]!, near[c]!);
+  }
+
+  const mesh = new Mesh(name, scene);
+  const data = new VertexData();
+  data.positions = positions;
+  data.normals = normals;
+  data.uvs = uvs;
+  data.indices = indices;
+  data.applyToMesh(mesh);
+  return mesh;
 }
 
 /** A rounded rectangle, for extruding into a chamfered block. */

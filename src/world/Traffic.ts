@@ -26,6 +26,11 @@ export interface TrafficLane {
 export interface TrafficOptions {
   lanes: readonly TrafficLane[];
   carsPerLane: number;
+  /**
+   * The body styles to draw from. Dealt without replacement, so a street
+   * only repeats a shape once it has run out of shapes.
+   */
+  bodies: readonly string[];
   /** Along-street position of the junction. */
   crossingZ: number;
   /** Seconds of green for vehicles, then for pedestrians. */
@@ -57,11 +62,22 @@ export class Traffic {
     private readonly options: TrafficOptions,
   ) {
     const random = makeRandom(options.seed);
+    // One shuffled bag of body styles for the whole street rather than a
+    // roll per car: two of the same shape nose to tail is the one thing that
+    // makes generated traffic look generated.
+    const bag = [...options.bodies];
+    for (let i = bag.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1));
+      [bag[i], bag[j]] = [bag[j]!, bag[i]!];
+    }
+    let dealt = 0;
     for (const lane of options.lanes) {
       const span = lane.to - lane.from;
       for (let i = 0; i < options.carsPerLane; i += 1) {
         const z = lane.from + ((i + random() * 0.6) / options.carsPerLane) * span;
-        const node = catalog.spawn("tokyo_car_01", {
+        const body = bag[dealt % bag.length] ?? bag[0]!;
+        dealt += 1;
+        const node = catalog.spawn(body, {
           position: new Vector3(lane.x, lane.y, z),
           rotationY: lane.direction > 0 ? 0 : Math.PI,
           name: `car.${lane.x}.${i}`,

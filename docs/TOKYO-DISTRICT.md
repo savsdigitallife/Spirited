@@ -44,7 +44,7 @@ Each definition names an id, a category (`prop`, `vehicle`, `building`,
 `character`, `interior`), a builder for the generated version, whether it
 collides, whether it casts shadows, and the distance past which it is
 culled. The path is derived — `props/vending_machine_01.glb`,
-`vehicles/tokyo_car_01.glb` — so dropping a model into `public/models/` is
+`vehicles/car_taxi.glb` — so dropping a model into `public/models/` is
 all it takes to replace the generated one. `prepare()` HEAD-probes each path
 first: a model that is there is loaded, a model that is not falls back to the
 generated build. A missing file is never an error and never a crash.
@@ -177,7 +177,62 @@ and its lips, with five spokes across the face, a hub cap and a brake disc
 behind. Rubber is a dielectric at 0.82 roughness; the rim is a polished metal
 at 0.14, so it returns the street the way the glass does. The four wheels
 merge to one mesh — they never move relative to each other — and the rim
-faces outward on both sides of the car.
+faces outward on both sides of the car. It is authored at one size and
+scaled, so a kei van and a 4x4 roll on the same wheel at the sizes those
+vehicles use.
+
+## Fourteen car bodies
+
+The street used to have one car in it — a box for the body, a box for the
+glass — and six copies of it went up and down the road. `src/world/Vehicles.ts`
+replaces it with fourteen body styles, because what tells traffic apart at
+forty metres is the silhouette, long before the paint does.
+
+A body is a **side profile**, which is how a car is drawn before it is a car.
+Two closed outlines in the (along, height) plane — the sheet metal below the
+beltline and the glasshouse above it — are extruded across the width and then
+sculpted by one pass over the vertices:
+
+- **tumblehome**, drawing the body in between the shoulder and the roof;
+- **plan taper**, narrowing the nose and the tail, squared so the sides stay
+  straight over the doors;
+- a **tuck** under the rocker.
+
+Those three are the difference between a slab and a car body, and they are
+free: the mesh is built once and instanced. Everything else is placed against
+the sculpted surface using the same function that sculpted it, so a mirror
+sits on the flank of a wide car and of a narrow one without either being a
+special case.
+
+**Wheel arches are the point.** Without an opening the top half of every tyre
+is inside the bodywork and the car reads as a slab with four discs beside it.
+Cutting one makes the outline concave — and Babylon caps an extrusion with a
+fan from the outline's barycenter, which fills the arch straight back in. So
+`Shapes.prism` triangulates its caps by clipping ears instead, and returns
+single-sided geometry with correct winding and per-fold smoothing: a rounded
+arch and a crisp shoulder line out of one call. Each opening is cut clean
+through, so each gets a dark liner behind it; without one you can see daylight
+through the car.
+
+Detail earns its place by what it costs. Door shut lines and handles are the
+cheapest thing in the model — three dark slivers and a knob — and they are the
+difference between a flank and a pressing. Everything on the nose and tail
+stands proud of the panel it is on, because a lamp set flush is a lamp inside
+the bodywork. Lenses are coloured plastic with a smaller emissive element
+behind them, so a tail light is red by day and lit after dark; a lamp that is
+only emissive goes black when the sun comes up.
+
+The fourteen: kei one-box van, kei flatbed, kei hatchback, taxi saloon,
+compact hatchback, executive saloon, estate, people carrier, sports coupe,
+open two-seater, crossover, boxy four-wheel drive, high-roof panel van, and a
+seventies coupe on chrome bumpers and round lamps. Proportions are what those
+styles have — a kei class car is 3.40 m long and 1.48 m wide because that is
+the size the class allows. Each carries its own paint, and `Traffic` deals
+bodies from one shuffled bag for the whole street rather than rolling per car,
+so no two vehicles on the road are alike.
+
+Nothing here is a copy of a real vehicle. What is borrowed is the vocabulary
+of body styles, which has been public property since the coachbuilders.
 
 ## What the signs say
 

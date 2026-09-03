@@ -48,6 +48,7 @@ import { STATION_COPY } from "../world/Signage";
 import { ramenHouse } from "../world/Ramen";
 import { buildAlley } from "../world/Alley";
 import { buildResidential } from "../world/Residential";
+import { VEHICLE_IDS, vehiclePrefabs } from "../world/Vehicles";
 import { buildBuilding, type BusinessKind, type BuiltBuilding } from "../world/Facades";
 import { ShopInteriors } from "../world/ShopInterior";
 import { buildEnterable, type EnterableRoom } from "../world/Interiors";
@@ -598,9 +599,10 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   ctx.progress(0.5, "Setting the street furniture…");
   const catalog = new AssetCatalog(scene, ctx.assets);
   catalog.defineAll(tokyoPrefabs(materials));
+  catalog.defineAll(vehiclePrefabs(materials));
   await catalog.prepare([
     "street_light_01", "utility_pole_01", "vending_machine_01", "traffic_light_01", "sign_post_01",
-    "trash_bin_01", "planter_01", "bicycle_01", "tokyo_car_01", ...BANNERS,
+    "trash_bin_01", "planter_01", "bicycle_01", ...VEHICLE_IDS, ...BANNERS,
     "bollard_01", "guardrail_01", "utility_box_01", "drain_grate_01", "bike_rack_01",
     "crate_01", "traffic_cone_01", "scooter_01", "bench_01", "street_condenser_01", "gas_bottles_01",
   ]);
@@ -987,7 +989,8 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
 
   const traffic = new Traffic(catalog, {
     crossingZ: CROSSING_Z,
-    carsPerLane: 3,
+    carsPerLane: 5,
+    bodies: VEHICLE_IDS,
     vehicleGreen: 16,
     pedestrianGreen: 10,
     seed: SEED + 2,
@@ -1011,7 +1014,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   lighting.applySettings(quality);
   for (const mesh of casters) lighting.addCaster(mesh, false);
   for (const built of buildings) for (const mesh of built.meshes) lighting.addCaster(mesh, false);
-  for (const id of ["tokyo_car_01", "vending_machine_01", "street_light_01", "trash_bin_01", "planter_01", "bicycle_01", "bollard_01", "guardrail_01", "utility_box_01", "crate_01", "scooter_01", "bench_01", "street_condenser_01"]) {
+  for (const id of [...VEHICLE_IDS, "vending_machine_01", "street_light_01", "trash_bin_01", "planter_01", "bicycle_01", "bollard_01", "guardrail_01", "utility_box_01", "crate_01", "scooter_01", "bench_01", "street_condenser_01"]) {
     for (const template of catalog.templates(id)) lighting.addCaster(template, false);
   }
   for (const template of crowd.shadowTemplates) lighting.addCaster(template, false);
