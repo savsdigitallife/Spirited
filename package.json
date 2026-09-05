@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 8080",
+    "replit": "vite build && vite preview --host 0.0.0.0 --port 8080",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && npm run test:sandbox",
     "test:browser": "npm run build && node tools/smoke.mjs",
@@ -24,5 +25,8 @@
     "playwright": "^1.62.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   }
 }

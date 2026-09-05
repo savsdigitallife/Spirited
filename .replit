@@ -1,0 +1,31 @@
+# Replit configuration.
+#
+# Run builds the game and serves the built bundle. Serving the build rather
+# than the dev server is deliberate for a Run button: it is what actually
+# ships, and the page arrives as a handful of files instead of the several
+# hundred modules Vite hands over unbundled — which over a proxied connection
+# is the difference between a few seconds and most of a minute. `npm run dev`
+# is still there in the shell for hot reload while editing.
+#
+# The port has to be 8080 to match vite.config.ts, and Replit maps it to 80
+# on the public URL.
+
+entrypoint = "src/main.ts"
+modules = ["nodejs-22"]
+hidden = ["dist", "node_modules"]
+
+run = ["sh", "-c", "[ -d node_modules ] || npm install --no-audit --no-fund; npm run replit"]
+
+[nix]
+channel = "stable-24_11"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+# Nothing here runs on a server: the whole game is static files and a GPU in
+# the player's browser, so a deployment is a bucket, not a container.
+[deployment]
+deploymentTarget = "static"
+publicDir = "dist"
+build = ["sh", "-c", "npm ci && npm run build"]

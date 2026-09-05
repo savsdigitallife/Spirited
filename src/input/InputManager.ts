@@ -79,6 +79,18 @@ export class InputManager {
   private padIndex: number | null = null;
   private padHeld = new Set<Action>();
   private disposers: Array<() => void> = [];
+  /**
+   * True while a button is held on the canvas without pointer lock.
+   *
+   * Pointer lock is not always available: an embedded frame is only granted
+   * it if the frame carries `allow="pointer-lock"`, which the Replit webview
+   * and most other embeds do not. Without a fallback the camera simply never
+   * moves, and the game reads as broken rather than as embedded. Dragging
+   * turns the camera instead, which is what a player tries anyway.
+   */
+  private dragging = false;
+  /** Where the cursor was last seen, for measuring a drag. */
+  private lastPointer: Vec2 | null = null;
 
   /** Mouse sensitivity in radians per pixel, applied by whoever consumes look. */
   sensitivity = 0.0022;
@@ -102,21 +114,49 @@ export class InputManager {
     const onBlur = () => {
       this.keysDown.clear();
       this.mouseDown.clear();
+      this.dragging = false;
+      this.lastPointer = null;
       this.refreshActions();
     };
-    const onMouseDown = (e: MouseEvent) => {
+    // Buttons arrive as pointer events, not mouse events. The renderer calls
+    // `preventDefault` on `pointerdown`, and preventing a pointer event's
+    // default is what tells the browser not to synthesise the compatibility
+    // mouse events behind it — so `mousedown` never fires here at all, and
+    // `mousemove` only does while the pointer is locked, which is the one
+    // case the browser dispatches directly.
+    const onPointerDown = (e: PointerEvent) => {
       this.canvas.focus();
       this.mouseDown.add(e.button);
+      this.dragging = true;
+      this.lastPointer = { x: e.clientX, y: e.clientY };
       this.refreshActions();
     };
-    const onMouseUp = (e: MouseEvent) => {
+    const onPointerUp = (e: PointerEvent) => {
       this.mouseDown.delete(e.button);
+      if (this.mouseDown.size === 0) {
+        this.dragging = false;
+        this.lastPointer = null;
+      }
       this.refreshActions();
     };
     const onMouseMove = (e: MouseEvent) => {
+      // Locked, the pointer is ours and every movement is a look.
       if (document.pointerLockElement !== this.canvas) return;
       this.lookDelta.x += e.movementX;
       this.lookDelta.y += e.movementY * (this.invertY ? -1 : 1);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      // The locked path above owns the pointer; this is only for when we do
+      // not have it. Then only a drag counts as a look — otherwise the camera
+      // would swing about whenever the cursor crossed the page — and the
+      // delta is measured from where the cursor was, rather than read off
+      // `movementX`, which browsers only fill in dependably under lock.
+      if (document.pointerLockElement === this.canvas || !this.dragging) return;
+      const last = this.lastPointer;
+      this.lastPointer = { x: e.clientX, y: e.clientY };
+      if (!last) return;
+      this.lookDelta.x += e.clientX - last.x;
+      this.lookDelta.y += (e.clientY - last.y) * (this.invertY ? -1 : 1);
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -133,8 +173,10 @@ export class InputManager {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
-    this.canvas.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("mouseup", onMouseUp);
+    this.canvas.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("mousemove", onMouseMove);
     this.canvas.addEventListener("wheel", onWheel, { passive: false });
     this.canvas.addEventListener("contextmenu", onContextMenu);
@@ -145,8 +187,10 @@ export class InputManager {
       () => window.removeEventListener("keydown", onKeyDown),
       () => window.removeEventListener("keyup", onKeyUp),
       () => window.removeEventListener("blur", onBlur),
-      () => this.canvas.removeEventListener("mousedown", onMouseDown),
-      () => window.removeEventListener("mouseup", onMouseUp),
+      () => this.canvas.removeEventListener("pointerdown", onPointerDown),
+      () => window.removeEventListener("pointerup", onPointerUp),
+      () => window.removeEventListener("pointercancel", onPointerUp),
+      () => window.removeEventListener("pointermove", onPointerMove),
       () => window.removeEventListener("mousemove", onMouseMove),
       () => this.canvas.removeEventListener("wheel", onWheel),
       () => this.canvas.removeEventListener("contextmenu", onContextMenu),
@@ -275,9 +319,18 @@ export class InputManager {
     return this.padIndex !== null;
   }
 
+  /**
+   * Asks for the pointer, and does not mind being refused.
+   *
+   * Browsers reject this in an embedded frame without the permission, and
+   * momentarily after the player has pressed Escape. Both are ordinary, so
+   * the rejection is swallowed rather than raised: `onMouseMove` falls back
+   * to drag-to-look and the game stays playable either way.
+   */
   requestPointerLock(): void {
     if (document.pointerLockElement === this.canvas) return;
-    void this.canvas.requestPointerLock();
+    const request: unknown = this.canvas.requestPointerLock();
+    if (request instanceof Promise) request.catch(() => undefined);
   }
 
   exitPointerLock(): void {

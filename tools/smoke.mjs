@@ -367,6 +367,42 @@ check(
   `moved ${Math.hypot(afterLook[0] - beforeLook[0], afterLook[2] - beforeLook[2]).toFixed(2)} m`,
 );
 
+/**
+ * And the camera has to orbit where pointer lock is refused.
+ *
+ * An embedded frame is only granted the pointer if it carries
+ * `allow="pointer-lock"`, which the Replit webview and most other embeds do
+ * not. Without the drag fallback the camera never moves there and the game
+ * reads as broken rather than as embedded, so this refuses the lock the way
+ * such a frame would and checks that dragging still turns the view.
+ */
+await page.evaluate(() => {
+  document.exitPointerLock();
+  HTMLCanvasElement.prototype.requestPointerLock = function refused() {
+    return Promise.reject(new Error("pointer lock is not allowed in this frame"));
+  };
+});
+await page.waitForTimeout(600);
+const beforeDrag = await page.evaluate(() => {
+  const c = window.nagori.scenes.active.scene.activeCamera;
+  return { at: [c.position.x, c.position.y, c.position.z], locked: document.pointerLockElement !== null };
+});
+await page.mouse.move(640, 360);
+await page.mouse.down();
+await page.mouse.move(320, 380, { steps: 12 });
+await page.mouse.up();
+await page.waitForTimeout(2000);
+const afterDrag = await page.evaluate(() => {
+  const c = window.nagori.scenes.active.scene.activeCamera;
+  return [c.position.x, c.position.y, c.position.z];
+});
+const dragged = Math.hypot(afterDrag[0] - beforeDrag.at[0], afterDrag[2] - beforeDrag.at[2]);
+check(
+  "the camera can be dragged where pointer lock is refused",
+  !beforeDrag.locked && dragged > 0.2,
+  `${beforeDrag.locked ? "still locked; " : "unlocked, "}moved ${dragged.toFixed(2)} m`,
+);
+
 // Walk up to the shop and the crossing, and photograph what is there.
 await page.keyboard.down("KeyW");
 await page.keyboard.down("ShiftLeft");

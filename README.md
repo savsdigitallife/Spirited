@@ -26,6 +26,26 @@ npm run dev          # http://localhost:8080
 | `npm run test:browser` | Build, then drive the real build in headless Chromium |
 | `node tools/shot.mjs <name> [scene] [settle] [script]` | One frame from the running build, for looking at a change |
 
+### On Replit
+
+Import the repository and press **Run**. `.replit` builds the game and serves
+it on 8080, which Replit maps to the public URL, and the webview shows it.
+
+Two things are worth knowing:
+
+- **Open it in a new tab** (the arrow at the top of the webview). The game
+  asks for the pointer so the mouse can turn the camera, and a browser only
+  grants that to an embedded frame carrying `allow="pointer-lock"`, which the
+  webview does not. In the frame you can still play — dragging turns the
+  camera instead — but in a tab the mouse behaves as it should.
+- `npm run dev` in the shell gives the dev server with hot reload instead.
+  Run builds first because a built bundle is a handful of files rather than
+  the several hundred modules Vite serves unbundled, which over a proxied
+  connection is most of a minute of loading.
+
+The game is static files and a GPU in the player's browser — nothing runs on
+the server — so a Replit deployment is configured as a static one.
+
 ### URL switches
 
 | Query | Effect |
@@ -43,6 +63,10 @@ Click the canvas to capture the mouse and start the sound.
 `WASD` move · `Shift` run · `Alt` walk · `Space` jump · mouse look · wheel
 zoom · `E` interact · `V` swap shoulder · `P`/`Esc` pause · `M` mute ·
 `` ` `` debug overlay · `F4` cycle graphics preset
+
+Where the browser will not give up the pointer — an embedded frame without
+`allow="pointer-lock"`, which is most of them — **drag** to turn the camera
+instead. Everything else is the same.
 
 ## Layout
 
