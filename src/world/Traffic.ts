@@ -1,15 +1,22 @@
 /**
  * Traffic, and the signal that governs it.
  *
- * The signal is the single clock both cars and pedestrians read, so a walker
- * never steps out in front of a car that has right of way. Cars drive their
- * lane, close up on the vehicle ahead, and stop at the line when the light
- * is against them.
+ * The signal is the single clock everything reads — the cars, the people
+ * waiting to cross, and the three lenses in every signal head on the street.
+ * They cannot disagree, because there is only one phase and all three take it
+ * from here: the cars stop because the light is red, not alongside it.
+ *
+ * Green, amber, red, in that order and for real durations. Amber is not
+ * decoration: it is the two or three seconds that let a car already on top of
+ * the line go through instead of standing on the brakes, which is the
+ * difference between traffic and a row of objects being toggled.
  */
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import type { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import type { AssetCatalog } from "../engine/AssetCatalog";
+import type { CityMaterials, SignalAspect } from "./CityMaterials";
 import { makeRandom } from "./Noise";
 
 export interface TrafficLane {
@@ -36,6 +43,8 @@ export interface TrafficOptions {
   /** Seconds of green for vehicles, then for pedestrians. */
   vehicleGreen: number;
   pedestrianGreen: number;
+  /** Seconds of amber between the two. */
+  amber?: number;
   seed: number;
 }
 
@@ -51,16 +60,34 @@ interface Car {
 const HEADWAY = 9;
 /** Where a car stops relative to the crossing centre. */
 const STOP_LINE = 6.5;
+/** How far back a car starts reading the signal at all. */
+const SIGHT = 26;
+/**
+ * On amber, a car this close to the line is committed and goes through.
+ * Braking from here would be the emergency stop nobody makes in traffic.
+ */
+const COMMITTED = 3;
+/** How bright the aspect being shown is, against the two that are not. */
+const LIT = 5.5;
+const DARK = 0.12;
 
 export class Traffic {
   private readonly cars: Car[] = [];
-  private phase = 0;
+  private readonly lamps: Record<SignalAspect, PBRMaterial>;
+  private aspect: SignalAspect = "green";
   private timer = 0;
 
   constructor(
     catalog: AssetCatalog,
+    materials: CityMaterials,
     private readonly options: TrafficOptions,
   ) {
+    this.lamps = {
+      green: materials.signalLamp("green"),
+      amber: materials.signalLamp("amber"),
+      red: materials.signalLamp("red"),
+    };
+    this.showAspect("green");
     const random = makeRandom(options.seed);
     // One shuffled bag of body styles for the whole street rather than a
     // roll per car: two of the same shape nose to tail is the one thing that
@@ -90,19 +117,44 @@ export class Traffic {
 
   /** True while pedestrians have right of way. */
   get pedestriansMayCross(): boolean {
-    return this.phase === 1;
+    return this.aspect === "red";
+  }
+
+  /** What every signal head on the street is showing. */
+  get signal(): SignalAspect {
+    return this.aspect;
+  }
+
+  /** Lights the aspect being shown and puts the other two out. */
+  private showAspect(aspect: SignalAspect): void {
+    this.aspect = aspect;
+    for (const key of ["green", "amber", "red"] as const) {
+      const material = this.lamps[key];
+      const on = key === aspect;
+      // These are unlit, so the brightness lives in the albedo; the emissive
+      // is set alongside it so the two never say different things.
+      const strength = on ? LIT : DARK;
+      material.emissiveIntensity = strength;
+      material.albedoColor = material.emissiveColor.scale(strength);
+    }
   }
 
   update(dt: number): void {
     this.timer += dt;
-    const limit =
-      this.phase === 0 ? this.options.vehicleGreen : this.options.pedestrianGreen;
-    if (this.timer >= limit) {
+    const held =
+      this.aspect === "green"
+        ? this.options.vehicleGreen
+        : this.aspect === "amber"
+          ? (this.options.amber ?? 3)
+          : this.options.pedestrianGreen;
+    if (this.timer >= held) {
       this.timer = 0;
-      this.phase = this.phase === 0 ? 1 : 0;
+      this.showAspect(
+        this.aspect === "green" ? "amber" : this.aspect === "amber" ? "red" : "green",
+      );
     }
 
-    const carsMayGo = this.phase === 0;
+    const carsMayGo = this.aspect === "green";
     for (const car of this.cars) {
       // Distance to the car in front, in this lane, in travel order.
       let gap = Infinity;
@@ -115,7 +167,10 @@ export class Traffic {
       const toStopLine =
         (this.options.crossingZ - STOP_LINE * car.lane.direction - car.z) *
         car.lane.direction;
-      const mustStop = !carsMayGo && toStopLine > 0 && toStopLine < 22;
+      // Red means stop at the line. Amber means the same, unless the line is
+      // already under the bumper.
+      const committed = this.aspect === "amber" && toStopLine < COMMITTED;
+      const mustStop = !carsMayGo && !committed && toStopLine > 0 && toStopLine < SIGHT;
 
       let target = car.cruise;
       if (gap < HEADWAY) target = Math.max(0, car.cruise * (gap / HEADWAY - 0.15));

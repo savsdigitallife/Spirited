@@ -86,6 +86,16 @@ export interface RoadOptions {
 }
 
 /** Sign colours. Chosen to read against a blue-black night, not copied. */
+/** What a signal can be showing. */
+export type SignalAspect = "green" | "amber" | "red";
+
+/** The three lenses, at full brightness. */
+export const SIGNAL_COLOUR: Record<SignalAspect, Color3> = {
+  green: new Color3(0.16, 1, 0.42),
+  amber: new Color3(1, 0.66, 0.06),
+  red: new Color3(1, 0.13, 0.08),
+};
+
 export const NEON = {
   peach: new Color3(1, 0.42, 0.35),
   ice: new Color3(0.4, 0.85, 1),
@@ -498,6 +508,31 @@ export class CityMaterials {
     material.emissiveColor = colour;
     material.emissiveIntensity = strength;
     this.lit.push({ material, albedo: material.albedoColor.clone(), emissive: strength });
+    this.cache.set(key, material);
+    return material;
+  }
+
+  /**
+   * One aspect of a traffic signal.
+   *
+   * Emissive like a sign, but deliberately outside the night dimming: a
+   * signal is no dimmer at noon than at midnight, and the only thing that
+   * decides how bright it is at any moment is whether it is the aspect
+   * currently being shown. `Traffic` drives these directly.
+   *
+   * Every head in the district shares one material per aspect, which is not
+   * a shortcut — instances cannot carry their own material, and every signal
+   * at one crossing shows the same thing anyway.
+   */
+  signalLamp(aspect: SignalAspect): PBRMaterial {
+    const key = `signal:${aspect}`;
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    const material = new PBRMaterial(`signal.${aspect}`, this.scene);
+    material.unlit = true;
+    material.albedoColor = SIGNAL_COLOUR[aspect].clone();
+    material.emissiveColor = SIGNAL_COLOUR[aspect];
+    material.emissiveIntensity = 1;
     this.cache.set(key, material);
     return material;
   }

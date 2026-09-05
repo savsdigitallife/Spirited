@@ -987,11 +987,12 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     ],
   });
 
-  const traffic = new Traffic(catalog, {
+  const traffic = new Traffic(catalog, materials, {
     crossingZ: CROSSING_Z,
     carsPerLane: 5,
     bodies: VEHICLE_IDS,
     vehicleGreen: 16,
+    amber: 3,
     pedestrianGreen: 10,
     seed: SEED + 2,
     lanes: [

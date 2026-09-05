@@ -181,6 +181,37 @@ faces outward on both sides of the car. It is authored at one size and
 scaled, so a kei van and a 4x4 roll on the same wheel at the sizes those
 vehicles use.
 
+## The signal, and the traffic that obeys it
+
+The lights used to be scenery. Green was hard-lit at strength 4 and the other
+two aspects sat at 0.35 forever, while the cars stopped and started on a timer
+that had nothing to do with them — so the light said go while the traffic
+stood still.
+
+There is now one phase, in `Traffic`, and everything reads it: the cars, the
+people waiting to cross, and the three lenses in every head on the street.
+They cannot disagree, because the cars stop *because* the light is red rather
+than alongside it.
+
+Green for sixteen seconds, amber for three, red for ten. Amber is not
+decoration — it is what lets a car already on top of the line go through
+instead of standing on the brakes, which is the difference between traffic
+and a row of objects being toggled. Red means stop at the line, six and a half
+metres back, and a car starts reading the signal twenty-six metres out so it
+arrives slowing rather than stopping dead.
+
+Every head shares one material per aspect. That is not a shortcut: an instance
+cannot carry its own material, and every signal at one crossing shows the same
+thing anyway. The three are deliberately outside the night dimming that the
+neon and the window grids go through, because a traffic light is no dimmer at
+noon than at midnight.
+
+The smoke suite checks this from outside, the way a player sees it: which lens
+is lit, and whether any car crosses the junction while it is the red one. It
+finds the junction from the positions of the signal heads rather than from a
+number copied out of the scene, and runs the clock at five times speed,
+because one cycle is half a minute and this renderer buys few frames.
+
 ## Fourteen car bodies
 
 The street used to have one car in it — a box for the body, a box for the

@@ -17,7 +17,7 @@ import { CreatePlane } from "@babylonjs/core/Meshes/Builders/planeBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { AssetDefinition } from "../../engine/AssetCatalog";
-import { CityMaterials, NEON } from "../../world/CityMaterials";
+import { CityMaterials, NEON, type SignalAspect } from "../../world/CityMaterials";
 import { revolve } from "../../world/Shapes";
 
 
@@ -167,19 +167,32 @@ export function tokyoPrefabs(materials: CityMaterials): AssetDefinition[] {
           new Vector3(1.9, 4.72, 0),
           metalDark(),
         );
+        // Three aspects, in the order a signal carries them, each on the
+        // shared material `Traffic` switches. Nothing here decides which one
+        // is lit — the controller that stops the cars does, so the light and
+        // the traffic can never disagree.
         const lamps: Mesh[] = [];
-        const colours = [
-          new Color3(0.2, 1, 0.35),
-          new Color3(1, 0.82, 0.1),
-          new Color3(1, 0.22, 0.15),
-        ];
-        colours.forEach((colour, index) => {
-          const bulb = CreateSphere(`bulb${index}`, { diameter: 0.2, segments: 8 }, scene);
+        const aspects: SignalAspect[] = ["green", "amber", "red"];
+        aspects.forEach((aspect, index) => {
+          const bulb = CreateSphere(`bulb.${aspect}`, { diameter: 0.2, segments: 8 }, scene);
           bulb.position.set(1.62 + index * 0.28, 4.72, -0.13);
-          bulb.material = materials.emissive(`signal${index}`, colour, index === 0 ? 4 : 0.35);
+          bulb.material = materials.signalLamp(aspect);
           lamps.push(bulb);
         });
-        return [pole, arm, housing, ...lamps];
+        // A hood over each lens, so an unlit aspect is a dark recess rather
+        // than a grey ball, and the lit one is legible down the street.
+        const hoods: Mesh[] = [];
+        aspects.forEach((aspect, index) => {
+          const hood = box(
+            scene,
+            `hood.${aspect}`,
+            { width: 0.24, height: 0.1, depth: 0.11 },
+            new Vector3(1.62 + index * 0.28, 4.85, -0.16),
+            metalDark(),
+          );
+          hoods.push(hood);
+        });
+        return [pole, arm, housing, ...lamps, ...hoods];
       },
     },
     {

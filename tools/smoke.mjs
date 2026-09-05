@@ -208,6 +208,92 @@ check("the street has varied frontages", composition.buildings >= 12, `${composi
 check("shops can be seen into", composition.interiors >= 8, `${composition.interiors} visible interiors`);
 check("the city continues past the block", composition.skyline >= 40, `${composition.skyline} distant towers`);
 check("traffic exists", before.cars >= 4, `${before.cars} cars`);
+
+/**
+ * The signal, and whether the traffic obeys it.
+ *
+ * Read entirely from outside: which of the three lenses is lit, and whether
+ * any car crosses the junction while it is the red one. Nothing here reaches
+ * into the controller, so it is a check on what a player would see rather
+ * than on what the code intends. The clock is run fast for the duration,
+ * because one cycle is half a minute and this renderer buys few frames.
+ */
+const signal = await page.evaluate(async () => {
+  const scene = window.nagori.scenes.active.scene;
+  const time = window.nagori.time;
+  const lamp = (name) => scene.getMaterialByName("signal." + name);
+  const lit = () => {
+    let best = null;
+    let bright = -1;
+    for (const name of ["green", "amber", "red"]) {
+      const material = lamp(name);
+      if (material && material.emissiveIntensity > bright) {
+        bright = material.emissiveIntensity;
+        best = name;
+      }
+    }
+    return best;
+  };
+  // Where the junction is, taken from the signal heads standing either side
+  // of it rather than from a number copied out of the scene.
+  const heads = scene.transformNodes.filter((n) => n.name.startsWith("traffic_light_01."));
+  const junction = heads.reduce((total, n) => total + n.position.z, 0) / Math.max(1, heads.length);
+
+  const cars = scene.transformNodes.filter((n) => n.name.startsWith("car."));
+  const heading = new Map(cars.map((c) => [c.name, Math.abs(c.rotation.y) < 1 ? 1 : -1]));
+  const previous = new Map(cars.map((c) => [c.name, c.position.z]));
+  const seen = new Set();
+  let onGreen = 0;
+  let onRed = 0;
+  let redFor = 0;
+
+  const restore = time.scale;
+  time.scale = 5;
+  const start = time.elapsedSeconds;
+  let last = start;
+  while (time.elapsedSeconds - start < 46) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const now = time.elapsedSeconds;
+    const step = now - last;
+    last = now;
+    const aspect = lit();
+    seen.add(aspect);
+    redFor = aspect === "red" ? redFor + step : 0;
+    for (const car of cars) {
+      const direction = heading.get(car.name);
+      const was = previous.get(car.name);
+      const is = car.position.z;
+      previous.set(car.name, is);
+      if (Math.abs(is - was) > 14) continue; // looped round the block
+      if ((was - junction) * direction < 0 && (is - junction) * direction >= 0) {
+        if (aspect === "green") onGreen += 1;
+        // Two seconds of grace, for a car that was committed on amber.
+        else if (aspect === "red" && redFor > 2) onRed += 1;
+      }
+    }
+  }
+  time.scale = restore;
+  return {
+    seen: [...seen],
+    onGreen,
+    onRed,
+    junction,
+    showing: lit(),
+    brightness: ["green", "amber", "red"].map((n) => lamp(n)?.emissiveIntensity ?? null),
+  };
+});
+check(
+  "the signal shows one aspect at a time",
+  signal.brightness.filter((v) => v !== null && v > 1).length === 1,
+  `green/amber/red at ${signal.brightness.join(" / ")}`,
+);
+check(
+  "the signal cycles green, amber and red",
+  ["green", "amber", "red"].every((a) => signal.seen.includes(a)),
+  signal.seen.join(", "),
+);
+check("cars go on green", signal.onGreen >= 1, `${signal.onGreen} crossed the junction on green`);
+check("cars stop on red", signal.onRed === 0, `${signal.onRed} crossed the junction on red`);
 check("rain particle system exists", before.particles >= 1, `${before.particles} systems`);
 check("street lighting is set up", before.lights >= 4, `${before.lights} lights`);
 
