@@ -33,6 +33,16 @@ export interface OutfitSpec {
 
 export interface CharacterSpec {
   name: string;
+  /**
+   * Which piece of character art this person is, if any.
+   *
+   * Deliberately not the same field as `name`: `name` identifies an
+   * individual — `cook.ramen_iroha`, `citizen7` — while this identifies a
+   * model file, `characters/<model>.glb`, that any number of people may be
+   * built from. Absent means "generated body", which is the normal case
+   * until commissioned art exists.
+   */
+  model?: string;
   /** Metres, floor to crown. */
   height: number;
   /** 0 slight, 1 broad. Scales shoulder width and limb thickness. */
@@ -69,6 +79,7 @@ export interface CharacterSpec {
 export function aikoSpec(): CharacterSpec {
   return {
     name: "aiko",
+    model: "aiko",
     height: 1.63,
     build: 0.32,
     skin: new Color3(0.82, 0.66, 0.56),

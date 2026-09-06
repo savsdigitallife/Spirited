@@ -14,12 +14,55 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 import { buildHuman, type HumanRig } from "./rig/HumanRig";
+import { bindLoadedRig, type BoundRig } from "./rig/BoneBinding";
 import type { CharacterSpec } from "./rig/CharacterSpec";
 import { AnimationController, type AnimationState, type LocomotionInput } from "./AnimationController";
 import { HairSim } from "./HairSim";
+import type { AssetLoader } from "../engine/AssetLoader";
+import type { AssetContainer } from "@babylonjs/core/assetContainer";
 
 export class Character {
+  /**
+   * Rigged models, loaded once per region rather than per character.
+   *
+   * Every caller builds a character synchronously in the middle of laying out
+   * a room, so the model cannot be fetched there. `preload` is the async half,
+   * called at region load exactly as the asset catalog's `prepare` is, and the
+   * constructor then finds what it needs already in hand.
+   */
+  private static models = new Map<string, AssetContainer>();
+
+  /**
+   * Fetches whatever character art exists, and says nothing if there is none.
+   *
+   * A missing model is the normal case, not an error: the generated body is
+   * the shipping geometry until commissioned art replaces it. Names map to
+   * `characters/<name>.glb` under the asset root.
+   */
+  static async preload(scene: Scene, assets: AssetLoader, names: readonly string[]): Promise<void> {
+    for (const name of names) {
+      const path = `characters/${name}.glb`;
+      const key = `${scene.uid}::${name}`;
+      if (Character.models.has(key)) continue;
+      if (!(await assets.exists(path))) continue;
+      try {
+        Character.models.set(key, await assets.container(scene, path));
+      } catch (error) {
+        console.warn(`[rig] "${name}" failed to load from ${path}; using the generated body`, error);
+      }
+    }
+  }
+
+  /** Drops cached models for a scene that is going away. */
+  static forget(scene: Scene): void {
+    for (const key of [...Character.models.keys()]) {
+      if (key.startsWith(`${scene.uid}::`)) Character.models.delete(key);
+    }
+  }
+
   readonly rig: HumanRig;
+  /** Set only when this character is a loaded model. */
+  private readonly bound: BoundRig | null;
   readonly animation: AnimationController;
   readonly spec: CharacterSpec;
   private readonly hair: HairSim | null = null;
@@ -28,7 +71,9 @@ export class Character {
 
   constructor(scene: Scene, spec: CharacterSpec) {
     this.spec = spec;
-    this.rig = buildHuman(scene, spec);
+    const model = Character.fromModel(scene, spec);
+    this.bound = model;
+    this.rig = model ?? buildHuman(scene, spec);
     this.animation = new AnimationController(this.rig);
 
     if (spec.simulatedHair && spec.hairStyle === "long") {
@@ -46,6 +91,41 @@ export class Character {
         this.hair.reset(this.napeWorld(), this.back);
       }
     }
+  }
+
+  /**
+   * Instantiates the loaded model for this spec, if one was preloaded and its
+   * skeleton carries the joints an animation needs. Null means "use the
+   * generated body", which is not a failure.
+   */
+  private static fromModel(scene: Scene, spec: CharacterSpec): BoundRig | null {
+    if (!spec.model) return null;
+    const container = Character.models.get(`${scene.uid}::${spec.model}`);
+    if (!container) return null;
+    const copy = container.instantiateModelsToScene((source) => `${spec.name}.${source}`, false, {
+      doNotInstantiate: true,
+    });
+    const skeleton = copy.skeletons[0];
+    const root = copy.rootNodes[0];
+    if (!skeleton || !root) {
+      console.warn(`[rig] "${spec.name}" has no skeleton; using the generated body`);
+      copy.dispose();
+      return null;
+    }
+    const meshes = root.getChildMeshes();
+    const bound = Character.bind(scene, root as TransformNode, meshes, skeleton, spec);
+    if (!bound) copy.dispose();
+    return bound;
+  }
+
+  private static bind(
+    scene: Scene,
+    root: TransformNode,
+    meshes: readonly AbstractMesh[],
+    skeleton: Parameters<typeof bindLoadedRig>[3],
+    spec: CharacterSpec,
+  ): BoundRig | null {
+    return bindLoadedRig(scene, root, meshes, skeleton, spec.name, spec.height);
   }
 
   get root(): TransformNode {
@@ -83,8 +163,17 @@ export class Character {
    * @param floorY ground height under her, so the hair can rest on it
    * @returns true on frames where a foot lands
    */
+  /** True when this character is a loaded model rather than generated geometry. */
+  get isModel(): boolean {
+    return this.bound !== null;
+  }
+
   update(dt: number, input: LocomotionInput, floorY: number): boolean {
     const footfall = this.animation.update(dt, input);
+    // A generated body *is* the joints the controller just moved. A loaded
+    // model is a skeleton that has to be told about them, on top of its own
+    // rest pose — see `BoneBinding`.
+    this.bound?.sync();
 
     if (this.hair) {
       // The world matrices have to be current before the nape can be read,

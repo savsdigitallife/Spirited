@@ -37,6 +37,7 @@ import { fbm, ridge, makeRandom } from "../world/Noise";
 import { ruralPrefabs } from "./props/rural";
 import { makeGlass } from "../world/Glass";
 import { PlayerController } from "../player/PlayerController";
+import { Character } from "../player/Character";
 import { ThirdPersonCamera } from "../player/ThirdPersonCamera";
 
 export const HAZAMA_VALLEY_ID = "hazamaValley";
@@ -284,6 +285,10 @@ export async function createHazamaValley(ctx: SceneContext): Promise<GameScene> 
   const catalog = new AssetCatalog(scene, ctx.assets);
   const valleyGlass = makeGlass(scene, "valley.glass", "shopfront");
   catalog.defineAll(ruralPrefabs({ surfaces, painted, emissive, glass: () => valleyGlass }));
+  // Character art, if any exists. A miss is the normal case and costs one
+  // HEAD request; a hit means every character built from that model in this
+  // region is the model rather than the generated body.
+  await Character.preload(scene, ctx.assets, ["aiko"]);
   await catalog.prepare([
     "cedar_tree_01",
     "broadleaf_tree_01",

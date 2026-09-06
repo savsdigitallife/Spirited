@@ -56,6 +56,7 @@ import { buildEnterable, type EnterableRoom } from "../world/Interiors";
 import { makeRandom } from "../world/Noise";
 import { tokyoPrefabs } from "./props/tokyo";
 import { PlayerController } from "../player/PlayerController";
+import { Character } from "../player/Character";
 import { ThirdPersonCamera } from "../player/ThirdPersonCamera";
 import { TRAIN_INTERLUDE_ID } from "./TrainInterlude";
 
@@ -601,6 +602,10 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   const catalog = new AssetCatalog(scene, ctx.assets);
   catalog.defineAll(tokyoPrefabs(materials));
   catalog.defineAll(vehiclePrefabs(materials));
+  // Character art, if any exists. A miss is the normal case and costs one
+  // HEAD request; a hit means every character built from that model in this
+  // region is the model rather than the generated body.
+  await Character.preload(scene, ctx.assets, ["aiko"]);
   await catalog.prepare([
     "street_light_01", "utility_pole_01", "vending_machine_01", "traffic_light_01", "sign_post_01",
     "trash_bin_01", "planter_01", "bicycle_01", ...VEHICLE_IDS, ...BANNERS,

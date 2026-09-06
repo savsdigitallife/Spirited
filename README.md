@@ -22,9 +22,12 @@ npm run dev          # http://localhost:8080
 | `npm run build` | Type-check, then produce a production bundle in `dist/` |
 | `npm run preview` | Serve the production bundle |
 | `npm run typecheck` | TypeScript only, no emit |
-| `npm test` | Type-check plus the headless design-sandbox suite |
+| `npm test` | Type-check, the unit tests, and the headless design-sandbox suite |
+| `npm run test:unit` | Node unit tests — the character-rig contract |
 | `npm run test:browser` | Build, then drive the real build in headless Chromium |
 | `node tools/shot.mjs <name> [scene] [settle] [script]` | One frame from the running build, for looking at a change |
+| `tools/rig-character.sh <mesh> <name>` | Rig a character mesh with UniRig — see `docs/CHARACTER-PIPELINE.md` |
+| `node --experimental-strip-types tools/check-rig.mjs <model.glb>` | Check a rigged model's bones against the joints the game drives |
 
 ### On Replit
 
@@ -96,6 +99,8 @@ last train south, and the countryside it puts her down in.
   can walk into, the alley, and rain that lands.
 - `docs/TOKYO-REBUILD.md` — Aiko, the third-person presentation, and the
   street rebuilt as a real environment.
+- `docs/CHARACTER-PIPELINE.md` — how a rigged model gets into the game, and
+  rigging one with UniRig when it arrives without a skeleton.
 - `docs/JOURNEY.md` — the train interlude and Hazama valley.
 - `docs/TOKYO-SLICE.md` — the first pass at the character and the street.
 - `docs/PHASE-1.md` — the engine foundation underneath it all.
