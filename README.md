@@ -26,6 +26,7 @@ npm run dev          # http://localhost:8080
 | `npm run test:unit` | Node unit tests — the character-rig contract |
 | `npm run test:browser` | Build, then drive the real build in headless Chromium |
 | `node tools/shot.mjs <name> [scene] [settle] [script]` | One frame from the running build, for looking at a change |
+| `python3 tools/fbx-to-glb.py <in.fbx> <out.glb> --height 1.72` | Convert character art from FBX to the glTF the game loads |
 | `tools/rig-character.sh <mesh> <name>` | Rig a character mesh with UniRig — see `docs/CHARACTER-PIPELINE.md` |
 | `node --experimental-strip-types tools/check-rig.mjs <model.glb>` | Check a rigged model's bones against the joints the game drives |
 

@@ -67,6 +67,48 @@ node --experimental-strip-types tools/check-rig.mjs path/to/model.glb
 
 It prints a line per joint and exits non-zero if any is unbound.
 
+## Converting art that arrives as FBX
+
+Most character art arrives as FBX — it is what Mixamo, Maya and 3ds Max hand
+you — and the browser reads glTF. Blender does the conversion, driven as a
+Python module so it runs unattended:
+
+```bash
+python3 -m pip install bpy          # Blender as a library; needs Python 3.11
+python3 tools/fbx-to-glb.py in.fbx public/assets/characters/aiko.glb --height 1.72
+node --experimental-strip-types tools/check-rig.mjs public/assets/characters/aiko.glb
+```
+
+Two things it does beyond a straight export, both of which are otherwise a
+surprise later:
+
+- **Scale.** An FBX carries its own idea of a unit, and Mixamo's is the
+  centimetre, so a character imports a hundred times too big. `--height`
+  measures the mesh and scales the armature so it is that many metres from
+  its lowest vertex to its highest — a measurement, not a guess about which
+  exporter wrote the file.
+- **Feet on the floor.** Every scene places a character by the feet, so a
+  model whose origin is not the ground floats or sinks. It is dropped to
+  y = 0 after scaling.
+
+This has been run: Mixamo's X Bot converts cleanly, and `check-rig.mjs` then
+binds all seventeen joints against it, including the two traps — `shoulderL`
+to `LeftArm` rather than `LeftShoulder`, and `kneeL` to `LeftLeg` rather than
+`LeftUpLeg`.
+
+### Known gap: the bind pose
+
+A converted model loads and binds, but does not yet animate correctly. The
+controller writes angles measured from *our* rest pose, where the arms hang
+down; a Mixamo model's bind pose is a T-pose, and composing our angles onto
+that leaves the arms out sideways.
+
+The fix is retargeting proper: for each limb joint, align the direction of
+its child bone in the bind pose to the direction our rig rests at, and
+compose the controller's angle on top of *that* rather than on the raw bind
+rotation. `BoneBinding` is where it goes. Until it is done, a loaded model
+will stand in a T-pose.
+
 ## Rigging a mesh that has no skeleton
 
 If the mesh arrives unrigged, [UniRig](https://github.com/VAST-AI-Research/UniRig)
@@ -122,6 +164,18 @@ what the game accepts is held to 19 assertions that run in a second.
 If the skeleton comes out wrong, fix it before skinning — upstream is explicit
 that skinning degrades badly on a poor skeleton, and `--seed` gives a
 different prediction to try.
+
+## What may not be used
+
+Character art from a shipped game is not an option here, however convenient.
+It is somebody else's copyrighted work, and this project's rule is to build
+original equivalents rather than borrow — the same rule that governs the
+shopfronts, the signage and the vehicles. A model whose texture paths still
+name the game it came out of is not a grey area.
+
+Legitimate sources: art commissioned for this project, stock characters
+licensed for the use (Mixamo's own, for instance), or anything generated from
+scratch. If in doubt, the generated body is always there and always shippable.
 
 ## Where this does not help
 

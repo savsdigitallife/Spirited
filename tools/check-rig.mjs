@@ -16,7 +16,10 @@
 import { readFile } from "node:fs/promises";
 import { matchJoints } from "../src/player/rig/BoneNames.ts";
 
-const GLB_MAGIC = 0x46546c47;
+// "glTF" as a little-endian uint32. Written out rather than typed as a
+// constant because a wrong nibble here silently makes every .glb look like
+// JSON, and the fixture that mirrors the mistake will agree with it.
+const GLB_MAGIC = Buffer.from("glTF", "ascii").readUInt32LE(0);
 const CHUNK_JSON = 0x4e4f534a;
 
 /** Pulls the glTF JSON out of a .glb container, or parses a .gltf directly. */

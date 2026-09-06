@@ -42,7 +42,10 @@ function packGlb(gltf) {
   const json = Buffer.from(JSON.stringify(gltf), "utf8");
   const padded = Buffer.concat([json, Buffer.alloc((4 - (json.length % 4)) % 4, 0x20)]);
   const header = Buffer.alloc(12);
-  header.writeUInt32LE(0x46546c47, 0);
+  // Derived from the string, not copied from the parser: a fixture that
+  // repeats the implementation's constant cannot catch the implementation
+  // getting it wrong, which is exactly what happened the first time.
+  header.writeUInt32LE(Buffer.from("glTF", "ascii").readUInt32LE(0), 0);
   header.writeUInt32LE(2, 4);
   header.writeUInt32LE(12 + 8 + padded.length, 8);
   const chunk = Buffer.alloc(8);
@@ -50,6 +53,12 @@ function packGlb(gltf) {
   chunk.writeUInt32LE(0x4e4f534a, 4);
   return Buffer.concat([header, chunk, padded]);
 }
+
+test("the container's magic is the real one, not a copy of the parser's", () => {
+  // Guards the bug this file did not catch first time round.
+  const glb = packGlb(gltfWithJoints(MIXAMO_BODY));
+  assert.equal(glb.subarray(0, 4).toString("ascii"), "glTF");
+});
 
 test("a .glb container round-trips through the checker's parser", () => {
   const gltf = readGltf(packGlb(gltfWithJoints(MIXAMO_BODY)));
