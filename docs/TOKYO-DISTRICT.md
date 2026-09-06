@@ -431,6 +431,17 @@ Three things had to be fixed before any of it showed:
 - **The rig's face is on its −z side**, so a pedestrian walking with rotation
   zero was walking backwards. Nobody could tell while they had no faces.
 
+**Proportions.** Seen side on, the first version was two sausages tied at the
+knee. A capsule that stops exactly at its joint leaves the next one's rounded
+end butting against its own, and the pair reads as links rather than as a leg;
+every limb segment now overruns its joint by fourteen per cent, so the two
+solids intersect and the intersection is a knee. The chest was a barrel, which
+also pushed the arms out from the body — it is narrower now, and wider than it
+is deep, which is the one measurement that separates a chest from a barrel.
+The thighs sit closer together under a pelvis that reaches down to meet them,
+the skirt is a skirt rather than a lampshade, and a bag is a band and a block
+instead of two flat slabs.
+
 The smoke suite checks the thing that was actually asked for, from outside:
 that the number of distinct skin tones, hair colours, eye colours, tops and
 heights each equals the number of people on the street.

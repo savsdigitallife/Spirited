@@ -25,6 +25,16 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { CharacterSpec } from "./CharacterSpec";
 
+/**
+ * How far a limb segment runs past the joint at each end.
+ *
+ * A capsule that stops exactly at its joint leaves the next one's rounded
+ * end butting against its own, and the pair reads as two sausages tied in
+ * the middle. Overrunning the joint by a few per cent makes the two solids
+ * intersect, and the intersection is a knee.
+ */
+const OVERLAP = 1.14;
+
 export type JointName =
   | "hips"
   | "spine"
@@ -297,31 +307,33 @@ export function buildHuman(
   const spine = joint("spine", hips, new Vector3(0, H * 0.045, 0));
   const chest = joint("chest", spine, new Vector3(0, chestY, 0));
   const neck = joint("neck", chest, new Vector3(0, H * 0.115, 0));
-  const head = joint("head", neck, new Vector3(0, H * 0.038, 0));
+  const head = joint("head", neck, new Vector3(0, H * 0.048, 0));
 
   const pelvis = attach(
     "pelvis",
     hips,
-    () => CreateCapsule("", { radius: H * 0.072 * wide, height: H * 0.115, tessellation: 12 }, scene),
+    () => CreateCapsule("", { radius: H * 0.07 * wide, height: H * 0.145, tessellation: 12 }, scene),
     new Vector3(0, -H * 0.01, 0),
     spec.outfit.skirt ? p.hose : p.bottom,
   );
-  pelvis.scaling.z = 0.82;
+  pelvis.scaling.set(1.05, 1, 0.78);
 
   const torso = attach(
     "torso",
     spine,
-    () => CreateCapsule("", { radius: H * 0.073 * wide, height: H * 0.26, tessellation: 14 }, scene),
+    () => CreateCapsule("", { radius: H * 0.066 * wide, height: H * 0.3, tessellation: 14 }, scene),
     new Vector3(0, chestY * 0.55, 0),
     p.top,
   );
-  torso.scaling.set(1.06, 1, 0.66);
+  // Wider than it is deep, which is the one measurement that separates a
+  // chest from a barrel.
+  torso.scaling.set(1.12, 1, 0.6);
 
   // A separate shoulder yoke keeps the top from reading as a bottle.
   const yoke = attach(
     "yoke",
     chest,
-    () => CreateCapsule("", { radius: H * 0.052 * wide, height: H * 0.22 * wide, tessellation: 10 }, scene),
+    () => CreateCapsule("", { radius: H * 0.048 * wide, height: H * 0.26 * wide, tessellation: 10 }, scene),
     new Vector3(0, shoulderY - chestY, 0),
     p.top,
   );
@@ -331,7 +343,7 @@ export function buildHuman(
   attach(
     "neck",
     neck,
-    () => CreateCylinder("", { diameter: H * 0.048, height: H * 0.05, tessellation: 10 }, scene),
+    () => CreateCylinder("", { diameter: H * 0.045, height: H * 0.07, tessellation: 10 }, scene),
     new Vector3(0, H * 0.012, 0),
     p.skin,
   );
@@ -490,12 +502,12 @@ export function buildHuman(
     const shoulder = joint(
       `shoulder${id}` as JointName,
       chest,
-      new Vector3(side * H * 0.098 * wide, shoulderY - chestY, 0),
+      new Vector3(side * H * 0.112 * wide, shoulderY - chestY, 0),
     );
     const sleeve = attach(
       `upperArm${id}`,
       shoulder,
-      () => CreateCapsule("", { radius: H * 0.030 * wide, height: upperArm, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.030 * wide, height: upperArm * OVERLAP, tessellation: 10 }, scene),
       new Vector3(0, -upperArm / 2, 0),
       p.top,
     );
@@ -504,7 +516,7 @@ export function buildHuman(
     attach(
       `foreArm${id}`,
       elbow,
-      () => CreateCapsule("", { radius: H * 0.024 * wide, height: foreArm, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.024 * wide, height: foreArm * OVERLAP, tessellation: 10 }, scene),
       new Vector3(0, -foreArm / 2, 0),
       spec.outfit.style === "street" ? p.skin : p.top,
     );
@@ -526,12 +538,12 @@ export function buildHuman(
     const thighJoint = joint(
       `thigh${id}` as JointName,
       hips,
-      new Vector3(side * H * 0.058 * wide, -H * 0.035, 0),
+      new Vector3(side * H * 0.049 * wide, -H * 0.03, 0),
     );
     attach(
       `thigh${id}`,
       thighJoint,
-      () => CreateCapsule("", { radius: H * 0.048 * wide, height: thigh, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.048 * wide, height: thigh * OVERLAP, tessellation: 10 }, scene),
       new Vector3(0, -thigh / 2, 0),
       spec.outfit.skirt ? p.hose : p.bottom,
     );
@@ -539,7 +551,7 @@ export function buildHuman(
     attach(
       `shin${id}`,
       knee,
-      () => CreateCapsule("", { radius: H * 0.038 * wide, height: shin, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.038 * wide, height: shin * OVERLAP, tessellation: 10 }, scene),
       new Vector3(0, -shin / 2, 0),
       spec.outfit.skirt ? p.hose : p.bottom,
     );
@@ -547,7 +559,7 @@ export function buildHuman(
     const boot = attach(
       `boot${id}`,
       ankle,
-      () => CreateBox("", { width: H * 0.062, height: H * 0.085, depth: H * 0.15 }, scene),
+      () => CreateBox("", { width: H * 0.055, height: H * 0.075, depth: H * 0.125 }, scene),
       new Vector3(0, H * 0.018, -H * 0.022),
       p.shoes,
     );
@@ -556,7 +568,7 @@ export function buildHuman(
     attach(
       `sole${id}`,
       ankle,
-      () => CreateBox("", { width: H * 0.068, height: H * 0.028, depth: H * 0.16 }, scene),
+      () => CreateBox("", { width: H * 0.06, height: H * 0.024, depth: H * 0.14 }, scene),
       new Vector3(0, -H * 0.012, -H * 0.024),
       p.shoes,
     );
@@ -575,7 +587,7 @@ export function buildHuman(
       () =>
         CreateCylinder(
         "",
-        { diameterTop: H * 0.19 * wide, diameterBottom: H * 0.27 * wide, height: H * 0.115, tessellation: 16 },
+        { diameterTop: H * 0.185 * wide, diameterBottom: H * 0.222 * wide, height: H * 0.125, tessellation: 16 },
         scene,
       ),
       new Vector3(0, skirtTop - H * 0.045, 0),
@@ -587,11 +599,11 @@ export function buildHuman(
       const pleat = attach(
         `pleat${i}`,
         hips,
-        () => CreateBox("", { width: H * 0.016, height: H * 0.115, depth: H * 0.02 }, scene),
+        () => CreateBox("", { width: H * 0.013, height: H * 0.125, depth: H * 0.014 }, scene),
         new Vector3(
-          Math.sin(angle) * H * 0.125 * wide,
-          skirtTop - H * 0.045,
-          Math.cos(angle) * H * 0.125 * wide,
+          Math.sin(angle) * H * 0.103 * wide,
+          skirtTop - H * 0.043,
+          Math.cos(angle) * H * 0.103 * wide,
         ),
         p.bottom,
       );
@@ -641,16 +653,17 @@ export function buildHuman(
     const strap = attach(
       "bagStrap",
       chest,
-      () => CreateBox("", { width: H * 0.022, height: H * 0.2, depth: H * 0.16 }, scene),
+      () => CreateBox("", { width: H * 0.016, height: H * 0.26, depth: H * 0.028 }, scene),
       new Vector3(-H * 0.03, H * 0.03, 0),
       p.accent,
     );
     strap.rotation.z = 0.42;
+    strap.rotation.y = -0.24;
     const bag = attach(
       "bag",
       hips,
-      () => CreateBox("", { width: H * 0.11, height: H * 0.09, depth: H * 0.05 }, scene),
-      new Vector3(H * 0.1, H * 0.02, H * 0.02),
+      () => CreateBox("", { width: H * 0.075, height: H * 0.095, depth: H * 0.045 }, scene),
+      new Vector3(H * 0.085, H * 0.005, H * 0.028),
       p.accent,
     );
     bag.rotation.z = -0.12;
