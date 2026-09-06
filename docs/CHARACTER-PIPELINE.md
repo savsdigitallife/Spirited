@@ -76,26 +76,48 @@ rigging will change how a mesh looks.
 
 ```bash
 git clone https://github.com/VAST-AI-Research/UniRig ~/UniRig
-# then follow that repository's README for PyTorch, spconv and flash_attn
+python3 -m pip install torch                  # from PyPI; no need to build it
+python3 -m pip install -r ~/UniRig/requirements.txt
+python3 -m pip install flash_attn --no-build-isolation
 
 tools/rig-character.sh ~/art/aiko.glb aiko
 ```
 
-That runs UniRig's three documented stages — skeleton, skinning, merge — and
-writes `public/assets/characters/aiko.glb`, then checks the bones with
+That runs UniRig's three documented stages — skeleton, skinning, merge —
+writes `public/assets/characters/aiko.glb`, and checks the bones with
 `check-rig.mjs`.
 
-**Requirements, none of which are optional:** a CUDA GPU, Python 3.11 with
-PyTorch, and network access to Hugging Face, which is where the checkpoint is
-fetched from on first run.
+### What it needs, and why
 
-> `rig-character.sh` has never been run end to end. It was written in a
-> sandbox with no GPU, no PyTorch and no route to Hugging Face, so it wraps
-> commands taken from UniRig's README and checks its ground carefully, but the
-> first person to run it should expect to debug UniRig's own installation.
-> What *has* been tested is the part either side of it: `tests/` builds a real
-> .glb container and takes it through the same parser and the same matcher the
-> game uses.
+The script checks all four before starting anything and reports the whole
+list at once, rather than one item per run. Each was read off the UniRig
+source rather than assumed:
+
+| Needs | Because |
+| --- | --- |
+| **PyTorch** | Everything below it. `pip install torch` from PyPI is enough — there is no reason to build PyTorch from source unless you are developing PyTorch itself. |
+| **A CUDA GPU** | `configs/task/quick_inference_skeleton_articulationxl_ar_256.yaml` pins `accelerator: gpu` and `precision: bf16-mixed`. There is no CPU path to fall back to. |
+| **flash_attn** | `src/model/unirig_skin.py` imports it at module scope, so the skinning stage cannot start without it. It publishes no wheels and compiles against your CUDA toolkit. |
+| **Hugging Face, or a warm cache** | `src/inference/download.py` fetches the checkpoint with `hf_hub_download(repo_id='VAST-AI/UniRig')` on first run. Weights already in `~/.cache/huggingface` are fine offline. |
+
+### What has and has not been run
+
+**Run, and working:** the preflight, and the argument handling. PyTorch 2.14
+installs cleanly from PyPI into the sandbox this was written in, and the
+checks then correctly report the three things still missing there — no GPU,
+no flash_attn, no route to Hugging Face — each citing the file that makes it
+a requirement.
+
+**Never run:** the three UniRig stages, for exactly those three reasons. They
+wrap commands taken verbatim from UniRig's README. Expect to debug UniRig's
+own installation before they work; `flash_attn` is the usual culprit and
+upstream says as much.
+
+**Tested separately:** everything either side of UniRig. `tests/` builds a
+real `.glb` container and takes it through the same parser and the same bone
+matcher the game uses, so the contract between what the pipeline emits and
+what the game accepts is held to 19 assertions that run in a second.
+
 
 If the skeleton comes out wrong, fix it before skinning — upstream is explicit
 that skinning degrades badly on a poor skeleton, and `--seed` gives a
