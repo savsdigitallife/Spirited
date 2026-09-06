@@ -24,6 +24,7 @@ import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder"
 import { CreatePlane } from "@babylonjs/core/Meshes/Builders/planeBuilder";
 import { CreateLineSystem } from "@babylonjs/core/Meshes/Builders/linesBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
 import type { Material } from "@babylonjs/core/Materials/material";
@@ -160,7 +161,7 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
     Math.min(8, Math.max(1, engine.getCaps().maxAnisotropy)),
   );
   const random = makeRandom(SEED);
-  const casters: Mesh[] = [];
+  const casters: AbstractMesh[] = [];
 
   const slab = (
     name: string,
@@ -920,11 +921,6 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
 
   const lamps = new LampPool(scene, lampSites, 4);
 
-  for (const material of scene.materials) {
-    const withLights = material as Material & { maxSimultaneousLights?: number };
-    if (typeof withLights.maxSimultaneousLights === "number") withLights.maxSimultaneousLights = 6;
-  }
-
   // --------------------------------------------------------------- player
   ctx.progress(0.8, "Stepping outside…");
   // Mid-pavement, clear of both the kerb line and the shopfronts.
@@ -1009,6 +1005,17 @@ export async function createTokyoStreet(ctx: SceneContext): Promise<GameScene> {
   const wall = materials.painted("bound", new Color3(0, 0, 0), 1);
   for (const z of [BLOCK_FROM - 7, BLOCK_TO + 3]) {
     slab(`bound${z}`, { width: PAVE_OUTER * 2 + 6, height: 14, depth: 1 }, new Vector3(0, 7, z), wall).isVisible = false;
+  }
+
+  // This street has eleven lights in it — the sun, the ambient, four pooled
+  // street lamps and the shopfronts — and a PBR material takes four by
+  // default, chosen in scene order. Anything left on the default is lit by
+  // four interior lights it is nowhere near and never by the sun, which is
+  // how the crowd came to be a row of silhouettes. It runs here, after
+  // everything is built, because a material created later would miss it.
+  for (const material of scene.materials) {
+    const withLights = material as Material & { maxSimultaneousLights?: number };
+    if (typeof withLights.maxSimultaneousLights === "number") withLights.maxSimultaneousLights = 6;
   }
 
   // --------------------------------------------------------------- shadows

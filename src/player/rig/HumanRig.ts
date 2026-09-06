@@ -18,8 +18,10 @@ import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
 import { CreateCapsule } from "@babylonjs/core/Meshes/Builders/capsuleBuilder";
+import { Color4 } from "@babylonjs/core/Maths/math.color";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { CharacterSpec } from "./CharacterSpec";
 
@@ -53,7 +55,7 @@ export const JOINT_NAMES: readonly JointName[] = [
 export interface HumanRig {
   readonly root: TransformNode;
   readonly joints: Record<JointName, TransformNode>;
-  readonly meshes: readonly Mesh[];
+  readonly meshes: readonly AbstractMesh[];
   /** Where hair hangs from: the back of the skull. */
   readonly napeAnchor: TransformNode;
   /** Metres, floor to crown. */
@@ -63,6 +65,11 @@ export interface HumanRig {
   setVisible(visible: boolean): void;
   dispose(): void;
 }
+
+/** Which part of a person a material stands for. */
+export type Role =
+  | "skin" | "hair" | "top" | "bottom" | "hose" | "shoes"
+  | "accent" | "eyeWhite" | "iris" | "pupil" | "lip";
 
 interface Palette {
   skin: PBRMaterial;
@@ -75,6 +82,11 @@ interface Palette {
   eyeWhite: PBRMaterial;
   iris: PBRMaterial;
   pupil: PBRMaterial;
+  lip: PBRMaterial;
+}
+
+function colour4(colour: Color3): Color4 {
+  return new Color4(colour.r, colour.g, colour.b, 1);
 }
 
 function matte(scene: Scene, id: string, colour: Color3, roughness: number, metallic = 0): PBRMaterial {
@@ -113,14 +125,122 @@ function palette(scene: Scene, spec: CharacterSpec): Palette {
     eyeWhite: matte(scene, id("sclera"), new Color3(0.9, 0.89, 0.88), 0.25),
     iris: matte(scene, id("iris"), spec.eyeColour, 0.18, 0.1),
     pupil: matte(scene, id("pupil"), new Color3(0.02, 0.02, 0.03), 0.2),
+    lip: matte(scene, id("lip"), new Color3(0.55, 0.32, 0.31), 0.5),
   };
   paletteCache.set(key, built);
   return built;
 }
 
-export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
-  const p = palette(scene, spec);
-  const meshes: Mesh[] = [];
+/**
+ * A body's geometry, built once and instanced into a crowd.
+ *
+ * Twenty individually built people is twenty times the geometry, twenty times
+ * the materials and several hundred draw calls, which a street cannot afford.
+ * Twenty instances of one body is one draw call per part — and the reason
+ * they are not twenty identical people is that each instance carries its own
+ * colour in a per-instance vertex buffer, so skin, hair, eyes and every
+ * garment are that person's alone while the geometry is shared.
+ *
+ * Keyed by the part id `attach` is called with, so the same builder fills it
+ * and reads it back and the two can never drift apart.
+ */
+export interface HumanTemplates {
+  readonly parts: ReadonlyMap<string, Mesh>;
+  dispose(): void;
+}
+
+export interface HumanOptions {
+  /**
+   * Instance these rather than building geometry. The spec still decides
+   * every proportion, position and colour; only the vertices are shared.
+   */
+  from?: HumanTemplates;
+  /** Collect the geometry built, to be instanced later. */
+  collect?: Map<string, Mesh>;
+}
+
+/** White, so an instance's own colour is the colour that reaches the screen. */
+const NEUTRAL = new Color3(1, 1, 1);
+const neutralCache = new Map<string, Palette>();
+
+function neutralPalette(scene: Scene): Palette {
+  const cached = neutralCache.get(String(scene.uid));
+  if (cached) return cached;
+  // Roughness still belongs to the material — skin is not shoe leather — but
+  // the colour is white in all of them and comes from the instance.
+  const id = (part: string) => `crowd.${part}`;
+  const built: Palette = {
+    skin: matte(scene, id("skin"), NEUTRAL, 0.62),
+    hair: matte(scene, id("hair"), NEUTRAL, 0.28, 0.06),
+    top: matte(scene, id("top"), NEUTRAL, 0.82),
+    bottom: matte(scene, id("bottom"), NEUTRAL, 0.86),
+    hose: matte(scene, id("hose"), NEUTRAL, 0.7),
+    shoes: matte(scene, id("shoes"), NEUTRAL, 0.5),
+    accent: matte(scene, id("accent"), NEUTRAL, 0.78),
+    eyeWhite: matte(scene, id("sclera"), NEUTRAL, 0.25),
+    iris: matte(scene, id("iris"), NEUTRAL, 0.18, 0.1),
+    pupil: matte(scene, id("pupil"), NEUTRAL, 0.2),
+    lip: matte(scene, id("lip"), NEUTRAL, 0.5),
+  };
+  neutralCache.set(String(scene.uid), built);
+  return built;
+}
+
+/**
+ * Builds one body purely for its geometry, and hands back the parts.
+ *
+ * The rig itself is thrown away; what survives is a disabled mesh per part,
+ * each carrying a per-instance colour buffer, ready to be instanced by
+ * anyone. Built from a spec like everyone else, so a template is never a
+ * second description of what a person is.
+ */
+export function buildHumanTemplates(scene: Scene, shape: CharacterSpec): HumanTemplates {
+  const parts = new Map<string, Mesh>();
+  const rig = buildHuman(scene, shape, { collect: parts });
+  for (const mesh of parts.values()) {
+    mesh.setParent(null);
+    mesh.position.setAll(0);
+    mesh.rotation.setAll(0);
+    mesh.scaling.setAll(1);
+    mesh.setEnabled(false);
+    mesh.isPickable = false;
+    // Four floats an instance: the colour this copy of the part is painted.
+    mesh.registerInstancedBuffer("color", 4);
+    mesh.instancedBuffers.color = new Color4(1, 1, 1, 1);
+  }
+  rig.root.dispose(false, false);
+  return {
+    parts,
+    dispose(): void {
+      for (const mesh of parts.values()) mesh.dispose();
+      parts.clear();
+    },
+  };
+}
+
+export function buildHuman(
+  scene: Scene,
+  spec: CharacterSpec,
+  options: HumanOptions = {},
+): HumanRig {
+  const p = options.from ? neutralPalette(scene) : palette(scene, spec);
+  // Which colour an instance of a part is painted, by the material the
+  // builder chose for it. Reading the role off the material rather than
+  // naming it at every call site is what keeps the two modes in step.
+  const roleColour = new Map<PBRMaterial, Color4>([
+    [p.skin, colour4(spec.skin)],
+    [p.hair, colour4(spec.hairColour)],
+    [p.top, colour4(spec.outfit.top)],
+    [p.bottom, colour4(spec.outfit.bottom)],
+    [p.hose, colour4(spec.outfit.hose)],
+    [p.shoes, colour4(spec.outfit.shoes)],
+    [p.accent, colour4(spec.outfit.accent)],
+    [p.eyeWhite, new Color4(0.9, 0.89, 0.88, 1)],
+    [p.iris, colour4(spec.eyeColour)],
+    [p.pupil, new Color4(0.02, 0.02, 0.03, 1)],
+    [p.lip, colour4(spec.lipColour ?? new Color3(0.55, 0.32, 0.31))],
+  ]);
+  const meshes: AbstractMesh[] = [];
   const root = new TransformNode(`${spec.name}.root`, scene);
 
   // Proportions are taken off the total height so the same builder makes a
@@ -144,15 +264,32 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     joints[name] = node;
     return node;
   };
-  const attach = (id: string, parent: TransformNode, mesh: Mesh, at: Vector3, material: PBRMaterial): Mesh => {
-    mesh.name = `${spec.name}.${id}`;
-    mesh.parent = parent;
-    mesh.position.copyFrom(at);
-    mesh.material = material;
-    mesh.isPickable = false;
-    mesh.receiveShadows = true;
-    meshes.push(mesh);
-    return mesh;
+  const attach = (
+    id: string,
+    parent: TransformNode,
+    build: () => Mesh,
+    at: Vector3,
+    material: PBRMaterial,
+  ): AbstractMesh => {
+    const template = options.from?.parts.get(id);
+    let node: AbstractMesh;
+    if (template) {
+      const instance = template.createInstance(`${spec.name}.${id}`);
+      instance.instancedBuffers.color = roleColour.get(material) ?? new Color4(1, 1, 1, 1);
+      node = instance;
+    } else {
+      const mesh = build();
+      mesh.name = `${spec.name}.${id}`;
+      mesh.material = material;
+      options.collect?.set(id, mesh);
+      node = mesh;
+    }
+    node.parent = parent;
+    node.position.copyFrom(at);
+    node.isPickable = false;
+    node.receiveShadows = true;
+    meshes.push(node);
+    return node;
   };
 
   // ------------------------------------------------------------------ core
@@ -165,7 +302,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
   const pelvis = attach(
     "pelvis",
     hips,
-    CreateCapsule("", { radius: H * 0.072 * wide, height: H * 0.115, tessellation: 12 }, scene),
+    () => CreateCapsule("", { radius: H * 0.072 * wide, height: H * 0.115, tessellation: 12 }, scene),
     new Vector3(0, -H * 0.01, 0),
     spec.outfit.skirt ? p.hose : p.bottom,
   );
@@ -174,17 +311,17 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
   const torso = attach(
     "torso",
     spine,
-    CreateCapsule("", { radius: H * 0.085 * wide, height: H * 0.2, tessellation: 14 }, scene),
+    () => CreateCapsule("", { radius: H * 0.073 * wide, height: H * 0.26, tessellation: 14 }, scene),
     new Vector3(0, chestY * 0.55, 0),
     p.top,
   );
-  torso.scaling.z = 0.74;
+  torso.scaling.set(1.06, 1, 0.66);
 
   // A separate shoulder yoke keeps the top from reading as a bottle.
   const yoke = attach(
     "yoke",
     chest,
-    CreateCapsule("", { radius: H * 0.052 * wide, height: H * 0.22 * wide, tessellation: 10 }, scene),
+    () => CreateCapsule("", { radius: H * 0.052 * wide, height: H * 0.22 * wide, tessellation: 10 }, scene),
     new Vector3(0, shoulderY - chestY, 0),
     p.top,
   );
@@ -194,7 +331,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
   attach(
     "neck",
     neck,
-    CreateCylinder("", { diameter: H * 0.048, height: H * 0.05, tessellation: 10 }, scene),
+    () => CreateCylinder("", { diameter: H * 0.048, height: H * 0.05, tessellation: 10 }, scene),
     new Vector3(0, H * 0.012, 0),
     p.skin,
   );
@@ -203,7 +340,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
   const skull = attach(
     "skull",
     head,
-    CreateSphere("", { diameter: headH * 0.82, segments: 16 }, scene),
+    () => CreateSphere("", { diameter: headH * 0.82, segments: 16 }, scene),
     new Vector3(0, headH * 0.36, 0),
     p.skin,
   );
@@ -212,7 +349,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
   const jaw = attach(
     "jaw",
     head,
-    CreateSphere("", { diameter: headH * 0.6, segments: 12 }, scene),
+    () => CreateSphere("", { diameter: headH * 0.6, segments: 12 }, scene),
     new Vector3(0, headH * 0.2, -headH * 0.05),
     p.skin,
   );
@@ -228,7 +365,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       const white = attach(
         `eye${side}`,
         head,
-        CreateSphere("", { diameter: headH * 0.135, segments: 10 }, scene),
+        () => CreateSphere("", { diameter: headH * 0.135, segments: 10 }, scene),
         new Vector3(x, y, z),
         p.eyeWhite,
       );
@@ -236,7 +373,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       const iris = attach(
         `iris${side}`,
         head,
-        CreateCylinder("", { diameter: headH * 0.082, height: headH * 0.012, tessellation: 12 }, scene),
+        () => CreateCylinder("", { diameter: headH * 0.082, height: headH * 0.012, tessellation: 12 }, scene),
         new Vector3(x, y, z - headH * 0.036),
         p.iris,
       );
@@ -244,7 +381,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       const pupil = attach(
         `pupil${side}`,
         head,
-        CreateCylinder("", { diameter: headH * 0.038, height: headH * 0.014, tessellation: 10 }, scene),
+        () => CreateCylinder("", { diameter: headH * 0.038, height: headH * 0.014, tessellation: 10 }, scene),
         new Vector3(x, y, z - headH * 0.042),
         p.pupil,
       );
@@ -252,7 +389,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       const brow = attach(
         `brow${side}`,
         head,
-        CreateBox("", { width: headH * 0.17, height: headH * 0.026, depth: headH * 0.03 }, scene),
+        () => CreateBox("", { width: headH * 0.17, height: headH * 0.026, depth: headH * 0.03 }, scene),
         new Vector3(x, y + headH * 0.105, z - headH * 0.01),
         p.hair,
       );
@@ -261,19 +398,33 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const mouth = attach(
       "mouth",
       head,
-      CreateBox("", { width: headH * 0.15, height: headH * 0.022, depth: headH * 0.02 }, scene),
+      () => CreateBox("", { width: headH * 0.15, height: headH * 0.022, depth: headH * 0.02 }, scene),
       new Vector3(0, headH * 0.19, -headH * 0.33),
-      matte(scene, `char.${spec.name}.lip`, new Color3(0.55, 0.32, 0.31), 0.5),
+      p.lip,
     );
     mouth.rotation.x = 0.1;
     const nose = attach(
       "nose",
       head,
-      CreateSphere("", { diameter: headH * 0.07, segments: 8 }, scene),
+      () => CreateSphere("", { diameter: headH * 0.07, segments: 8 }, scene),
       new Vector3(0, headH * 0.29, -headH * 0.35),
       p.skin,
     );
     nose.scaling.set(0.8, 0.9, 1.1);
+  }
+
+  if (spec.face) {
+    // Ears. Tiny, and the difference between a head and an egg.
+    for (const side of [-1, 1] as const) {
+      const ear = attach(
+        `ear${side}`,
+        head,
+        () => CreateSphere("", { diameter: headH * 0.14, segments: 8 }, scene),
+        new Vector3(side * headH * 0.35, headH * 0.34, headH * 0.02),
+        p.skin,
+      );
+      ear.scaling.set(0.5, 1.2, 0.9);
+    }
   }
 
   // ------------------------------------------------------------------ hair
@@ -286,18 +437,20 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const cap = attach(
       "hairCap",
       head,
-      CreateSphere("", { diameter: headH * 0.9, segments: 16 }, scene),
-      new Vector3(0, headH * 0.38, headH * 0.012),
+      () => CreateSphere("", { diameter: headH * 0.88, segments: 16 }, scene),
+      // Back and up: a cap that reaches past the eyes is a motorcycle helmet,
+      // and it is what made every face on the street a blank.
+      new Vector3(0, headH * 0.44, headH * 0.09),
       p.hair,
     );
-    cap.scaling.set(0.94, 1.1, 1.0);
+    cap.scaling.set(0.96, 0.98, 0.88);
 
     // Blunt bangs: a slab across the brow with a straight lower edge, which
     // is the whole point of the cut.
     const fringe = attach(
       "hairFringe",
       head,
-      CreateBox("", { width: headH * 0.62, height: headH * 0.3, depth: headH * 0.2 }, scene),
+      () => CreateBox("", { width: headH * 0.62, height: headH * 0.3, depth: headH * 0.2 }, scene),
       new Vector3(0, headH * 0.47, -headH * 0.29),
       p.hair,
     );
@@ -310,7 +463,8 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
         const lock = attach(
           `hairSide${side}`,
           head,
-          CreateBox(
+          () =>
+            CreateBox(
             "",
             {
               width: headH * 0.16,
@@ -336,12 +490,12 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const shoulder = joint(
       `shoulder${id}` as JointName,
       chest,
-      new Vector3(side * H * 0.105 * wide, shoulderY - chestY, 0),
+      new Vector3(side * H * 0.098 * wide, shoulderY - chestY, 0),
     );
     const sleeve = attach(
       `upperArm${id}`,
       shoulder,
-      CreateCapsule("", { radius: H * 0.036 * wide, height: upperArm, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.030 * wide, height: upperArm, tessellation: 10 }, scene),
       new Vector3(0, -upperArm / 2, 0),
       p.top,
     );
@@ -350,7 +504,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     attach(
       `foreArm${id}`,
       elbow,
-      CreateCapsule("", { radius: H * 0.029 * wide, height: foreArm, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.024 * wide, height: foreArm, tessellation: 10 }, scene),
       new Vector3(0, -foreArm / 2, 0),
       spec.outfit.style === "street" ? p.skin : p.top,
     );
@@ -358,11 +512,11 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const hand = attach(
       `hand${id}`,
       wrist,
-      CreateCapsule("", { radius: H * 0.024, height: H * 0.07, tessellation: 8 }, scene),
-      new Vector3(0, -H * 0.026, 0),
+      () => CreateCapsule("", { radius: H * 0.020, height: H * 0.075, tessellation: 8 }, scene),
+      new Vector3(0, -H * 0.028, 0),
       p.skin,
     );
-    hand.scaling.set(0.78, 1, 1.2);
+    hand.scaling.set(0.62, 1, 1.25);
   };
   arm(-1, "L");
   arm(1, "R");
@@ -377,7 +531,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     attach(
       `thigh${id}`,
       thighJoint,
-      CreateCapsule("", { radius: H * 0.048 * wide, height: thigh, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.048 * wide, height: thigh, tessellation: 10 }, scene),
       new Vector3(0, -thigh / 2, 0),
       spec.outfit.skirt ? p.hose : p.bottom,
     );
@@ -385,7 +539,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     attach(
       `shin${id}`,
       knee,
-      CreateCapsule("", { radius: H * 0.038 * wide, height: shin, tessellation: 10 }, scene),
+      () => CreateCapsule("", { radius: H * 0.038 * wide, height: shin, tessellation: 10 }, scene),
       new Vector3(0, -shin / 2, 0),
       spec.outfit.skirt ? p.hose : p.bottom,
     );
@@ -393,7 +547,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const boot = attach(
       `boot${id}`,
       ankle,
-      CreateBox("", { width: H * 0.062, height: H * 0.085, depth: H * 0.15 }, scene),
+      () => CreateBox("", { width: H * 0.062, height: H * 0.085, depth: H * 0.15 }, scene),
       new Vector3(0, H * 0.018, -H * 0.022),
       p.shoes,
     );
@@ -402,7 +556,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     attach(
       `sole${id}`,
       ankle,
-      CreateBox("", { width: H * 0.068, height: H * 0.028, depth: H * 0.16 }, scene),
+      () => CreateBox("", { width: H * 0.068, height: H * 0.028, depth: H * 0.16 }, scene),
       new Vector3(0, -H * 0.012, -H * 0.024),
       p.shoes,
     );
@@ -418,7 +572,8 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const skirt = attach(
       "skirt",
       hips,
-      CreateCylinder(
+      () =>
+        CreateCylinder(
         "",
         { diameterTop: H * 0.19 * wide, diameterBottom: H * 0.27 * wide, height: H * 0.115, tessellation: 16 },
         scene,
@@ -432,7 +587,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       const pleat = attach(
         `pleat${i}`,
         hips,
-        CreateBox("", { width: H * 0.016, height: H * 0.115, depth: H * 0.02 }, scene),
+        () => CreateBox("", { width: H * 0.016, height: H * 0.115, depth: H * 0.02 }, scene),
         new Vector3(
           Math.sin(angle) * H * 0.125 * wide,
           skirtTop - H * 0.045,
@@ -449,7 +604,8 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const hem = attach(
       "jacketHem",
       spine,
-      CreateCylinder(
+      () =>
+        CreateCylinder(
         "",
         { diameterTop: H * 0.2 * wide, diameterBottom: H * 0.225 * wide, height: H * 0.1, tessellation: 14 },
         scene,
@@ -461,7 +617,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const collar = attach(
       "collar",
       chest,
-      CreateCylinder("", { diameter: H * 0.085, height: H * 0.035, tessellation: 12 }, scene),
+      () => CreateCylinder("", { diameter: H * 0.085, height: H * 0.035, tessellation: 12 }, scene),
       new Vector3(0, H * 0.1, 0),
       p.top,
     );
@@ -473,7 +629,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
       const stripe = attach(
         `stripe${side}`,
         joints[key as JointName],
-        CreateBox("", { width: H * 0.012, height: upperArm * 0.8, depth: H * 0.03 }, scene),
+        () => CreateBox("", { width: H * 0.012, height: upperArm * 0.8, depth: H * 0.03 }, scene),
         new Vector3(side * H * 0.036 * wide, -upperArm / 2, 0),
         p.accent,
       );
@@ -485,7 +641,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const strap = attach(
       "bagStrap",
       chest,
-      CreateBox("", { width: H * 0.022, height: H * 0.2, depth: H * 0.16 }, scene),
+      () => CreateBox("", { width: H * 0.022, height: H * 0.2, depth: H * 0.16 }, scene),
       new Vector3(-H * 0.03, H * 0.03, 0),
       p.accent,
     );
@@ -493,7 +649,7 @@ export function buildHuman(scene: Scene, spec: CharacterSpec): HumanRig {
     const bag = attach(
       "bag",
       hips,
-      CreateBox("", { width: H * 0.11, height: H * 0.09, depth: H * 0.05 }, scene),
+      () => CreateBox("", { width: H * 0.11, height: H * 0.09, depth: H * 0.05 }, scene),
       new Vector3(H * 0.1, H * 0.02, H * 0.02),
       p.accent,
     );

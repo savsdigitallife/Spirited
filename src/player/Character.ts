@@ -10,6 +10,7 @@
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 import { buildHuman, type HumanRig } from "./rig/HumanRig";
@@ -52,7 +53,7 @@ export class Character {
   }
 
   /** Everything that should cast a shadow. */
-  get meshes(): readonly Mesh[] {
+  get meshes(): readonly AbstractMesh[] {
     return this.hair ? [...this.rig.meshes, ...this.hair.meshes] : this.rig.meshes;
   }
 

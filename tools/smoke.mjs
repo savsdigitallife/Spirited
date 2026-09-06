@@ -175,9 +175,10 @@ const worldStats = () =>
       materials: scene.materials.length,
       particles: scene.particleSystems.length,
       player: aiko ? [aiko.position.x, aiko.position.y, aiko.position.z] : null,
-      // One instanced head per pedestrian; the parts-bin templates carry no
-      // index in their name, so they are not counted.
-      walkers: scene.meshes.filter((m) => m.name.includes(".citizen.head.") && m.isEnabled()).length,
+      // One skull per pedestrian. The templates they are instanced from are
+      // named for their hair style rather than for a person, so they are not
+      // counted.
+      walkers: scene.meshes.filter((m) => /^citizen\d+\.skull$/.test(m.name)).length,
       cars: scene.transformNodes.filter((n) => n.name.startsWith("car.")).length,
     };
   });
@@ -208,6 +209,83 @@ check("the street has varied frontages", composition.buildings >= 12, `${composi
 check("shops can be seen into", composition.interiors >= 8, `${composition.interiors} visible interiors`);
 check("the city continues past the block", composition.skyline >= 40, `${composition.skyline} distant towers`);
 check("traffic exists", before.cars >= 4, `${before.cars} cars`);
+
+/**
+ * Nobody on the street is anybody else.
+ *
+ * The crowd shares its geometry — one body instanced twenty-odd times — and
+ * what makes each person themselves is the colour carried per instance. So
+ * the thing worth asserting is not that the parts exist but that no two
+ * people were painted the same, which is what the old parts bin, with six
+ * coats and three hair colours between twenty-four people, could not manage.
+ */
+const crowd = await page.evaluate(() => {
+  const scene = window.nagori.scenes.active.scene;
+  const key = (mesh) => {
+    const c = mesh?.instancedBuffers?.color;
+    return c ? `${c.r.toFixed(3)},${c.g.toFixed(3)},${c.b.toFixed(3)}` : null;
+  };
+  const of = (part) => {
+    const found = [];
+    for (const mesh of scene.meshes) {
+      const match = /^citizen(\d+)\.(.+)$/.exec(mesh.name);
+      if (match && match[2] === part) {
+        const k = key(mesh);
+        if (k) found.push(k);
+      }
+    }
+    return found;
+  };
+  const skin = of("skull");
+  const hair = of("hairCap");
+  const iris = of("iris1");
+  const top = of("torso");
+  const heights = [];
+  for (const node of scene.transformNodes) {
+    if (/^citizen\.\d+$/.test(node.name)) heights.push(node.scaling.x);
+  }
+  const distinct = (list) => new Set(list).size;
+  return {
+    people: skin.length,
+    skin: distinct(skin),
+    hair: distinct(hair),
+    iris: distinct(iris),
+    top: distinct(top),
+    hairOf: hair.length,
+    irisOf: iris.length,
+    heights: distinct(heights.map((h) => h.toFixed(3))),
+    shortest: Math.min(...heights),
+    tallest: Math.max(...heights),
+  };
+});
+check(
+  "every pedestrian has their own skin tone",
+  crowd.people >= 8 && crowd.skin === crowd.people,
+  `${crowd.skin} tones across ${crowd.people} people`,
+);
+check(
+  "every pedestrian has their own hair colour",
+  crowd.hairOf >= 6 && crowd.hair === crowd.hairOf,
+  `${crowd.hair} colours across ${crowd.hairOf} heads of hair`,
+);
+check(
+  "every pedestrian has their own eye colour",
+  crowd.irisOf >= 8 && crowd.iris === crowd.irisOf,
+  `${crowd.iris} eye colours across ${crowd.irisOf} people`,
+);
+check(
+  "every pedestrian is dressed differently",
+  crowd.top >= crowd.people - 1,
+  `${crowd.top} tops across ${crowd.people} people`,
+);
+check(
+  // Not "all distinct": two people can be the same height, and at three
+  // decimal places a float will occasionally say so. What matters is that
+  // the street is not one height with the same body on it twice.
+  "pedestrians are different heights",
+  crowd.heights >= Math.ceil(crowd.people * 0.8) && crowd.tallest - crowd.shortest > 0.25,
+  `${crowd.heights} heights across ${crowd.people}, ${crowd.shortest.toFixed(2)}–${crowd.tallest.toFixed(2)} m`,
+);
 
 /**
  * The signal, and whether the traffic obeys it.

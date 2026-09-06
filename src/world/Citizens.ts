@@ -1,15 +1,20 @@
 /**
  * The people on the street.
  *
- * Replaces the first crowd, which was a capsule on two legs and read as a
- * skittle. The constraint that shaped this is that a street needs twenty-odd
- * people and twenty individually modelled characters is unaffordable — so
- * this is a parts bin: a couple of dozen unique meshes, each with one
- * material, instanced into as many bodies as the street needs. Variety comes
- * from which parts are chosen, how they are scaled and what they are
- * carrying, not from more geometry.
+ * These are the same body the player is: `buildHuman` builds both, so a
+ * pedestrian has a face, a jaw, eyes with irises, knees and elbows, and
+ * whatever they are wearing — not a capsule with a sphere on top.
  *
- * Twenty-four people cost about twenty draw calls.
+ * The constraint that shaped it is that a street needs twenty-odd people and
+ * twenty individually built bodies is several hundred draw calls. So the
+ * geometry is built once and instanced, and what makes each person themselves
+ * is a **per-instance colour**: skin, hair, irises and every garment are
+ * carried in a vertex buffer one entry per copy, so no two people on the
+ * street share a colour while all of them share their vertices. Height is a
+ * scale on the root; build, hair style and what they are wearing come from a
+ * spec generated per person.
+ *
+ * Twenty-four people still cost about forty draw calls.
  *
  * Behaviour is a small state machine rather than pathfinding. People walk a
  * route, wait at the kerb when the signal is against them, stop to look at a
@@ -19,18 +24,24 @@
  */
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Color3 } from "@babylonjs/core/Maths/math.color";
-import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
-import { CreateCapsule } from "@babylonjs/core/Meshes/Builders/capsuleBuilder";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
-import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { CityMaterials } from "./CityMaterials";
 import { revolve } from "./Shapes";
 import { makeRandom } from "./Noise";
+import {
+  buildHuman,
+  buildHumanTemplates,
+  type HumanTemplates,
+  type JointName,
+} from "../player/rig/HumanRig";
+import { crowdReferenceSpec, crowdSpec, type HairStyle } from "../player/rig/CharacterSpec";
 
 export interface CitizenLane {
   /** Fixed cross-street position of the lane. */
@@ -63,12 +74,9 @@ type Activity = "walking" | "waiting" | "phone" | "talking" | "entering" | "insi
 
 interface Parts {
   root: TransformNode;
-  hipL: TransformNode;
-  hipR: TransformNode;
-  shoulderL: TransformNode;
-  shoulderR: TransformNode;
+  joints: Record<JointName, TransformNode>;
   /** Shown only inside the detail radius. */
-  detail: InstancedMesh[];
+  detail: AbstractMesh[];
   umbrella: InstancedMesh | null;
   phone: InstancedMesh | null;
 }
@@ -94,34 +102,25 @@ const DETAIL_RANGE = 26;
 const CULL_RANGE = 85;
 const STRIDE = 1.42;
 
-/** Coats, trousers and hair, kept few so the draw calls stay few. */
-const COAT_COLOURS: readonly [string, Color3][] = [
-  ["charcoal", new Color3(0.1, 0.11, 0.13)],
-  ["navy", new Color3(0.08, 0.11, 0.19)],
-  ["camel", new Color3(0.32, 0.24, 0.16)],
-  ["olive", new Color3(0.16, 0.18, 0.12)],
-  ["cream", new Color3(0.5, 0.47, 0.42)],
-  ["wine", new Color3(0.24, 0.1, 0.13)],
-];
-const LEG_COLOURS: readonly [string, Color3][] = [
-  ["dark", new Color3(0.09, 0.09, 0.11)],
-  ["denim", new Color3(0.15, 0.19, 0.26)],
-  ["grey", new Color3(0.26, 0.26, 0.27)],
-];
-const SKIN_TONES: readonly [string, Color3][] = [
-  ["light", new Color3(0.84, 0.68, 0.58)],
-  ["mid", new Color3(0.7, 0.53, 0.42)],
-  ["deep", new Color3(0.44, 0.31, 0.24)],
-];
-const HAIR_COLOURS: readonly [string, Color3][] = [
-  ["black", new Color3(0.05, 0.045, 0.05)],
-  ["brown", new Color3(0.15, 0.1, 0.07)],
-  ["grey", new Color3(0.46, 0.45, 0.44)],
+/** Where the rig rests its hips, in body heights. */
+const HIP_HEIGHT = 0.53;
+
+/**
+ * What stops being drawn first.
+ *
+ * A face is a few pixels at the far end of the street. These go at
+ * `DETAIL_RANGE`, which is about a third of the crowd's cost for something
+ * nobody can see anyway.
+ */
+const FINE_PARTS: readonly string[] = [
+  "eye", "iris", "pupil", "brow", "mouth", "nose", "hand",
+  "stripe", "bagStrap", "bag", "collar", "pleat",
 ];
 
 export class Citizens {
   private readonly people: Citizen[] = [];
   private readonly templates: Mesh[] = [];
+  private readonly templateSets: HumanTemplates[] = [];
   private readonly options: CitizensOptions;
   private rainWetness = 0;
   private timeOfDay = 0.9;
@@ -130,204 +129,109 @@ export class Citizens {
     this.options = options;
     const random = makeRandom(options.seed);
 
-    const template = (mesh: Mesh, name: string, colour: Color3, roughness: number, metallic = 0): Mesh => {
+    // One body's geometry, instanced into everybody. The parts come from a
+    // reference person built a metre tall with every optional garment on, so
+    // the set contains every part anyone might need; a person who is not
+    // wearing a skirt simply never instances the skirt.
+    //
+    // Hair is the one thing whose *shape* differs, so each style gets its own
+    // few meshes and shares the rest of the body with every other style.
+    const styles: readonly HairStyle[] = ["long", "bob", "short", "tied", "cap"];
+    const base = buildHumanTemplates(scene, crowdReferenceSpec("long"));
+    this.templateSets.push(base);
+    const byStyle = new Map<HairStyle, HumanTemplates>([["long", base]]);
+    for (const style of styles) {
+      if (style === "long") continue;
+      const built = buildHumanTemplates(scene, crowdReferenceSpec(style));
+      const hair = new Map<string, Mesh>();
+      for (const [id, mesh] of built.parts) {
+        if (id.startsWith("hair")) hair.set(id, mesh);
+        else mesh.dispose();
+      }
+      byStyle.set(style, { parts: new Map([...base.parts, ...hair]), dispose: () => undefined });
+      this.templateSets.push({
+        parts: hair,
+        dispose(): void {
+          for (const mesh of hair.values()) mesh.dispose();
+        },
+      });
+    }
+    for (const set of this.templateSets) {
+      for (const mesh of set.parts.values()) {
+        mesh.addLODLevel(CULL_RANGE, null);
+        this.templates.push(mesh);
+      }
+    }
+
+    // Umbrellas and phones belong to nobody in particular, so they are built
+    // and instanced the same way the bodies are.
+    const prop = (mesh: Mesh, name: string, colour: Color3, roughness: number, metallic = 0): Mesh => {
       mesh.name = `citizen.${name}`;
       mesh.material = materials.painted(`citizen.${name}`, colour, roughness, metallic);
       mesh.setEnabled(false);
       mesh.isPickable = false;
-      // One cull distance for every part, so a distant person vanishes whole.
       mesh.addLODLevel(CULL_RANGE, null);
+      mesh.registerInstancedBuffer("color", 4);
+      mesh.instancedBuffers.color = new Color4(1, 1, 1, 1);
       this.templates.push(mesh);
       return mesh;
     };
-
-    // ---- torsos. A coat: shoulders, body, and a hem that flares slightly.
-    const torsos = COAT_COLOURS.map(([name, colour]) => {
-      const body = CreateCapsule(`t${name}`, { radius: 0.145, height: 0.62, tessellation: 8 }, scene);
-      body.scaling.z = 0.72;
-      return template(body, `torso.${name}`, colour, 0.86);
-    });
-    const hems = COAT_COLOURS.map(([name, colour]) => {
-      const hem = revolve(
+    const umbrella = prop(
+      revolve(
         scene,
-        `h${name}`,
+        "u",
         [
-          [0.148, 0],
-          [0.168, -0.1],
-          [0.176, -0.22],
-          [0, -0.225],
+          [0, 0.2], [0.16, 0.14], [0.3, 0.055], [0.42, 0],
+          [0.43, 0.015], [0.3, 0.075], [0.16, 0.16], [0, 0.215],
         ],
-        10,
-      );
-      hem.scaling.z = 0.74;
-      return template(hem, `hem.${name}`, colour, 0.88);
-    });
-    const yokes = COAT_COLOURS.map(([name, colour]) => {
-      const yoke = CreateCapsule(`y${name}`, { radius: 0.062, height: 0.33, tessellation: 8 }, scene);
-      yoke.rotation.z = Math.PI / 2;
-      yoke.scaling.z = 0.72;
-      return template(yoke, `yoke.${name}`, colour, 0.86);
-    });
-    const arms = COAT_COLOURS.map(([name, colour]) => {
-      const arm = CreateCapsule(`a${name}`, { radius: 0.05, height: 0.56, tessellation: 6 }, scene);
-      return template(arm, `arm.${name}`, colour, 0.86);
-    });
-
-    // ---- legs and shoes
-    const legs = LEG_COLOURS.map(([name, colour]) => {
-      const leg = CreateCapsule(`l${name}`, { radius: 0.062, height: 0.82, tessellation: 6 }, scene);
-      leg.position.y = -0.41;
-      return template(leg, `leg.${name}`, colour, 0.88);
-    });
-    const shoe = template(
-      CreateBox("shoe", { width: 0.085, height: 0.06, depth: 0.2 }, scene),
-      "shoe",
-      new Color3(0.06, 0.06, 0.07),
-      0.5,
-    );
-
-    // ---- heads, faces and hair
-    const heads = SKIN_TONES.map(([name, colour]) => {
-      const head = CreateSphere(`hd${name}`, { diameter: 0.2, segments: 10 }, scene);
-      head.scaling.set(0.9, 1.12, 0.98);
-      return template(head, `head.${name}`, colour, 0.62);
-    });
-    // Eyes as one part: two dark ovals on a bar, which at three metres reads
-    // as a face and costs a single instance.
-    const eyes = template(
-      CreateBox("eyes", { width: 0.115, height: 0.016, depth: 0.02 }, scene),
-      "eyes",
-      new Color3(0.06, 0.05, 0.06),
-      0.35,
-    );
-    const hairStyles: Mesh[] = [];
-    for (const [cname, colour] of HAIR_COLOURS) {
-      // short
-      const short = CreateSphere(`hs${cname}`, { diameter: 0.207, segments: 10 }, scene);
-      short.scaling.set(0.98, 1.02, 1.04);
-      hairStyles.push(template(short, `hair.short.${cname}`, colour, 0.4));
-      // bob: cap plus a squared-off mass to the jaw
-      const bob = CreateCapsule(`hb${cname}`, { radius: 0.108, height: 0.3, tessellation: 10 }, scene);
-      bob.scaling.set(1, 1, 0.94);
-      hairStyles.push(template(bob, `hair.bob.${cname}`, colour, 0.4));
-      // tied back
-      const tied = CreateCapsule(`ht${cname}`, { radius: 0.05, height: 0.34, tessellation: 6 }, scene);
-      hairStyles.push(template(tied, `hair.tied.${cname}`, colour, 0.4));
-    }
-
-    // ---- what people carry
-    const bag = template(
-      CreateBox("bag", { width: 0.1, height: 0.26, depth: 0.14 }, scene),
-      "bag",
-      new Color3(0.2, 0.16, 0.13),
-      0.75,
-    );
-    const shopper = template(
-      CreateBox("shopper", { width: 0.2, height: 0.26, depth: 0.11 }, scene),
-      "shopper",
-      new Color3(0.72, 0.7, 0.64),
-      0.9,
-    );
-    const phone = template(
-      CreateBox("phone", { width: 0.07, height: 0.13, depth: 0.01 }, scene),
-      "phone",
-      new Color3(0.7, 0.85, 1),
-      0.3,
-    );
-    phone.material = materials.emissive("phoneScreen", new Color3(0.62, 0.78, 1), 0.7);
-
-    // An umbrella: a revolved canopy, a shaft and a handle. Revolved rather
-    // than a cone, so the dome has a lip and reads as fabric over ribs.
-    const canopy = revolve(
-      scene,
+        12,
+      ),
       "umbrella",
-      [
-        [0, 0.2],
-        [0.16, 0.14],
-        [0.3, 0.055],
-        [0.42, 0.0],
-        [0.43, 0.015],
-        [0.3, 0.075],
-        [0.16, 0.16],
-        [0, 0.215],
-      ],
-      12,
+      new Color3(1, 1, 1),
+      0.7,
     );
-    const umbrella = template(canopy, "umbrella", new Color3(0.12, 0.13, 0.17), 0.7);
-    const shaft = template(
-      CreateCylinder("umbrellaShaft", { diameter: 0.018, height: 0.78, tessellation: 6 }, scene),
+    const shaft = prop(
+      CreateCylinder("s", { diameter: 0.018, height: 0.78, tessellation: 6 }, scene),
       "umbrellaShaft",
-      new Color3(0.1, 0.1, 0.11),
+      new Color3(0.55, 0.55, 0.58),
       0.5,
       0.6,
     );
+    const phone = CreateBox("citizen.phone", { width: 0.07, height: 0.13, depth: 0.01 }, scene);
+    phone.material = materials.emissive("phoneScreen", new Color3(0.62, 0.78, 1), 0.7);
+    phone.setEnabled(false);
+    phone.isPickable = false;
+    phone.addLODLevel(CULL_RANGE, null);
+    this.templates.push(phone);
+    const CANOPY: readonly [number, number, number][] = [
+      [0.12, 0.13, 0.17], [0.68, 0.68, 0.7], [0.2, 0.3, 0.5],
+      [0.5, 0.16, 0.2], [0.16, 0.32, 0.24], [0.75, 0.7, 0.3],
+    ];
 
     // ------------------------------------------------------------- assembly
     for (let i = 0; i < options.count; i += 1) {
       const lane = options.lanes[Math.floor(random() * options.lanes.length)];
       if (!lane) continue;
-      const pick = <T,>(list: readonly T[]): T => list[Math.floor(random() * list.length)] ?? list[0]!;
-      const coatIndex = Math.floor(random() * COAT_COLOURS.length);
-      const root = new TransformNode(`citizen.${i}`, scene);
-      const detail: InstancedMesh[] = [];
+      const spec = crowdSpec(random, i);
+      const templates = byStyle.get(spec.hairStyle) ?? base;
+      // Built a metre tall and then scaled, because the geometry is shared:
+      // every proportion in the rig is a fraction of height, so one scale on
+      // the root is a person of a different size rather than a stretched one.
+      const rig = buildHuman(scene, { ...spec, height: 1 }, { from: templates });
+      const root = rig.root;
+      root.name = `citizen.${i}`;
+      root.scaling.setAll(spec.height);
 
-      const add = (source: Mesh, parent: TransformNode, at: Vector3, isDetail = false): InstancedMesh => {
-        const instance = source.createInstance(`citizen.${i}.${source.name}`);
-        instance.parent = parent;
-        instance.position.copyFrom(at);
-        instance.isPickable = false;
-        if (isDetail) detail.push(instance);
-        return instance;
-      };
-
-      // Height and build vary per person; everything else hangs off them.
-      const height = 0.9 + random() * 0.2;
-      root.scaling.setAll(height);
-
-      add(torsos[coatIndex]!, root, new Vector3(0, 1.22, 0));
-      add(hems[coatIndex]!, root, new Vector3(0, 1.02, 0));
-      add(yokes[coatIndex]!, root, new Vector3(0, 1.44, 0), true);
-
-      const head = add(pick(heads), root, new Vector3(0, 1.66, 0));
-      void head;
-      add(eyes, root, new Vector3(0, 1.68, -0.088), true);
-      const hair = pick(hairStyles);
-      const hairY = hair.name.includes("bob") ? 1.63 : hair.name.includes("tied") ? 1.6 : 1.675;
-      const hairZ = hair.name.includes("tied") ? 0.085 : 0;
-      add(hair, root, new Vector3(0, hairY, hairZ));
-
-      const shoulderL = new TransformNode(`citizen.${i}.shoulderL`, scene);
-      shoulderL.parent = root;
-      shoulderL.position.set(-0.175, 1.44, 0);
-      const shoulderR = new TransformNode(`citizen.${i}.shoulderR`, scene);
-      shoulderR.parent = root;
-      shoulderR.position.set(0.175, 1.44, 0);
-      add(arms[coatIndex]!, shoulderL, new Vector3(0, -0.28, 0), true);
-      add(arms[coatIndex]!, shoulderR, new Vector3(0, -0.28, 0), true);
-
-      const hipL = new TransformNode(`citizen.${i}.hipL`, scene);
-      hipL.parent = root;
-      hipL.position.set(-0.085, 0.86, 0);
-      const hipR = new TransformNode(`citizen.${i}.hipR`, scene);
-      hipR.parent = root;
-      hipR.position.set(0.085, 0.86, 0);
-      const legMesh = pick(legs);
-      add(legMesh, hipL, Vector3.Zero());
-      add(legMesh, hipR, Vector3.Zero());
-      add(shoe, hipL, new Vector3(0, -0.82, -0.05), true);
-      add(shoe, hipR, new Vector3(0, -0.82, -0.05), true);
-
-      // Something in the hands, most of the time.
-      const carry = random();
-      if (carry < 0.3) add(bag, shoulderR, new Vector3(0.02, -0.52, 0.03), true);
-      else if (carry < 0.45) add(shopper, shoulderL, new Vector3(-0.02, -0.55, 0), true);
+      const detail: AbstractMesh[] = [];
+      for (const mesh of rig.meshes) {
+        mesh.isPickable = false;
+        const id = mesh.name.slice(mesh.name.lastIndexOf(".") + 1);
+        if (FINE_PARTS.some((part) => id.startsWith(part))) detail.push(mesh);
+      }
 
       const person: Citizen = {
         root,
-        hipL,
-        hipR,
-        shoulderL,
-        shoulderR,
+        joints: rig.joints,
         detail,
         umbrella: null,
         phone: null,
@@ -345,25 +249,38 @@ export class Citizens {
 
       // Umbrella and phone exist from the start but stay hidden until wanted;
       // creating instances during play would stutter.
-      person.umbrella = add(umbrella, root, new Vector3(0, 1.9, 0.05));
-      const stick = add(shaft, root, new Vector3(0, 1.52, 0.05));
-      person.umbrella.setEnabled(false);
+      const shade = CANOPY[Math.floor(random() * CANOPY.length)] ?? CANOPY[0]!;
+      const canopy = umbrella.createInstance(`citizen.${i}.umbrella`);
+      canopy.parent = root;
+      canopy.position.set(0, 1.9, 0.05);
+      canopy.instancedBuffers.color = new Color4(shade[0], shade[1], shade[2], 1);
+      canopy.isPickable = false;
+      canopy.setEnabled(false);
+      const stick = shaft.createInstance(`citizen.${i}.umbrellaShaft`);
+      stick.parent = root;
+      stick.position.set(0, 1.52, 0.05);
+      stick.isPickable = false;
       stick.setEnabled(false);
-      (person.umbrella.metadata as { shaft?: InstancedMesh } | undefined) ??
-        (person.umbrella.metadata = {});
-      (person.umbrella.metadata as { shaft?: InstancedMesh }).shaft = stick;
+      person.umbrella = canopy;
+      canopy.metadata = { shaft: stick };
 
-      person.phone = add(phone, shoulderL, new Vector3(0.06, -0.5, -0.12), true);
-      person.phone.setEnabled(false);
+      const screen = phone.createInstance(`citizen.${i}.phone`);
+      screen.parent = rig.joints.wristL;
+      screen.position.set(0.02, -0.05, -0.07);
+      screen.isPickable = false;
+      screen.setEnabled(false);
+      person.phone = screen;
+      detail.push(screen);
 
       this.people.push(person);
       this.place(person);
     }
   }
 
+
   private place(person: Citizen): void {
     person.root.position.set(person.lane.x + person.offsetX, person.lane.y, person.z);
-    person.root.rotation.y = person.direction > 0 ? 0 : Math.PI;
+    person.root.rotation.y = person.direction > 0 ? Math.PI : 0;
   }
 
   /** Every unique mesh, for registering shadow casters once. */
@@ -527,25 +444,44 @@ export class Citizens {
     person.phase += (pace / STRIDE) * Math.PI * 2 * dt;
     person.root.position.z = person.z;
     person.root.position.x = person.lane.x + person.offsetX;
-    person.root.rotation.y = person.direction > 0 ? 0 : Math.PI;
+    person.root.rotation.y = person.direction > 0 ? Math.PI : 0;
   }
 
   private animate(dt: number, person: Citizen, raining: boolean): void {
+    const j = person.joints;
     const still = person.activity === "waiting" || person.activity === "talking" || person.activity === "phone";
     const swing = still ? 0 : Math.sin(person.phase) * 0.5;
-    person.hipL.rotation.x = swing;
-    person.hipR.rotation.x = -swing;
-    person.shoulderL.rotation.x = -swing * 0.7;
-    person.shoulderR.rotation.x = swing * 0.7;
+
+    // Knees and elbows, not only hips and shoulders. A leg that swings from
+    // the hip with no bend in it is a pendulum and reads as one; the knee
+    // folding on the back swing is most of what makes a walk a walk.
+    j.thighL.rotation.x = swing;
+    j.thighR.rotation.x = -swing;
+    j.kneeL.rotation.x = (still ? 0 : 0.08) + Math.max(0, -swing) * 0.9;
+    j.kneeR.rotation.x = (still ? 0 : 0.08) + Math.max(0, swing) * 0.9;
+    j.ankleL.rotation.x = -j.kneeL.rotation.x * 0.4;
+    j.ankleR.rotation.x = -j.kneeR.rotation.x * 0.4;
+    j.shoulderL.rotation.x = -swing * 0.7;
+    j.shoulderR.rotation.x = swing * 0.7;
+    j.elbowL.rotation.x = 0.18 + Math.max(0, swing) * 0.5;
+    j.elbowR.rotation.x = 0.18 + Math.max(0, -swing) * 0.5;
+    // The body rises on each stride and the shoulders counter-rotate.
+    j.hips.position.y = HIP_HEIGHT + (still ? 0 : Math.abs(Math.sin(person.phase)) * 0.012);
+    j.spine.rotation.y = still ? 0 : Math.sin(person.phase) * 0.05;
+    j.head.rotation.x = 0;
 
     if (person.activity === "phone") {
       // One arm up, head down over it.
-      person.shoulderL.rotation.x = -1.15;
-      person.shoulderR.rotation.x = 0.05;
+      j.shoulderL.rotation.x = -0.85;
+      j.elbowL.rotation.x = 1.45;
+      j.shoulderR.rotation.x = 0.05;
+      j.elbowR.rotation.x = 0.2;
+      j.head.rotation.x = 0.4;
     }
     if (person.activity === "talking") {
       // A small, irregular gesture; enough to read as conversation.
-      person.shoulderR.rotation.x = -0.5 + Math.sin(performance.now() / 420 + person.phase) * 0.25;
+      j.shoulderR.rotation.x = -0.45 + Math.sin(performance.now() / 420 + person.phase) * 0.25;
+      j.elbowR.rotation.x = 0.9;
     }
 
     const wantUmbrella = raining && person.activity !== "inside";
@@ -553,14 +489,20 @@ export class Citizens {
       person.umbrella.setEnabled(wantUmbrella);
       const shaft = (person.umbrella.metadata as { shaft?: InstancedMesh } | undefined)?.shaft;
       shaft?.setEnabled(wantUmbrella);
-      if (wantUmbrella) person.shoulderR.rotation.x = -1.35;
+    }
+    if (wantUmbrella) {
+      j.shoulderR.rotation.x = -1.3;
+      j.elbowR.rotation.x = 1.05;
     }
     void dt;
   }
 
+
   dispose(): void {
     for (const person of this.people) person.root.dispose(false, true);
     this.people.length = 0;
+    for (const set of this.templateSets) set.dispose();
+    this.templateSets.length = 0;
     for (const template of this.templates) template.dispose();
     this.templates.length = 0;
   }

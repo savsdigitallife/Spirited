@@ -388,6 +388,53 @@ stirs and lifts and shakes it off every few seconds, and `eatStanding`, since
 a standing shop full of people in a sitting pose was the giveaway that the
 state was missing.
 
+## The people
+
+The crowd used to be a parts bin: capsules and spheres drawn from six coat
+colours, three skin tones and three hair colours, instanced into twenty-four
+bodies. It was cheap and it worked at a distance, but it was a second,
+separate idea of what a person is, sitting beside the rig the player is built
+from — and at twenty-four people from six coats, everybody had a twin.
+
+There is now one builder. `buildHuman` makes the player and it makes every
+pedestrian, so a person on the street has a jaw, ears, eyes with irises and
+pupils, brows, a mouth, knees and elbows, and whatever they are wearing.
+
+**How that is affordable.** Twenty individually built bodies is twenty times
+the geometry and several hundred draw calls. So the geometry is built once —
+a reference person a metre tall, with every optional garment switched on so
+the set contains every part anyone might need — and instanced. What makes
+each person themselves is a **per-instance colour**: Babylon will carry four
+floats per copy in a vertex buffer, so skin, hair, irises, lips and every
+garment are that person's alone while all of them share their vertices.
+Height is a scale on the root, which works because every proportion in the
+rig is a fraction of height: one number is a person of a different size
+rather than a stretched one. Build, hair style and outfit come from a spec
+generated per person, with every colour jittered off its base — two people in
+navy coats are wearing two different navies.
+
+Hair is the one thing whose *shape* differs, so each style gets its own few
+meshes and shares the rest of the body with every other style. Twenty-four
+people cost about forty draw calls.
+
+Three things had to be fixed before any of it showed:
+
+- **The scene has eleven lights and a PBR material takes four by default**,
+  chosen in scene order. The sweep that raises the limit ran before the crowd
+  was built, so the crowd's materials were lit by four interior shop lights
+  they were nowhere near and never by the sun. That is why every pedestrian in
+  every screenshot until now was a silhouette. The sweep runs last now.
+- **The hair sat over the face.** The cap reached past the eyes and the fringe
+  was a slab across them, so every face — the player's included — was a blank.
+  The cap now sits back and up off the brow, and the fringe's lower edge sits
+  just above it, which is what a fringe is.
+- **The rig's face is on its −z side**, so a pedestrian walking with rotation
+  zero was walking backwards. Nobody could tell while they had no faces.
+
+The smoke suite checks the thing that was actually asked for, from outside:
+that the number of distinct skin tones, hair colours, eye colours, tops and
+heights each equals the number of people on the street.
+
 ## Behind the shops: the lane and the park
 
 The main street only reads as a main street if there is something quieter
