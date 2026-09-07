@@ -96,18 +96,51 @@ binds all seventeen joints against it, including the two traps — `shoulderL`
 to `LeftArm` rather than `LeftShoulder`, and `kneeL` to `LeftLeg` rather than
 `LeftUpLeg`.
 
-### Known gap: the bind pose
+### Retargeting the bind pose
 
-A converted model loads and binds, but does not yet animate correctly. The
-controller writes angles measured from *our* rest pose, where the arms hang
-down; a Mixamo model's bind pose is a T-pose, and composing our angles onto
-that leaves the arms out sideways.
+The controller writes angles measured from *our* rest pose, in which every
+limb hangs straight down; a Mixamo model is skinned in a T-pose. Composing
+our angles onto that directly leaves the arms out sideways, so `BoneBinding`
+retargets in two steps, and both are measured rather than assumed.
 
-The fix is retargeting proper: for each limb joint, align the direction of
-its child bone in the bind pose to the direction our rig rests at, and
-compose the controller's angle on top of *that* rather than on the raw bind
-rotation. `BoneBinding` is where it goes. Until it is done, a loaded model
-will stand in a T-pose.
+**Straighten.** Each bone is turned until it points the way our rig rests it
+— down for the limbs, up through the spine — and that pose becomes the
+*correction* the angles compose onto. A self-check re-measures every bone
+afterwards and warns with the joint and the angle if any is more than 5° from
+where it was put. Silence is the only evidence this worked on a given file.
+
+**Conjugate.** Straightening does not make a joint's axes the character's:
+Babylon's glTF loader wraps every model in a `__root__` scaled `(1, 1, -1)`
+to convert glTF's right-handed space to its own left-handed one, and that
+reflection is in every joint below it, along with whatever roll the rigger
+left the bone with. So each joint's frame is measured once — the directions
+its local x, y and z actually point, in the character's own space — and each
+frame's angle `A` is applied as `frame × A × frame⁻¹ × correction`.
+
+Two traps are worth naming, because between them they cost most of a week:
+
+- **`Matrix.decompose` cannot help here.** A mirrored matrix is not a
+  rotation and a scale, so the rotation it returns is not the joint's
+  orientation — it is silently wrong, and every world-space correction built
+  on it is wrong with it. Directions go through `TransformNormal` instead,
+  which is exact whatever the determinant.
+- **`Matrix.multiply` and `Quaternion.multiply` compose in opposite
+  orders.** `a.multiply(b)` on matrices is "a then b"; on quaternions it is
+  "b then a". Everything in `BoneBinding` that composes rotations is
+  matrices, so there is one convention to be right about rather than two.
+
+This has been run against Mixamo's X Bot. It stands in a natural rest — arms
+at its sides, feet on the floor — and over a four-second walk its feet swing
+0.6 m fore-and-aft with 0.08 m of sideways drift, which is the walk the
+controller means.
+
+### Known gap: a loaded model has no hair
+
+Her hair is simulated rather than modelled, and it hangs from `napeAnchor`.
+The generated body puts that node behind the skull and takes the hair's
+colour from the cap mesh; a bound model has neither, so a loaded Aiko is
+currently bald. The anchor needs parenting to the model's own head bone and
+the colour taking from the spec.
 
 ## Rigging a mesh that has no skeleton
 

@@ -11,7 +11,7 @@
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 import { buildHuman, type HumanRig } from "./rig/HumanRig";
 import { bindLoadedRig, type BoundRig } from "./rig/BoneBinding";
@@ -112,9 +112,22 @@ export class Character {
       copy.dispose();
       return null;
     }
-    const meshes = root.getChildMeshes();
-    const bound = Character.bind(scene, root as TransformNode, meshes, skeleton, spec);
-    if (!bound) copy.dispose();
+    // Everything that places a character moves `character.root`, and the
+    // smoke test looks for `<name>.root` by name. A glTF's own root is called
+    // whatever the exporter felt like — "Armature", here — so it is parented
+    // under a node of ours rather than being used directly. That also gives
+    // somewhere to put the model's own scale without touching its skeleton.
+    const holder = new TransformNode(`${spec.name}.root`, scene);
+    (root as TransformNode).parent = holder;
+    const meshes = holder.getChildMeshes();
+    const bound = Character.bind(scene, holder, meshes, skeleton, spec);
+    if (!bound) {
+      // Just the holder: the model underneath it is the container copy's to
+      // dispose, and disposing it twice is how a scene ends up with dangling
+      // materials.
+      holder.dispose(true);
+      copy.dispose();
+    }
     return bound;
   }
 

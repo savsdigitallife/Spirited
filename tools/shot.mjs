@@ -50,6 +50,12 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.setDefaultTimeout(600_000);
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
+// Warnings and errors from the page, from the first frame on. The rig
+// reports a bad bind while the model is still loading, long before any
+// `SETUP` could install a listener of its own.
+page.on("console", (m) => {
+  if (m.type() === "warning" || m.type() === "error") console.log(`${m.type()}:`, m.text());
+});
 
 const sceneArg = scene === "tokyo" ? "" : `&scene=${scene}`;
 const quality = process.env.QUALITY ?? "low";
