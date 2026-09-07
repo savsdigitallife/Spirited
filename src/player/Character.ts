@@ -10,10 +10,12 @@
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
+import type { Material } from "@babylonjs/core/Materials/material";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
-import { buildHuman, type HumanRig } from "./rig/HumanRig";
+import { buildHuman, hairMaterial, type HumanRig } from "./rig/HumanRig";
 import { bindLoadedRig, type BoundRig } from "./rig/BoneBinding";
 import type { CharacterSpec } from "./rig/CharacterSpec";
 import { AnimationController, type AnimationState, type LocomotionInput } from "./AnimationController";
@@ -66,6 +68,8 @@ export class Character {
   readonly animation: AnimationController;
   readonly spec: CharacterSpec;
   private readonly hair: HairSim | null = null;
+  /** A loaded model's hair shell. The generated body builds its own. */
+  private readonly scalp: Mesh | null = null;
   private readonly back = new Vector3(0, 0, -1);
   private readonly bodyAt = new Vector3();
 
@@ -77,14 +81,21 @@ export class Character {
     this.animation = new AnimationController(this.rig);
 
     if (spec.simulatedHair && spec.hairStyle === "long") {
-      const hairMaterial = this.rig.meshes.find((m) => m.name.endsWith("hairCap"))?.material;
-      if (hairMaterial) {
+      // A generated body has a cap to take the hair's colour from. A loaded
+      // model has no hair at all, so the spec's own material is built for it
+      // — otherwise she loses the floor-length silhouette that is the whole
+      // point of her, and stands there bald.
+      const material =
+        this.rig.meshes.find((m) => m.name.endsWith("hairCap"))?.material ??
+        (model ? hairMaterial(scene, spec) : null);
+      if (material) {
+        if (model?.skull) this.scalp = Character.capSkull(spec, model, material);
         this.hair = new HairSim(scene, {
           // Nearly floor length: her one unmistakable silhouette.
           segments: 11,
           length: spec.height * 0.9,
           width: spec.height * 0.135,
-          material: hairMaterial,
+          material,
           stiffness: 0.5,
           damping: 0.88,
         });
@@ -147,7 +158,44 @@ export class Character {
 
   /** Everything that should cast a shadow. */
   get meshes(): readonly AbstractMesh[] {
-    return this.hair ? [...this.rig.meshes, ...this.hair.meshes] : this.rig.meshes;
+    const own = this.scalp ? [...this.rig.meshes, this.scalp] : [...this.rig.meshes];
+    return this.hair ? [...own, ...this.hair.meshes] : own;
+  }
+
+  /**
+   * A shell of hair over a loaded model's skull.
+   *
+   * The sim hangs from the nape, so without this she is bald from the front
+   * with a fall of hair behind her. It is sized and placed like the generated
+   * body's own cap — the same skull, at the same fraction of her height — and
+   * kept off the eyes, a cap that reaches them being a motorcycle helmet.
+   *
+   * `setParent` rather than assigning `parent`: the skeleton carries the
+   * exporter's unit and the glTF loader's reflection, and `setParent` works a
+   * world placement back through both. Which is also why the scaling is
+   * multiplied into what that leaves rather than assigned over it.
+   */
+  private static capSkull(spec: CharacterSpec, model: BoundRig, material: Material): Mesh {
+    const skull = model.skull!;
+    const headH = spec.height * 0.132;
+    const cap = CreateSphere(
+      `${spec.name}.hairCap`,
+      { diameter: headH * 0.88, segments: 16 },
+      skull.getScene(),
+    );
+    cap.material = material;
+    skull.computeWorldMatrix(true);
+    // Behind her, in world terms. A character faces +z in her root's space —
+    // the convention `back` above is written in — and the root is what the
+    // game turns, so this holds whichever way she is facing.
+    const behind = Vector3.TransformNormal(
+      new Vector3(0, 0, -1),
+      model.root.getWorldMatrix(),
+    ).normalize();
+    cap.position.copyFrom(skull.getAbsolutePosition()).addInPlace(behind.scale(headH * 0.09));
+    cap.position.y += headH * 0.44;
+    cap.setParent(skull);
+    return cap;
   }
 
   private napeWorld(): Vector3 {

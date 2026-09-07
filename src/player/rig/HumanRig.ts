@@ -173,6 +173,19 @@ export interface HumanOptions {
 const NEUTRAL = new Color3(1, 1, 1);
 const neutralCache = new Map<string, Palette>();
 
+/**
+ * A spec's hair material, on its own.
+ *
+ * A loaded model arrives with a head and no hair, and hers is simulated
+ * rather than modelled — so the sim still runs on a model, and the only
+ * thing it wants from a body is something to draw itself with. Shared with
+ * the generated body's cap through the same cache, so asking for it costs no
+ * extra shader.
+ */
+export function hairMaterial(scene: Scene, spec: CharacterSpec): PBRMaterial {
+  return palette(scene, spec).hair;
+}
+
 function neutralPalette(scene: Scene): Palette {
   const cached = neutralCache.get(String(scene.uid));
   if (cached) return cached;

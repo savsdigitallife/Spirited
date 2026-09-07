@@ -134,13 +134,26 @@ at its sides, feet on the floor — and over a four-second walk its feet swing
 0.6 m fore-and-aft with 0.08 m of sideways drift, which is the walk the
 controller means.
 
-### Known gap: a loaded model has no hair
+### Hair, on a model that has none
 
-Her hair is simulated rather than modelled, and it hangs from `napeAnchor`.
-The generated body puts that node behind the skull and takes the hair's
-colour from the cap mesh; a bound model has neither, so a loaded Aiko is
-currently bald. The anchor needs parenting to the model's own head bone and
-the colour taking from the spec.
+Her hair is simulated rather than modelled — it is the one part of her the
+art does not supply — so it has to survive being moved onto a model. Two
+things it needs from a body, and a bound model has neither:
+
+- **Somewhere to hang from.** `napeAnchor` on a generated body is a node
+  behind the skull. `BoneBinding` now places the same node above and behind
+  the model's own head bone. `setParent` does the placing, because the
+  skeleton carries whatever unit the exporter used *and* the loader's
+  reflection, and `setParent` works a world position back through both.
+- **A colour.** The generated body takes it off the cap mesh; a model has no
+  cap, so `hairMaterial(scene, spec)` builds it from the spec instead, out of
+  the same cache, and `Character` puts a shell of it over the model's skull.
+  Without that she is bald from the front with a fall of hair behind her.
+
+Both use one convention, and it is worth stating because getting it backwards
+puts her hair down her face: **a character faces +z in her root's space**,
+which is what `Character.back` has always encoded. It was checked here by
+measuring the model's own toe bones rather than by reading the code.
 
 ## Rigging a mesh that has no skeleton
 

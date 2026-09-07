@@ -71,6 +71,8 @@ export interface BoundRig extends HumanRig {
   sync(): void;
   /** Which joints found no bone. Empty when the model is fully bound. */
   readonly unbound: readonly JointName[];
+  /** The model's own head bone, for anything that has to sit on the skull. */
+  readonly skull: TransformNode | null;
 }
 
 /** Where our rig rests each bone pointing. */
@@ -250,6 +252,35 @@ export function bindLoadedRig(
     });
   }
 
+  // ------------------------------------------------------- where hair hangs
+  //
+  // Her hair is simulated rather than modelled, so it needs a point on the
+  // skull to hang from. A generated body has one; a model has only bones, so
+  // it is placed above and behind the head joint — which on every rig this
+  // matcher knows sits at the base of the skull rather than in the middle of
+  // it. Without this the anchor is a node at the origin and her hair streams
+  // across the map from the middle of the road.
+  //
+  // `setParent` rather than assigning `parent`: the skeleton carries whatever
+  // unit the exporter used and the loader's reflection on top of it, and
+  // `setParent` works a world placement back through both instead of asking
+  // this code to know either.
+  const nape = new TransformNode(`${name}.nape`, scene);
+  const skull = nodes.get("head");
+  if (skull) {
+    skull.computeWorldMatrix(true);
+    // Behind her, in world terms. A character faces +z in her root's space —
+    // the convention `Character.back` is written in — and the root is what
+    // the game turns, so this stays true whichever way she is facing.
+    const behind = new Vector3();
+    Vector3.TransformNormalToRef(new Vector3(0, 0, -1), root.getWorldMatrix(), behind);
+    nape.position
+      .copyFrom(skull.getAbsolutePosition())
+      .addInPlace(behind.normalize().scale(height * 0.045));
+    nape.position.y += height * 0.06;
+    nape.setParent(skull);
+  }
+
   const asked = new Quaternion();
   const turn = new Matrix();
   const composed = new Matrix();
@@ -258,11 +289,13 @@ export function bindLoadedRig(
     root,
     joints,
     meshes,
-    // Where hair hangs from. Without a named bone for it, the head will do.
-    napeAnchor: joints.head,
+    // Where hair hangs from. Without a head bone there is nowhere to put it,
+    // and the proxy at least moves with the animation.
+    napeAnchor: skull ? nape : joints.head,
     height,
     hipHeight: height * 0.53,
     unbound: missing,
+    skull: skull ?? null,
     sync(): void {
       for (const entry of bound) {
         Quaternion.RotationYawPitchRollToRef(
