@@ -3,3 +3,9 @@ dist/
 tools/out/
 .DS_Store
 *.log
+
+# Converted character models. `tools/fbx-to-glb.py` produces these from an
+# FBX, and dropping one in is all it takes for the game to use it — which is
+# also why one is not committed by accident. When the project settles on the
+# art it ships, add it deliberately with `git add -f`.
+public/assets/characters/*.glb
