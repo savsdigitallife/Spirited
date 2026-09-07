@@ -21,9 +21,33 @@ Two things it does beyond a straight export:
   rest rotation instead of replacing it.
 """
 
+import json
 import sys
 import bpy
 from mathutils import Vector
+
+
+def summarise(path: str) -> tuple[int, int, int]:
+    """Materials, texture images and skins in a written .glb.
+
+    Read back out of the file rather than off the Blender scene: what matters
+    is what the game will be handed, and the export is where things quietly
+    go missing.
+    """
+    with open(path, "rb") as handle:
+        data = handle.read()
+    offset = 12
+    while offset < len(data):
+        length = int.from_bytes(data[offset : offset + 4], "little")
+        if data[offset + 4 : offset + 8] == b"JSON":
+            doc = json.loads(data[offset + 8 : offset + 8 + length])
+            return (
+                len(doc.get("materials", [])),
+                len(doc.get("images", [])),
+                len(doc.get("skins", [])),
+            )
+        offset += 8 + length
+    return 0, 0, 0
 
 
 def die(message: str) -> None:
@@ -94,7 +118,24 @@ def main() -> None:
         export_yup=True,
         export_apply=False,  # modifiers baked would break the skinning
     )
-    print(f"wrote {target}")
+    # What actually came through. A model without textures is flat colour in
+    # the game, and the commonest way to be surprised by that is simply not to
+    # have been told — so it is said here rather than found in a screenshot.
+    materials, images, skins = summarise(target)
+    print(f"wrote {target}: {materials} material(s), {images} texture image(s), {skins} skin(s)")
+    if images == 0:
+        print(
+            "note: this model carries no textures, so it is flat colour in the game. "
+            "Mixamo's X Bot and Y Bot are mannequins and are like this by design; a "
+            "character with a skin brings its maps along with the mesh.",
+            file=sys.stderr,
+        )
+    if skins == 0:
+        die(
+            f"{target} has no skin: it will load, and then stand there without "
+            "deforming. A skeleton on its own is not enough — the mesh needs "
+            "vertex weights binding it to those bones."
+        )
 
 
 main()

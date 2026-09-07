@@ -96,6 +96,32 @@ binds all seventeen joints against it, including the two traps — `shoulderL`
 to `LeftArm` rather than `LeftShoulder`, and `kneeL` to `LeftLeg` rather than
 `LeftUpLeg`.
 
+### Textures, and the model that has none
+
+The conversion carries the textures across — embedded in the `.glb` rather
+than left as paths beside it, because the game fetches one file — and it says
+what it carried:
+
+```
+wrote public/assets/characters/aiko.glb: 4 material(s), 4 texture image(s), 1 skin(s)
+```
+
+**A model with `0 texture image(s)` is flat colour in the game**, and the
+converter says so rather than leaving it to be discovered in a screenshot.
+Mixamo's X Bot and Y Bot are like this by design — they are mannequins, and
+carry no maps at all, which is not something rigging or converting can fix.
+A character with a skin brings its maps along with the mesh.
+
+`0 skin(s)` is an error rather than a note: such a model loads and then
+stands there without deforming, and the commonest way to produce one is to
+merge UniRig's *skeleton* output instead of its *skinning* output.
+
+`tests/fbx-conversion.test.mjs` holds both halves of this — it builds a
+rigged, textured character from nothing (`tests/fixtures/textured-character.py`)
+and takes it through the real converter, so a conversion that silently drops
+the skinning or the skin fails a test rather than shipping. It skips where
+Blender is not installed.
+
 ### Retargeting the bind pose
 
 The controller writes angles measured from *our* rest pose, in which every
